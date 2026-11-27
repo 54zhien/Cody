@@ -36,17 +36,8 @@ extension NSAttributedString.Key {
 
 // MARK: - SelectableMarkdownTheme
 
-/// [T-inline-code-dark-bg-ios] Inline-code span background, shared by the
-/// theme and the layout manager's fillBackgroundRectArray (the actual paint
-/// site) so the two can never drift. Light stays EXACTLY .systemGray6
-/// (#F2F2F7); dark lifts to #3A3A3C (systemGray4's dark value) — systemGray6
-/// resolves to #1C1C1E in dark, indistinguishable from the near-black chat
-/// background, which made inline code read as bare orange text.
-let codyInlineCodeBackgroundColor = UIColor { traits in
-    traits.userInterfaceStyle == .dark
-        ? UIColor(red: 0x3A / 255.0, green: 0x3A / 255.0, blue: 0x3C / 255.0, alpha: 1)
-        : .systemGray6
-}
+/// [T-inline-code-dark-bg-ios] Shared by the theme, layout manager, and table cells.
+let codyInlineCodeBackgroundColor = CodyUIColors.bgInlineCode
 
 /// Mirrors the `.codyChat` MarkdownUI theme using UIKit types.
 struct SelectableMarkdownTheme {
@@ -62,17 +53,13 @@ struct SelectableMarkdownTheme {
     var labelColor: UIColor { .label }
     var secondaryLabelColor: UIColor { .secondaryLabel }
     var accentColor: UIColor { .systemOrange }
-    var linkColor: UIColor { .systemBlue }
-    var codeBlockBackground: UIColor {
-        UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.15, alpha: 1) : .black }
-    }
-    var codeBlockTextColor: UIColor {
-        UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.55, green: 0.95, blue: 0.55, alpha: 1) : .systemGreen }
-    }
+    var linkColor: UIColor { CodyUIColors.textLink }
+    var codeBlockBackground: UIColor { CodyUIColors.bgCodeBlock }
+    var codeBlockTextColor: UIColor { CodyUIColors.syntaxDefault }
     var inlineCodeBackground: UIColor { codyInlineCodeBackgroundColor }
     var inlineCodeColor: UIColor { .systemOrange }
-    var blockquoteBarColor: UIColor { UIColor.systemOrange.withAlphaComponent(0.5) }
-    var tableBorderColor: UIColor { UIColor.label.withAlphaComponent(0.25) }
+    var blockquoteBarColor: UIColor { CodyUIColors.borderHeavy }
+    var tableBorderColor: UIColor { CodyUIColors.borderDefault }
 
     func headingFont(level: Int) -> UIFont {
         let size: CGFloat
@@ -107,17 +94,7 @@ struct SelectableMarkdownTheme {
     }
 
     var codeBlockFont: UIFont {
-        let size = baseFontSize * 0.85
-        // Use Menlo as the base monospaced font, with PingFang SC as CJK fallback.
-        // PingFang SC's CJK glyphs are exactly 2x the width of Menlo's ASCII glyphs
-        // at the same point size, enabling proper table alignment in code blocks.
-        if let menlo = UIFont(name: "Menlo", size: size) {
-            let descriptor = menlo.fontDescriptor.addingAttributes([
-                .cascadeList: [UIFontDescriptor(fontAttributes: [.name: "PingFang SC"])]
-            ])
-            return UIFont(descriptor: descriptor, size: size)
-        }
-        return .monospacedSystemFont(ofSize: size, weight: .regular)
+        CodyProseMetrics.monospacedFont(ofSize: baseFontSize * 0.85)
     }
 }
 

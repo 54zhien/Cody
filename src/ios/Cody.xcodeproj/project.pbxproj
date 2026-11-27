@@ -1460,6 +1460,7 @@
 		BB1000012F700000000000AA /* CodyTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E5EXC0001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (Standalone, ); path = CodyTests; sourceTree = "<group>"; };
 		E5ACVSYNC0000000000000A1 /* AIChatView */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AIChatView; sourceTree = "<group>"; };
 		E5CVSYNC00000000000000A1 /* ContentView */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ContentView; sourceTree = "<group>"; };
+		E5DSSYNC00000000000000A1 /* DesignSystem */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = DesignSystem; sourceTree = "<group>"; };
 		E5MDSYNC00000000000000A1 /* Markdown */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Markdown; sourceTree = "<group>"; };
 		E5TH00012 /* CodyTestHost */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = CodyTestHost; sourceTree = "<group>"; };
 		E5V3SYNC00000000000000A1 /* CollectionViewMessageListV3 */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = CollectionViewMessageListV3; sourceTree = "<group>"; };
@@ -2003,6 +2004,7 @@
 			isa = PBXGroup;
 			children = (
 				E5CVSYNC00000000000000A1 /* ContentView */,
+				E5DSSYNC00000000000000A1 /* DesignSystem */,
 				E5SRS0011 /* SessionRefreshScheduler.swift */,
 				F1V00014 /* Alarms */,
 				F1V00015 /* Backup */,
@@ -2779,6 +2781,7 @@
 				AA0838CB2F3CA8A900049557 /* Terminal */,
 				E5ACVSYNC0000000000000A1 /* AIChatView */,
 				E5CVSYNC00000000000000A1 /* ContentView */,
+				E5DSSYNC00000000000000A1 /* DesignSystem */,
 				E5MDSYNC00000000000000A1 /* Markdown */,
 				E5V3SYNC00000000000000A1 /* CollectionViewMessageListV3 */,
 			);
