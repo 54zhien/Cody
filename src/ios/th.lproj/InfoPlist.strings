@@ -1,0 +1,20 @@
+/* Info.plist permission strings — ไทย */
+
+"NSLocationWhenInUseUsageDescription" = "Cody ใช้ตำแหน่งของคุณเพื่อบันทึกว่าเซสชันเอเจนต์เริ่มต้นที่ใดในประวัติเซสชันของคุณ";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Cody ใช้ตำแหน่งในเบื้องหลังเพื่อให้งานของเอเจนต์ทำงานต่อได้ขณะที่ไม่ได้เปิดแอป ข้อมูลตำแหน่งใช้เพื่อบันทึกประวัติเซสชันเท่านั้น";
+"NSCalendarsUsageDescription" = "Cody เข้าถึงปฏิทินเพื่อให้เอเจนต์ AI ดูตารางเวลา ตรวจสอบเวลาว่าง และสร้างกิจกรรมแทนคุณได้";
+"NSCalendarsFullAccessUsageDescription" = "Cody เข้าถึงปฏิทินเพื่อให้เอเจนต์ AI ดูตารางเวลา ตรวจสอบเวลาว่าง และสร้างกิจกรรมแทนคุณได้";
+"NSRemindersUsageDescription" = "Cody เข้าถึงเตือนความจำเพื่อให้เอเจนต์ AI ค้นหาและสร้างรายการเตือนความจำแทนคุณได้";
+"NSRemindersFullAccessUsageDescription" = "Cody เข้าถึงเตือนความจำเพื่อให้เอเจนต์ AI ค้นหาและสร้างรายการเตือนความจำแทนคุณได้";
+"NSCameraUsageDescription" = "Cody ต้องการเข้าถึงกล้องเพื่อถ่ายรูปสำหรับการสนทนากับ AI";
+"NSPhotoLibraryUsageDescription" = "Cody ต้องการเข้าถึงคลังรูปภาพเพื่อแนบรูปภาพในการสนทนากับ AI";
+"NSPhotoLibraryAddUsageDescription" = "Cody ต้องการสิทธิ์ในการบันทึกวิดีโอและรูปภาพลงในคลังรูปภาพของคุณ";
+"NSHealthShareUsageDescription" = "Cody เข้าถึง HealthKit เพื่อให้เอเจนต์ AI อ่านข้อมูลสุขภาพ เช่น จำนวนก้าว อัตราการเต้นของหัวใจ การนอน และการออกกำลังกายแทนคุณได้";
+"NSHealthUpdateUsageDescription" = "Cody เขียนข้อมูลลง HealthKit เพื่อให้เอเจนต์ AI บันทึกข้อมูลสุขภาพ เช่น จำนวนก้าว น้ำหนัก และการดื่มน้ำแทนคุณได้";
+"NSContactsUsageDescription" = "Cody เข้าถึงรายชื่อเพื่อให้เอเจนต์ AI ค้นหา แสดง และจัดการรายชื่อของคุณแทนคุณได้";
+"NSAppleMusicUsageDescription" = "Cody เข้าถึงคลังสื่อเพื่อให้เอเจนต์ AI ค้นหาคลังเพลงของคุณและควบคุมการเล่นได้";
+"NSMicrophoneUsageDescription" = "Cody ต้องการเข้าถึงไมโครโฟนสำหรับการป้อนข้อมูลด้วยเสียงในแชท";
+"NSSpeechRecognitionUsageDescription" = "Cody ใช้การรู้จำเสียงพูดเพื่อแปลงเสียงของคุณเป็นข้อความ";
+"NSHomeKitUsageDescription" = "Cody เข้าถึง HomeKit เพื่อให้เอเจนต์ AI ตรวจสอบและควบคุมอุปกรณ์สมาร์ทโฮมของคุณแทนคุณได้";
+"NSAlarmKitUsageDescription" = "Cody ใช้ AlarmKit เพื่อให้เอเจนต์ AI ตั้งนาฬิกาปลุกและตัวจับเวลาแทนคุณได้";
+"NSLocalNetworkUsageDescription" = "เครื่องเสมือนต้องการเข้าถึงเครือข่ายสำหรับการเชื่อมต่อแบบ SLIRP";

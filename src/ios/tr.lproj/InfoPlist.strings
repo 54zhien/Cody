@@ -1,0 +1,20 @@
+/* Info.plist permission strings — Türkçe */
+
+"NSLocationWhenInUseUsageDescription" = "Cody, aracı oturumlarının nerede başlatıldığını oturum geçmişinize kaydetmek için konumunuzu kullanır.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Cody, uygulama kapalıyken aracı görevlerinin çalışmaya devam edebilmesi için arka planda konumu kullanır. Konum verileri yalnızca oturum geçmişini kaydetmek için kullanılır.";
+"NSCalendarsUsageDescription" = "Cody, yapay zekâ aracısının programınızı görüntüleyebilmesi, uygunluğunuzu denetleyebilmesi ve sizin adınıza etkinlik oluşturabilmesi için Takvim'e erişir.";
+"NSCalendarsFullAccessUsageDescription" = "Cody, yapay zekâ aracısının programınızı görüntüleyebilmesi, uygunluğunuzu denetleyebilmesi ve sizin adınıza etkinlik oluşturabilmesi için Takvim'e erişir.";
+"NSRemindersUsageDescription" = "Cody, yapay zekâ aracısının sizin adınıza anımsatıcı arayabilmesi ve oluşturabilmesi için Anımsatıcılar'a erişir.";
+"NSRemindersFullAccessUsageDescription" = "Cody, yapay zekâ aracısının sizin adınıza anımsatıcı arayabilmesi ve oluşturabilmesi için Anımsatıcılar'a erişir.";
+"NSCameraUsageDescription" = "Cody, yapay zekâ sohbetlerinde kullanmak üzere fotoğraf çekebilmek için kamera erişimine gereksinim duyar.";
+"NSPhotoLibraryUsageDescription" = "Cody, yapay zekâ sohbetlerine görsel ekleyebilmek için Fotoğraflar'a erişime gereksinim duyar.";
+"NSPhotoLibraryAddUsageDescription" = "Cody, video ve görselleri Fotoğraflar'ınıza kaydedebilmek için izne gereksinim duyar.";
+"NSHealthShareUsageDescription" = "Cody, yapay zekâ aracısının adım, kalp atış hızı, uyku ve antrenman gibi sağlık verilerinizi sizin adınıza okuyabilmesi için HealthKit'e erişir.";
+"NSHealthUpdateUsageDescription" = "Cody, yapay zekâ aracısının adım, kilo ve su tüketimi gibi sağlık verilerini sizin adınıza kaydedebilmesi için HealthKit'e yazar.";
+"NSContactsUsageDescription" = "Cody, yapay zekâ aracısının kişilerinizi sizin adınıza arayabilmesi, görüntüleyebilmesi ve yönetebilmesi için Kişiler'e erişir.";
+"NSAppleMusicUsageDescription" = "Cody, yapay zekâ aracısının müzik kitaplığınızda arama yapabilmesi ve çalmayı denetleyebilmesi için ortam kitaplığına erişir.";
+"NSMicrophoneUsageDescription" = "Cody, sohbette sesli giriş için mikrofon erişimine gereksinim duyar.";
+"NSSpeechRecognitionUsageDescription" = "Cody, sesinizi metin mesajına dönüştürmek için konuşma tanımayı kullanır.";
+"NSHomeKitUsageDescription" = "Cody, yapay zekâ aracısının akıllı ev aygıtlarınızı sizin adınıza sorgulayabilmesi ve denetleyebilmesi için HomeKit'e erişir.";
+"NSAlarmKitUsageDescription" = "Cody, yapay zekâ aracısının sizin adınıza alarm ve sayaç kurabilmesi için AlarmKit'i kullanır.";
+"NSLocalNetworkUsageDescription" = "Sanal makine, SLIRP ağ bağlantıları için ağ erişimine gereksinim duyar.";

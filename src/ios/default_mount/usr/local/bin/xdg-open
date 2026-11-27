@@ -1,0 +1,4 @@
+#!/bin/sh
+# CodyApp URL interceptor — routes xdg-open(1) into the in-app browser
+# preview (WebKit) via the OSC CodyOpenURL marker. See cody-open.
+exec /usr/local/bin/cody-open "$@"

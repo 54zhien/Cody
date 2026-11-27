@@ -1,0 +1,20 @@
+/* Info.plist permission strings — Română */
+
+"NSLocationWhenInUseUsageDescription" = "Cody folosește locația ta pentru a înregistra în istoricul sesiunilor unde a fost pornită fiecare sesiune de agent.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Cody folosește locația în fundal pentru ca sarcinile agentului să continue când aplicația este închisă. Datele de locație sunt folosite doar pentru a înregistra istoricul sesiunilor.";
+"NSCalendarsUsageDescription" = "Cody accesează Calendarul pentru ca agentul AI să îți poată vedea programul, verifica disponibilitatea și crea evenimente în numele tău.";
+"NSCalendarsFullAccessUsageDescription" = "Cody accesează Calendarul pentru ca agentul AI să îți poată vedea programul, verifica disponibilitatea și crea evenimente în numele tău.";
+"NSRemindersUsageDescription" = "Cody accesează Mementourile pentru ca agentul AI să poată căuta și crea mementouri în numele tău.";
+"NSRemindersFullAccessUsageDescription" = "Cody accesează Mementourile pentru ca agentul AI să poată căuta și crea mementouri în numele tău.";
+"NSCameraUsageDescription" = "Cody are nevoie de acces la cameră pentru a face fotografii folosite în conversațiile cu AI.";
+"NSPhotoLibraryUsageDescription" = "Cody are nevoie de acces la biblioteca foto pentru a atașa imagini la conversațiile cu AI.";
+"NSPhotoLibraryAddUsageDescription" = "Cody are nevoie de permisiune pentru a salva clipuri și imagini în biblioteca ta foto.";
+"NSHealthShareUsageDescription" = "Cody accesează HealthKit pentru ca agentul AI să poată citi date de sănătate precum pași, puls, somn și antrenamente în numele tău.";
+"NSHealthUpdateUsageDescription" = "Cody scrie în HealthKit pentru ca agentul AI să poată înregistra date de sănătate precum pași, greutate și consum de apă în numele tău.";
+"NSContactsUsageDescription" = "Cody accesează Contactele pentru ca agentul AI să poată căuta, afișa și gestiona contactele tale în numele tău.";
+"NSAppleMusicUsageDescription" = "Cody accesează biblioteca media pentru ca agentul AI să poată căuta în biblioteca ta muzicală și controla redarea.";
+"NSMicrophoneUsageDescription" = "Cody are nevoie de acces la microfon pentru introducerea vocală în chat.";
+"NSSpeechRecognitionUsageDescription" = "Cody folosește recunoașterea vocală pentru a transforma vocea ta în mesaje text.";
+"NSHomeKitUsageDescription" = "Cody accesează HomeKit pentru ca agentul AI să poată verifica și controla dispozitivele smart home în numele tău.";
+"NSAlarmKitUsageDescription" = "Cody folosește AlarmKit pentru ca agentul AI să poată seta alarme și cronometre în numele tău.";
+"NSLocalNetworkUsageDescription" = "Mașina virtuală are nevoie de acces la rețea pentru conexiunile SLIRP.";
