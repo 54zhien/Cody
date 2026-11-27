@@ -123,79 +123,87 @@ extension ContentView {
         case .none, .upToDate:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.green)
+                .foregroundStyle(CodyColors.connectionReady)
+                .accessibilityLabel(Text("Up to date"))
         case .paused:
             Image(systemName: "pause.circle.fill")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(CodyColors.statusWarningText)
+                .accessibilityLabel(Text("Sync paused"))
         case .migrating, .syncing:
             PulseRotateIcon()
         case .waiting:
             Image(systemName: "clock")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CodyColors.statusWarningText)
+                .accessibilityLabel(Text("Waiting"))
         }
     }
 
     @ViewBuilder
     private func syncSubtitleView(_ state: SyncSubtitleState) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: CodySpacing.xs) {
             switch state {
             case .paused:
                 Image(systemName: "pause.circle.fill")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .accessibilityHidden(true)
                 Text("Sync paused")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
             case .migrating(let pct, let byType):
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .accessibilityHidden(true)
                 Text("\(pct)%")
                     .font(.caption2.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
                 ForEach(byType.indices, id: \.self) { i in
                     syncTypeChip(label: byType[i].label, count: byType[i].count)
                 }
             case .syncing(let byType):
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .accessibilityHidden(true)
                 ForEach(byType.indices, id: \.self) { i in
                     syncTypeChip(label: byType[i].label, count: byType[i].count)
                 }
             case .upToDate:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(CodyColors.connectionReady)
+                    .accessibilityHidden(true)
                 Text("Up to date")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
             case .waiting:
                 Image(systemName: "clock")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .accessibilityHidden(true)
                 Text("Waiting")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
         .lineLimit(1)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(Color.secondary.opacity(0.12), in: Capsule())
+        .padding(.horizontal, CodySpacing.sm)
+        .padding(.vertical, CodySpacing.xxs)
+        .background(CodyColors.bgSecondary, in: Capsule())
     }
 
     @ViewBuilder
     private func syncTypeChip(label: String, count: Int) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: CodySpacing.xxs) {
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CodyColors.textSecondary)
             Text(formatCompact(count))
                 .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CodyColors.textSecondary)
         }
     }
 
@@ -240,6 +248,7 @@ extension ContentView {
                 // Select All, so the narrow sidebar column squeezes it harder.
                 Text(selectedIds.isEmpty ? "Select Sessions" : "\(selectedIds.count) Selected")
                     .font(.headline)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -268,7 +277,7 @@ extension ContentView {
                 // This Text now only READS `soulName`.
                 let titleLabel = Text(soulName)
                     .font(.system(size: 18.5, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(CodyColors.textPrimary)
                     // A custom SOUL name can be long, and the width claim below
                     // hands this label the whole column — without a limit a long
                     // name would wrap to two lines inside an inline bar or push

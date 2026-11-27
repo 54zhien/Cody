@@ -22,12 +22,17 @@ import SwiftUI
 /// rotation speed until the view tree rebuilt.
 struct PulseRotateIcon: View {
     @State private var rotation: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Image(systemName: "arrow.triangle.2.circlepath")
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.primary)
-            .rotationEffect(.degrees(rotation))
-            .task { await pulseLoop() }
+            .foregroundStyle(CodyColors.textSecondary)
+            .rotationEffect(.degrees(reduceMotion ? 0 : rotation))
+            .accessibilityLabel(Text("iCloud Sync"))
+            .task(id: reduceMotion) {
+                if !reduceMotion { await pulseLoop() }
+            }
     }
     /// Reads SyncCore's currentSendDelay (5s sync sheet → 60s background)
     /// and converts to an animation cadence: animation phase ≈ delay/4,
@@ -66,24 +71,22 @@ struct PulseRotateIcon: View {
 struct ForceSyncToastBanner: View {
     let text: String
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Image(systemName: "icloud.and.arrow.up")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(CodyColors.textSecondary)
+                .accessibilityHidden(true)
             Text(text)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(CodyColors.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.accentColor.opacity(0.92))
-        )
+        .padding(.horizontal, CodySpacing.mdPlus)
+        .padding(.vertical, CodySpacing.smPlus)
+        .background(CodyColors.bgSecondary, in: Capsule())
         .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, CodyMetrics.Sidebar.rowPaddingH)
         .frame(maxWidth: 480)
     }
 }

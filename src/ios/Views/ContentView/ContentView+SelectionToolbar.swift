@@ -27,13 +27,15 @@ extension ContentView {
                     Label("Plain Text", systemImage: "text.alignleft")
                 }
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: CodySpacing.xs) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 20))
+                        .accessibilityHidden(true)
                     Text("Export")
-                        .font(.caption2)
+                        .font(CodyTypography.labelSmall)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                .contentShape(Rectangle())
             }
             .disabled(selectedIds.isEmpty)
 
@@ -42,13 +44,15 @@ extension ContentView {
                 folderPickerRequest = FolderPickerRequest(
                     sessionIds: selectedIds, fromMultiSelect: true, anyFiled: anyFiled)
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: CodySpacing.xs) {
                     Image(systemName: "folder")
                         .font(.system(size: 20))
+                        .accessibilityHidden(true)
                     Text("Move")
-                        .font(.caption2)
+                        .font(CodyTypography.labelSmall)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                .contentShape(Rectangle())
             }
             .disabled(selectedIds.isEmpty)
 
@@ -62,13 +66,15 @@ extension ContentView {
                 Button {
                     runForceSyncOnSelection()
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: CodySpacing.xs) {
                         Image(systemName: forceSyncInFlight ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
                             .font(.system(size: 20))
+                        .accessibilityHidden(true)
                         Text("Force Sync")
-                            .font(.caption2)
+                            .font(CodyTypography.labelSmall)
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                    .contentShape(Rectangle())
                 }
                 .disabled(selectedIds.isEmpty || forceSyncInFlight)
             }
@@ -84,19 +90,28 @@ extension ContentView {
                     isComputingDelete = false
                 }
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: CodySpacing.xs) {
                     Image(systemName: "trash")
                         .font(.system(size: 20))
+                        .accessibilityHidden(true)
                     Text("Delete")
-                        .font(.caption2)
+                        .font(CodyTypography.labelSmall)
                 }
-                .frame(maxWidth: .infinity)
-                .foregroundStyle(selectedIds.isEmpty ? Color.gray : Color.red)
+                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                .contentShape(Rectangle())
+                .foregroundStyle(selectedIds.isEmpty ? CodyColors.textTertiary : CodyColors.statusErrorText)
             }
             .disabled(selectedIds.isEmpty)
         }
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
+        .foregroundStyle(CodyColors.textPrimary)
+        .tint(CodyColors.textPrimary)
+        .padding(.vertical, CodySpacing.xs)
+        .background(CodyColors.bgElevatedPrimary)
+        .overlay(alignment: .top) {
+            CodyColors.borderLight.frame(height: CodySpacing.px)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Force-sync the given sessions: bumps each session, its messages,

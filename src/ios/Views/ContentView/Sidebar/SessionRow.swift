@@ -13,39 +13,34 @@ import SwiftUI
 
 // MARK: - Session Row
 
-/// category → (SF Symbol, color) for a session's list icon.
-///
-/// Single source of truth shared by `SessionRow`, `RemoteSessionRow`, and the
-/// folder header's composed icon (which stacks the top members' glyphs). It
-/// was previously duplicated as two identical private computed properties on
-/// the row structs; the composed icon made a third copy untenable.
-/// Pure function — safe to call from the `groupedSessions` aggregation pass.
+/// Shared symbol and muted tint for session rows and folder summaries.
 func sessionCategoryIcon(for category: String?) -> (systemName: String, color: Color) {
+    let icon = sessionCategoryBadge(for: category)
+    return (icon.systemName, icon.tint.color)
+}
+
+private func sessionCategoryBadge(for category: String?) -> (systemName: String, tint: CodyCategoryTint) {
     switch category {
     case "code":         return ("terminal.fill", .orange)
     case "writing":      return ("doc.text.fill", .blue)
-    case "research":     return ("globe.americas.fill", .teal)
-    case "analysis":     return ("chart.pie.fill", .indigo)
-    case "creative":     return ("paintbrush.pointed.fill", .pink)
+    case "research":     return ("globe.americas.fill", .green)
+    case "analysis":     return ("chart.pie.fill", .purple)
+    case "creative":     return ("paintbrush.pointed.fill", .red)
     case "chat":         return ("bubble.left.fill", .green)
     case "math":         return ("number.circle.fill", .purple)
-    case "translation":  return ("character.bubble", .cyan)
+    case "translation":  return ("character.bubble", .blue)
     case "health":       return ("heart.fill", .red)
-    case "finance":      return ("banknote.fill", .mint)
+    case "finance":      return ("banknote.fill", .green)
     case "travel":       return ("map.fill", .orange)
     case "education":    return ("book.closed.fill", .blue)
-    case "design":       return ("paintpalette.fill", .pink)
-    case "productivity": return ("calendar.badge.checkmark", .yellow)
-    case "support":      return ("gearshape.fill", .brown)
-    case "other":        return ("square.grid.2x2.fill", .gray)
-    default:             return ("bubble.left.fill", .gray)
+    case "design":       return ("paintpalette.fill", .red)
+    case "productivity": return ("calendar.badge.checkmark", .orange)
+    case "support":      return ("gearshape.fill", .orange)
+    case "other":        return ("square.grid.2x2.fill", .neutral)
+    default:             return ("bubble.left.fill", .neutral)
     }
 }
 
-/// Folder icon composed from the folder's top member glyphs: a rounded-rect
-/// "group" container tinted with the first member's category color, holding up
-/// to 3 distinct category symbols. Empty folder → plain gray folder glyph.
-/// Pure rendering — the glyph selection/dedup happens in groupedSessionIDs.
 /// The "grouped list" glyph from the user-provided asset: two rounded
 /// square outlines on the left, four list lines on the right. Traced from
 /// the 1024-unit SVG; squares are drawn as even-odd rings so the whole
@@ -77,29 +72,25 @@ struct GroupGlyphShape: Shape {
     }
 }
 
-/// Group icon: the grouped-list glyph on the SAME circular translucent tint
-/// the session rows use, at the same 44pt slot — so a group icon and a
-/// session icon are the same species at the same size. The tint and glyph
-/// color borrow the newest member's category color (gray when empty), which
-/// is all that remains of the member-glyph composition: the shape is
-/// uniform, the color still says what the group holds.
+/// Group badge tinted by its newest member's category.
 struct FolderComposedIcon: View {
     let glyphs: [FolderGlyph]
-    var diameter: CGFloat = 44
+    var diameter: CGFloat = CodyMetrics.Sidebar.iconSize
 
     var body: some View {
-        let tint = glyphs.first?.color ?? .gray
-        ZStack {
-            // 0.28 vs the session icons' 0.18: a deliberately stronger tint
-            // so a group circle reads as a different kind of thing at a
-            // glance, while keeping the same size and shape language.
-            Circle()
-                .fill(tint.opacity(0.28))
-            GroupGlyphShape()
-                .fill(tint, style: FillStyle(eoFill: true))
-                .frame(width: diameter * 0.56, height: diameter * 0.56)
-        }
-        .frame(width: diameter, height: diameter)
+        let tint = glyphs.first?.color ?? CodyCategoryTint.neutral.color
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+        GroupGlyphShape()
+            .fill(tint, style: FillStyle(eoFill: true))
+            .frame(width: diameter * 0.64, height: diameter * 0.64)
+            .frame(width: diameter, height: diameter)
+            .background(shape.fill(tint.opacity(0.08)))
+            .background(shape.fill(CodyColors.bgListIcon))
+            .overlay {
+                shape.strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .accessibilityHidden(true)
     }
 }
 
@@ -210,92 +201,47 @@ struct SessionRow: View, Equatable {
         return badge
     }
 
-    /// [T-ios-session-unread-badge] Whether to draw the top-trailing red unread
-    /// dot — a background task finished and posted its notification, and the user
-    /// hasn't opened the session yet. Independent of `visibleBadge` (the
-    /// bottom-trailing corner badge), so an unread session can also show ⏸.
+    /// [T-ios-session-unread-badge] Unread is independent of the status badge,
+    /// so a paused session can also show its unread dot.
     private var showsUnreadDot: Bool {
         guard !isHighlighted else { return false }
         return badgeStore.hasUnread(for: session.id)
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            // Provider icon with optional spinning/suspended ring
-            providerIcon
-                .frame(width: 44, height: 44)
-                .background(iconBackgroundColor.opacity(isHighlighted ? 0.35 : 0.18))
-                .clipShape(Circle())
-                .overlay {
-                    if isSuspended {
-                        SuspendedRing(color: .yellow)
-                            .frame(width: 42, height: 42)
-                    } else if isActive {
-                        SpinningRing(color: iconBackgroundColor)
-                            .frame(width: 42, height: 42)
-                    }
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    // Lock badge takes precedence over source / remote
-                    // badges: the locked state is the most important
-                    // affordance for the user when scanning the list.
-                    if isVisuallyLocked {
-                        badgeCircle(icon: "lock.fill", color: .gray)
-                            .offset(x: 2, y: 2)
-                    } else if let badge = visibleBadge {
-                        // [T-ios-session-paused-badge] Transient queue states win
-                        // over the source / iCloud badges. Head-of-queue is shown.
-                        badgeCircle(for: badge)
-                            .offset(x: 2, y: 2)
-                    } else if session.source == "shortcut" {
-                        badgeCircle(icon: "bolt.fill", color: .orange)
-                            .offset(x: 2, y: 2)
-                    } else if session.isRemote {
-                        badgeCircle(icon: "icloud.fill", color: .blue, iconSize: 7)
-                            .offset(x: 2, y: 2)
-                    }
-                }
-                // [T-ios-session-unread-badge] Top-trailing red unread dot,
-                // independent of the bottom-trailing corner badge above so an
-                // unread session can also show ⏸ / iCloud without conflict.
-                .overlay(alignment: .topTrailing) {
-                    if showsUnreadDot {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .offset(x: -1, y: 1)
-                    }
-                }
+        let icon = sessionCategoryBadge(for: session.category)
+        let date = relativeDate(session.updatedAt)
+        HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
+            CodyListIconBadge(systemImage: icon.systemName, tint: icon.tint)
 
-            // Title + subtitle. For locked sessions both lines are blurred
-            // so neither the conversation topic nor the last message reads
-            // as plain text in the list. The avatar and trailing lock-icon
-            // overlay sit outside this VStack so they stay crisp.
-            VStack(alignment: .leading, spacing: 4) {
-                highlightedText(
-                    session.title ?? "New Chat",
-                    font: .system(size: fontSettings.scaledApp(16), weight: .semibold),
-                    color: Color(UIColor.label)
-                )
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
+                    if session.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(CodyColors.textTertiary)
+                            .accessibilityHidden(true)
+                    }
+                    highlightedText(
+                        session.title ?? "New Chat",
+                        font: .system(size: fontSettings.scaledApp(16), weight: .semibold),
+                        color: CodyColors.textPrimary
+                    )
+                    .lineLimit(1)
+                }
 
                 if let snippet = matchSnippet, !snippet.isEmpty {
-                    // During active search, prefer the body-match snippet over
-                    // the generic lastMessage preview so the user can see WHY
-                    // this session matched. Mirrors Android SessionListScreen
-                    // 545d585. The snippet itself is also highlighted so the
-                    // keyword stands out inside the ~100-char window.
                     highlightedText(
                         snippet,
                         font: .system(size: fontSettings.scaledApp(14)),
-                        color: Color(UIColor.secondaryLabel)
+                        color: CodyColors.textSecondary
                     )
                     .lineLimit(2)
                 } else {
                     highlightedText(
                         session.lastMessage ?? "No messages yet",
                         font: .system(size: fontSettings.scaledApp(14)),
-                        color: Color(UIColor.secondaryLabel)
+                        color: CodyColors.textSecondary
                     )
                     .lineLimit(1)
                 }
@@ -314,28 +260,47 @@ struct SessionRow: View, Equatable {
             // while iOS 17+ kept it crisp black. Gating the whole effect
             // chain on the lock flag is the cheapest universal fix.
             .modifier(LockedRowEffect(isLocked: isVisuallyLocked))
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 1)
+            Text(date)
+                .font(.system(size: fontSettings.scaledApp(13)))
+                .foregroundStyle(CodyColors.textTertiary)
+                .lineLimit(1)
 
-            VStack(alignment: .trailing, spacing: 4) {
-                // Date
-                Text(relativeDate(session.updatedAt))
-                    .font(.system(size: fontSettings.scaledApp(13)))
-                    .foregroundStyle(Color(UIColor.tertiaryLabel))
-                if isVisuallyLocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color(UIColor.tertiaryLabel))
-                } else if session.isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color(UIColor.tertiaryLabel))
+            if isActive || isSuspended || isVisuallyLocked || visibleBadge != nil
+                || session.source == "shortcut" || session.isRemote || showsUnreadDot {
+                VStack(spacing: CodySpacing.xxs) {
+                    if isSuspended || isActive {
+                        SidebarRowActivity(isSuspended: isSuspended, tint: icon.tint.color)
+                    }
+                    if isVisuallyLocked {
+                        SidebarRowBadge(systemImage: "lock.fill", tint: CodyColors.textSecondary)
+                    } else if let badge = visibleBadge {
+                        badgeView(for: badge)
+                    } else if session.source == "shortcut" {
+                        SidebarRowBadge(systemImage: "bolt.fill", tint: CodyColors.statusWarningText)
+                    } else if session.isRemote {
+                        SidebarRowBadge(systemImage: "icloud.fill", tint: CodyCategoryTint.blue.color)
+                    }
+                    if showsUnreadDot {
+                        SidebarUnreadDot()
+                    }
                 }
+                .frame(width: CodyMetrics.Sidebar.statusIndicatorSlot)
+                .padding(.trailing, CodyMetrics.Sidebar.badgeTrailingPadding)
+                .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, CodyMetrics.Sidebar.rowPaddingH)
+        .padding(.vertical, CodySpacing.xxs)
+        .frame(minHeight: CodyMetrics.Sidebar.rowMinHeight)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            isVisuallyLocked ? Text("Locked") : Text(verbatim: session.title ?? AppLocalized("New Chat"))
+        )
+        .accessibilityValue(Text(verbatim: accessibilityDetails(date: date)))
+        .accessibilityAddTraits(isHighlighted ? .isSelected : [])
         #if DEBUG
         // TEMPORARY height probe — confirms List self-sizing jitter source.
         // PreferenceKey fires on every real layout (incl. the self-size
@@ -349,31 +314,32 @@ struct SessionRow: View, Equatable {
         #endif
     }
 
-    private func badgeCircle(icon: String, color: Color, iconSize: CGFloat = 9, size: CGFloat = 16) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: iconSize, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(color)
-            .clipShape(Circle())
+    private func accessibilityDetails(date: String) -> String {
+        var details: [String] = []
+        if session.isPinned { details.append(AppLocalized("Pinned")) }
+        if showsUnreadDot { details.append(AppLocalized("Unread")) }
+        if isSuspended {
+            details.append(AppLocalized("Paused"))
+        } else if isActive {
+            details.append(AppLocalized("Running"))
+        } else if visibleBadge == .paused {
+            details.append(AppLocalized("Paused"))
+        }
+        if !isVisuallyLocked, let preview = matchSnippet ?? session.lastMessage {
+            details.append(preview)
+        }
+        details.append(date)
+        return details.joined(separator: ", ")
     }
 
-    /// [T-ios-session-paused-badge] Maps a queued badge state to its corner
-    /// badge. Reuses the same `badgeCircle` layout/size/position as the iCloud
-    /// and lock badges so all session badges sit identically on the icon corner.
     @ViewBuilder
-    private func badgeCircle(for state: SessionBadgeState) -> some View {
+    private func badgeView(for state: SessionBadgeState) -> some View {
         switch state {
         case .paused:
-            // Pause glyph (⏸), orange to distinguish from the blue iCloud badge.
-            badgeCircle(icon: "pause.fill", color: .orange, iconSize: 8)
+            SidebarRowBadge(systemImage: "pause.fill", tint: CodyColors.statusWarningText)
         case .iCloudSyncing:
-            badgeCircle(icon: "icloud.fill", color: .blue, iconSize: 7)
+            SidebarRowBadge(systemImage: "icloud.fill", tint: CodyCategoryTint.blue.color)
         case .unread:
-            // [T-ios-session-unread-badge] `.unread` renders as a separate
-            // top-trailing red dot (see the .topTrailing overlay), never through
-            // this bottom-trailing corner path. `topCornerBadge` filters it out
-            // upstream, so this case is unreachable — render nothing defensively.
             EmptyView()
         }
     }
@@ -406,7 +372,7 @@ struct SessionRow: View, Equatable {
         var attr = AttributedString(text)
         attr.foregroundColor = baseColor
         guard !query.isEmpty else { return attr }
-        let highlightBg = Color.accentColor.opacity(0.25)
+        let highlightBg = CodyColors.textAccent.opacity(0.25)
         let totalChars = text.count
         for range in SearchKeywords.hitRanges(in: text, terms: SearchKeywords.terms(query)) {
             let lo = text.distance(from: text.startIndex, to: range.lowerBound)
@@ -421,29 +387,12 @@ struct SessionRow: View, Equatable {
             let attrHi = attr.index(attr.startIndex, offsetByCharacters: hi)
             let r = attrLo..<attrHi
             attr[r].backgroundColor = highlightBg
-            attr[r].foregroundColor = Color.accentColor
+            attr[r].foregroundColor = CodyColors.textAccent
             attr[r].inlinePresentationIntent = .stronglyEmphasized
         }
         return attr
     }
 
-
-    private var categoryIcon: (systemName: String, color: Color) {
-        sessionCategoryIcon(for: session.category)
-    }
-
-    @ViewBuilder
-    private var providerIcon: some View {
-        let icon = categoryIcon
-        let size: CGFloat = (icon.systemName == "bubble.left.fill" || icon.systemName == "terminal.fill") ? 18 : 20
-        Image(systemName: icon.systemName)
-            .font(.system(size: size))
-            .foregroundStyle(icon.color)
-    }
-
-    private var iconBackgroundColor: Color {
-        categoryIcon.color
-    }
 
     private func relativeDate(_ date: Date) -> String {
         PerfTrace.measure("SessionRow.relativeDate") {
@@ -541,64 +490,89 @@ private struct LockedRowEffect: ViewModifier {
                         endPoint: .trailing
                     )
                 }
+                .accessibilityHidden(true)
         } else {
             content
         }
     }
 }
 
-/// Row for a session synced from another device, with an iCloud badge on the icon.
+/// Row for a session synced from another device.
 struct RemoteSessionRow: View {
     let session: ChatSession
+    @ObservedObject private var fontSettings = FontSettings.shared
 
     var body: some View {
-        HStack(spacing: 8) {
-            // Category icon with iCloud badge
-            providerIcon
-                .frame(width: 44, height: 44)
-                .background(iconColor.opacity(0.18))
-                .clipShape(Circle())
-                .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "icloud.fill")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 16, height: 16)
-                        .background(Color.blue)
-                        .clipShape(Circle())
-                        .offset(x: 2, y: 2)
-                }
+        let icon = sessionCategoryBadge(for: session.category)
+        HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
+            CodyListIconBadge(systemImage: icon.systemName, tint: icon.tint)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(session.title ?? "Untitled")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color(UIColor.label))
+                    .font(.system(size: fontSettings.scaledApp(16), weight: .semibold))
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
                 Text(session.updatedAt, style: .relative)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(UIColor.secondaryLabel))
+                    .font(.system(size: fontSettings.scaledApp(14)))
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 1)
+            SidebarRowBadge(systemImage: "icloud.fill", tint: CodyCategoryTint.blue.color)
+                .padding(.trailing, CodyMetrics.Sidebar.badgeTrailingPadding)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, CodyMetrics.Sidebar.rowPaddingH)
+        .padding(.vertical, CodySpacing.xxs)
+        .frame(minHeight: CodyMetrics.Sidebar.rowMinHeight)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
+}
 
-    private var categoryIcon: (systemName: String, color: Color) {
-        sessionCategoryIcon(for: session.category)
+struct SidebarRowBadge: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: CodyMetrics.Sidebar.statusIndicatorSlot,
+                   height: CodyMetrics.Sidebar.statusIndicatorSlot)
+            .background(CodyColors.bgListIcon, in: Circle())
+            .accessibilityHidden(true)
     }
+}
 
-    private var iconColor: Color { categoryIcon.color }
+struct SidebarUnreadDot: View {
+    var body: some View {
+        Circle()
+            .fill(CodyColors.statusErrorText)
+            .frame(width: CodySpacing.xsPlus, height: CodySpacing.xsPlus)
+            .accessibilityHidden(true)
+    }
+}
 
-    @ViewBuilder
-    private var providerIcon: some View {
-        let icon = categoryIcon
-        let size: CGFloat = (icon.systemName == "bubble.left.fill" || icon.systemName == "terminal.fill") ? 18 : 20
-        Image(systemName: icon.systemName)
-            .font(.system(size: size))
-            .foregroundStyle(icon.color)
+struct SidebarRowActivity: View {
+    let isSuspended: Bool
+    let tint: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if isSuspended {
+                SuspendedRing(color: CodyColors.statusWarningText)
+            } else if reduceMotion {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+            } else {
+                SpinningRing(color: tint)
+            }
+        }
+        .frame(width: CodyMetrics.Sidebar.statusIndicatorSlot, height: CodyMetrics.Sidebar.statusIndicatorSlot)
+        .accessibilityHidden(true)
     }
 }
 

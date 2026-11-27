@@ -60,7 +60,7 @@ extension ContentView {
     }
 
     func dismissSearch() {
-        withAnimation(.easeInOut(duration: 0.2)) { showSearchBar = false }
+        showSearchBar = false  // FABSearchAnimation drives the visual swap.
         searchText = ""
         searchMatchedIds = nil
         searchMatchSnippets = [:]
@@ -89,7 +89,7 @@ extension ContentView {
     /// once the field exists in the view tree.
     func focusSearch() {
         if !showSearchBar {
-            withAnimation(.easeInOut(duration: 0.2)) { showSearchBar = true }
+            showSearchBar = true
         }
         DispatchQueue.main.async { searchFocused = true }
     }

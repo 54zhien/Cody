@@ -13,8 +13,7 @@ import SwiftUI
 // MARK: - Draggable FAB
 
 /// A floating action button that can be dragged horizontally and snaps to the left or right edge.
-/// Uses UIKit's UIPanGestureRecognizer via UIViewRepresentable for reliable, low-latency drag tracking
-/// that doesn't conflict with SwiftUI's Button/tap gestures.
+/// A simultaneous drag gesture keeps taps and long-press menus available.
 struct DraggableFAB<Label: View>: View {
     @Binding var fabOnLeft: Bool
     @Binding var dragOffset: CGFloat
@@ -24,8 +23,9 @@ struct DraggableFAB<Label: View>: View {
     var onTap: () -> Void
     @ViewBuilder var label: () -> Label
 
-    private let fabSize: CGFloat = 56
-    private let edgePadding: CGFloat = 16
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let fabSize = CodySpacing.s56
+    private let edgePadding = CodySpacing.lg
 
     var body: some View {
         GeometryReader { geo in
@@ -41,8 +41,10 @@ struct DraggableFAB<Label: View>: View {
                 .onTapGesture {
                     onTap()
                 }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { onTap() }
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 10)
+                    DragGesture(minimumDistance: CodySpacing.smPlus)
                         .onChanged { value in
                             didDrag = true
                             dragOffset = value.translation.width
@@ -53,7 +55,7 @@ struct DraggableFAB<Label: View>: View {
                             // For inverted FAB: dropping on left means the *other* FAB goes right
                             let newFabOnLeft = inverted ? !droppedOnLeft : droppedOnLeft
                             let changed = fabOnLeft != newFabOnLeft
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
                                 fabOnLeft = newFabOnLeft
                                 dragOffset = 0
                             }

@@ -149,16 +149,17 @@ extension ContentView {
                 searchFolderPages[fid, default: 1] += 1
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
+                    .accessibilityHidden(true)
                 Text("Show \(min(group.hiddenMatchCount, Self.searchFolderPageSize)) more (\(group.hiddenMatchCount) left)")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CodyTypography.bodyMedium.weight(.medium))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(Color.accentColor)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .foregroundStyle(CodyColors.textAccent)
+            .padding(.horizontal, CodyMetrics.Sidebar.rowPaddingH)
+            .frame(minHeight: CodyMetrics.Sidebar.rowMinHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -268,15 +269,13 @@ extension ContentView {
                         sectionHeader(index: index, group: group)
                     } else if group.showsGroupsHeader {
                         Text("Groups")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color(UIColor.secondaryLabel))
-                            .textCase(nil)
+                            .modifier(SidebarSectionHeaderStyle())
                     }
                 }
             }
 
         }
-        .listStyle(.plain)
+        .modifier(SidebarListCanvas())
         #if DEBUG
         // TEMPORARY scroll-phase markers to bracket the jitter window in the
         // log. Pair with the [ROWH] probe: a [ROWH] line appearing during
@@ -289,7 +288,7 @@ extension ContentView {
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
         .safeAreaInset(edge: .bottom) {
             if isSelecting { selectionToolbar }
-            else if !hidesFABForOnboarding(listIsEmpty: filteredSessions.isEmpty) { fabRow }
+            else if !hidesFABForOnboarding(listIsEmpty: filteredSessions.isEmpty) { sidebarFABInset }
         }
         // [T-home-fab-keyboard-inset] Mirror of the voice panel's structural
         // immunity (604a9947 / T-voice-bg-fg-gap): with the inline search bar
@@ -362,15 +361,13 @@ extension ContentView {
                         sectionHeader(index: index, group: group)
                     } else if group.showsGroupsHeader {
                         Text("Groups")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color(UIColor.secondaryLabel))
-                            .textCase(nil)
+                            .modifier(SidebarSectionHeaderStyle())
                     }
                 }
             }
 
         }
-        .listStyle(.plain)
+        .modifier(SidebarListCanvas())
         .navigationSplitViewColumnWidth(min: 340, ideal: 380, max: 500)
         // [T-macos27-liquid-glass-navbar] See MacOS27GlassWorkaround. Applied to
         // the Mac sidebar List only; the iPhone compact list (the other branch
@@ -381,7 +378,7 @@ extension ContentView {
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
         .safeAreaInset(edge: .bottom) {
             if isSelecting { selectionToolbar }
-            else if !hidesFABForOnboarding(listIsEmpty: displaySessions.isEmpty) { fabRow }
+            else if !hidesFABForOnboarding(listIsEmpty: displaySessions.isEmpty) { sidebarFABInset }
         }
         // [T-home-fab-keyboard-inset] Same structural immunity as the compact
         // list above — see that call site for the full rationale. On iPad the

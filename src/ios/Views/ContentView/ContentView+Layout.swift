@@ -110,17 +110,19 @@ extension ContentView {
                     draftLog.info("🔑DRAFT detailView DISAPPEAR id=\(id)")
                 }
         } else {
-            VStack(spacing: 12) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+            VStack(spacing: CodySpacing.md) {
+                CodyListIconBadge(systemImage: "bubble.left.and.bubble.right", tint: .neutral)
                 Text("No Conversation Selected")
-                    .font(.title3.bold())
+                    .font(CodyTypography.titleLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Text("Select a conversation or start a new one")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
+            .multilineTextAlignment(.center)
+            .padding(CodySpacing.xxl)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(CodyColors.bgCanvas)
         }
     }
 }

@@ -74,7 +74,7 @@ struct SessionStackRow: View {
         .overlay {
             if isRegeneratingTitle {
                 ZStack {
-                    Color(.systemBackground).opacity(0.7)
+                    CodyColors.bgCanvas.opacity(0.7)
                     ProgressView()
                 }
             }
@@ -85,7 +85,7 @@ struct SessionStackRow: View {
             if inFolder {
                 FolderMemberRowBackground(isLast: isLastInFolder)
             } else {
-                Color(.systemBackground)
+                CodyColors.bgCanvas
             }
         })
         .contextMenu {
@@ -115,7 +115,7 @@ struct SessionSplitRow: View {
     let isLastInFolder: Bool
     let menuActions: SessionMenuActionChannel
 
-    private static let highlightFill = Color(red: 183/255.0, green: 175/255.0, blue: 150/255.0).opacity(0.3)
+    private static let highlightFill = CodyColors.bgSecondary
 
     var body: some View {
         let _ = HomeListPerf.rowBuilt()
@@ -132,7 +132,7 @@ struct SessionSplitRow: View {
         .overlay {
             if isRegeneratingTitle {
                 ZStack {
-                    Color(.systemBackground).opacity(0.7)
+                    CodyColors.bgCanvas.opacity(0.7)
                     ProgressView()
                 }
             }
@@ -160,20 +160,20 @@ struct SessionSplitRow: View {
                     if isHighlighted {
                         UnevenRoundedRectangle(
                             topLeadingRadius: 0,
-                            bottomLeadingRadius: isLastInFolder ? 16 : 0,
-                            bottomTrailingRadius: isLastInFolder ? 16 : 0,
+                            bottomLeadingRadius: isLastInFolder ? CodyRadius.surface : 0,
+                            bottomTrailingRadius: isLastInFolder ? CodyRadius.surface : 0,
                             topTrailingRadius: 0,
-                            style: .continuous
+                            style: .circular
                         )
                         .fill(Self.highlightFill)
-                        .padding(.horizontal, 6)
-                        .padding(.bottom, isLastInFolder ? 4 : 0)
+                        .padding(.horizontal, CodySpacing.xsPlus + CodySpacing.px / 2)
+                        .padding(.bottom, isLastInFolder ? CodySpacing.xs + CodySpacing.px / 2 : 0)
                     }
                 } else {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
                         .fill(isHighlighted ? Self.highlightFill : Color.clear)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, CodySpacing.xsPlus)
+                        .padding(.vertical, CodySpacing.xxs)
                 }
             }
         )
@@ -199,6 +199,13 @@ struct SessionRowPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .contentShape(Rectangle())
-            .overlay(Color(.systemFill).opacity(configuration.isPressed ? 1 : 0).allowsHitTesting(false))
+            .background {
+                if configuration.isPressed {
+                    RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                        .fill(CodyColors.bgSecondary)
+                        .padding(.horizontal, CodySpacing.xsPlus)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }

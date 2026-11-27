@@ -14,128 +14,26 @@ import SwiftUI
 extension ContentView {
     // MARK: - FAB Row (New Chat + Search)
 
-
-
-    /// Brand fill for the new-chat FAB. On iOS 26 this becomes the glass TINT
-    /// rather than an opaque fill, so the button keeps its colour identity while
-    /// the system material supplies the depth. Below 26 it stays the flat fill
-    /// it has always been.
-    private static let newChatBrandColor = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 80/255, green: 76/255, blue: 66/255, alpha: 1)
-        : UIColor(red: 183/255, green: 175/255, blue: 150/255, alpha: 1) })
-
-    /// Glass TINT for the new-chat FAB — deliberately NOT `newChatBrandColor`.
-    ///
-    /// Tinting with the raw brand colour at full strength produced an opaque
-    /// disc with no refraction at all (measured on device: ring pixel std 1.1
-    /// against ~20 for untinted glass), which is what read as "not glass".
-    /// Simply lowering that colour's alpha fixed light mode but vanished in
-    /// dark: the dark brand value (80/76/66) sits so close to the near-black
-    /// page that 0.15–0.25 alpha yielded a warmth (R−B) of only 1.6–3.1,
-    /// indistinguishable from the untinted button.
-    ///
-    /// So the dark variant is lifted and warmed rather than just faded. At
-    /// alpha 0.30 the measured result is better than the old opaque version on
-    /// BOTH axes in dark mode — warmth 22.6 vs 14.0 (more brand identity) with
-    /// ring std 9.3 vs 1.1 (real show-through) — and light mode keeps a warm
-    /// cast (warmth 9.9) while staying visibly translucent.
-    /// `Glass.tint` honours the colour's alpha, so the strength is baked in here.
-    private static let newChatGlassTint = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 196/255, green: 176/255, blue: 120/255, alpha: 0.30)
-        : UIColor(red: 183/255, green: 175/255, blue: 150/255, alpha: 0.30) })
-
-    /// Clear/dismiss control inside the expanded search capsule.
-    ///
-    /// A bare glyph with NO background of its own, which is what system search
-    /// fields do. The alternatives were compared on device: `.buttonStyle(.glass)`
-    /// and a small `glassEffect` circle both put a second glass surface INSIDE
-    /// the already-glass capsule, and glass-on-glass read as a raised, competing
-    /// control — noticeably so in dark mode — for what is only a small clear
-    /// action. Letting the capsule stay the single glass surface keeps the row
-    /// coherent with the FABs beside it.
-    ///
-    /// `xmark` rather than the old `xmark.circle.fill`: the filled circle was
-    /// itself a solid background, the very thing that clashed with the glass.
-    /// Sub-26 keeps the original filled-circle look, where there is no glass for
-    /// it to fight with.
-    @ViewBuilder
+    /// A full-size target keeps the clear glyph easy to tap inside the capsule.
     private var searchClearButton: some View {
-        if #available(iOS 26.0, *) {
-            Button { dismissSearch() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    // [T-ios-search-bar-glass-hit-hole] The frame alone was not
-                    // a tap target: with `.buttonStyle(.plain)` and no fill,
-                    // hit-testing follows the DRAWN GLYPH, so only the ~13pt
-                    // strokes of the "xmark" were live and the rest of this box
-                    // was a hole. Height goes to 44 (Apple's minimum) and
-                    // `contentShape` makes the whole box tappable; the glyph is
-                    // unchanged, so this is hit area only, no visual change.
-                    // The bar is 56pt tall, so 44 fits without growing it.
-                    .frame(width: 32, height: 44)
-                    .contentShape(Rectangle())
+        Button { dismissSearch() } label: {
+            Group {
+                if #available(iOS 26.0, *) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                } else {
+                    Image(systemName: "xmark.circle.fill")
+                }
             }
-            .buttonStyle(.plain)
-        } else {
-            Button { dismissSearch() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            .foregroundStyle(CodyColors.textSecondary)
+            // [T-ios-search-bar-glass-hit-hole] Include the area around the glyph.
+            .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Cancel"))
     }
 
-    /// Glyph colour for the new-chat FAB.
-    ///
-    /// Was hardcoded `.white`, which worked when the button was an opaque
-    /// mid-tone brand disc. Once the fill became 0.30-alpha glass the light-mode
-    /// surface turned pale and a white glyph nearly vanished into it.
-    ///
-    /// Note this can't simply be `Color(UIColor.label)` like the search FAB uses:
-    /// that FAB is glass on 26+ AND `secondarySystemBackground` below it, both
-    /// light-ish surfaces, so `label` is right in every case. The new-chat FAB's
-    /// sub-26 fallback is still the OPAQUE brand colour (183/175/150 light,
-    /// 80/76/66 dark) — mid-tone in light mode, where `label` (near-black) has
-    /// less contrast than the white that shipped there for years. So the choice
-    /// is made per rendering path: adaptive on glass, unchanged white on the
-    /// opaque fallback.
-    private static var newChatIconColor: Color {
-        if #available(iOS 26.0, *) {
-            // Translucent glass: follow the interface style. Not pure black in
-            // light mode — the brand surface is warm, so a slightly softened
-            // near-black sits better on it than #000 while still reading clearly.
-            return Color(UIColor { $0.userInterfaceStyle == .dark
-                ? UIColor.white
-                : UIColor(white: 0.13, alpha: 1) })
-        } else {
-            // Opaque brand disc, as before.
-            return .white
-        }
-    }
-
-    /// Circular FAB surface wrapping its `icon`.
-    ///
-    /// The icon has to be passed IN rather than `.overlay`-ed on afterwards:
-    /// `.glassEffect` draws the material over the view it modifies, so an
-    /// overlay applied to the surface ends up UNDER the glass and disappears
-    /// (verified on device — the tinted disc rendered with no glyph, pixel
-    /// variance ~1.2 across its centre). Putting the icon inside means the glass
-    /// is the background and the glyph rides on top of it.
-    ///
-    /// iOS 26+: `.glassEffect(.regular[.tint], in: .circle)`. The old manual
-    /// `.shadow` is dropped on that path on purpose — Liquid Glass renders its
-    /// own shadow/edge, and stacking the hand-rolled one on top reads as a dark
-    /// halo rather than depth. Sub-26 keeps the original opaque circle AND its
-    /// shadow, unchanged.
-    ///
-    /// Unlike `FolderSurface`, live glass is safe here: the FAB floats in a
-    /// `safeAreaInset` over a stable backdrop and never scrolls past
-    /// heterogeneous content, so the flicker that forced that type onto a
-    /// sampled constant does not apply.
-    @ViewBuilder
     /// [T-ios-crash-objectdestroy-fab-uaf] `static`, deliberately.
     ///
     /// This is a pure function of its parameters — it reads no instance state.
@@ -154,55 +52,10 @@ extension ContentView {
     /// Keep it static. Adding an instance reference here silently reintroduces
     /// the capture and the crash.
     private static func fabCircleSurface<Icon: View>(
-        tint: Color?,
-        fallbackFill: Color,
-        fallbackShadowOpacity: Double,
+        isPrimary: Bool,
         @ViewBuilder icon: () -> Icon
     ) -> some View {
-        if #available(iOS 26.0, *) {
-            icon()
-                .frame(width: 56, height: 56)
-                .glassEffect(
-                    tint.map { Glass.regular.tint($0) } ?? Glass.regular,
-                    in: .circle
-                )
-                // [T-fab-glass-contextmenu-regression] Without this the long-press
-                // menu on the new-chat FAB stops opening.
-                //
-                // The pre-glass label was `Circle().fill(...)`, a filled shape,
-                // so its hit-test region was the whole 56x56 disc and
-                // `.contextMenu` (attached to that same view) picked up a
-                // long-press anywhere on the button. The glass version's content
-                // is a bare `Image` — `.frame` only reserves space, and
-                // `.glassEffect` draws a material without contributing a
-                // hit-testable shape — so the only interactive pixels left were
-                // the glyph's own strokes. A long press on the surrounding
-                // (visually filled) area hit nothing and no menu appeared.
-                //
-                // Tapping still worked, which is what made this look like a
-                // gesture-priority fight with glassEffect rather than a hit-test
-                // hole: DraggableFAB re-applies `.frame` and `.onTapGesture` at
-                // ITS level, one layer out, so taps were being caught there.
-                // `.contextMenu` is the only one of the three attached inside.
-                //
-                // Restoring an explicit circular content shape gives the glass
-                // surface the same hit region the filled Circle had. Applied
-                // AFTER glassEffect so it covers the rendered disc.
-                .contentShape(.circle)
-                // …and the same shape again for the context-menu PREVIEW.
-                // `.contentShape(_:)` only sets the INTERACTION region; the
-                // lifted platter resolves its shape separately and otherwise
-                // falls back to the view's rectangular bounds, which is what
-                // showed a grey rounded-rect slab peeking out from under the
-                // circular button on long press. `ChatMessageRow` already
-                // declares the two shapes separately for the same reason.
-                .contentShape(.contextMenuPreview, Circle())
-        } else {
-            Circle()
-                .fill(fallbackFill)
-                .overlay { icon() }
-                .shadow(color: .black.opacity(fallbackShadowOpacity), radius: 8, x: 0, y: 4)
-        }
+        icon().modifier(FABCircleSurface(isPrimary: isPrimary))
     }
 
     @ViewBuilder
@@ -227,13 +80,29 @@ extension ContentView {
         //
         // Dropping the container costs only the FAB→search-bar morph animation,
         // which falls back to the scale+opacity transition the row already declares.
-        // The glass MATERIAL is unaffected — `.glassEffect` does not require a
-        // container, and the FABs still render as glass (verified by screenshot).
+        // Search still uses the standalone glass material.
         fabRowContent
+    }
+
+    var sidebarFABInset: some View {
+        fabRow.background(alignment: .bottom) {
+            VStack(spacing: 0) {
+                CodyEdgeFadeBar(
+                    direction: .bottom,
+                    height: CodyMetrics.Conversation.bottomFadeHeight,
+                    color: CodyColors.bgCanvas
+                )
+                CodyColors.bgCanvas.frame(height: CodySpacing.s40)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder
     private var fabRowContent: some View {
+        let searchGlassNamespace = fabGlassNamespace
+        let searchAnchor: UnitPoint = fabOnLeft ? .leading : .trailing
         ZStack {
             // New chat FAB (draggable)
             DraggableFAB(
@@ -246,18 +115,14 @@ extension ContentView {
                 // the live @State rather than a captured copy.
                 fabActions.send(.newChat)
             } label: {
-                Self.fabCircleSurface(
-                    tint: Self.newChatGlassTint,
-                    fallbackFill: Self.newChatBrandColor,
-                    fallbackShadowOpacity: 0.2
-                ) {
+                Self.fabCircleSurface(isPrimary: true) {
                     Image(systemName: {
                         if #available(iOS 17.0, *) { return "bubble.left.and.text.bubble.right" }
                         return "plus.message.fill"
                     }())
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(Self.newChatIconColor)
+                    .font(.system(size: 22, weight: .semibold))
                 }
+                    .accessibilityLabel(Text("New Chat"))
                     .contextMenu {
                         let groups = Array(ProviderConfigStore.shared.config.modelGroups.prefix(10))
                         if !groups.isEmpty {
@@ -279,33 +144,29 @@ extension ContentView {
                 if showSearchBar {
                     // Inline search bar — fills space between edges, leaving room for New Chat
                     GeometryReader { geo in
-                        let fabSize: CGFloat = 56
-                        let edgePad: CGFloat = 16
-                        let gap: CGFloat = 10
+                        let fabSize = CodySpacing.s56
+                        let edgePad = CodySpacing.lg
+                        let gap = CodySpacing.smPlus
                         let barX: CGFloat = fabOnLeft
                             ? edgePad + fabSize + gap
                             : edgePad
                         let barWidth: CGFloat = geo.size.width - edgePad * 2 - fabSize - gap
 
-                        HStack(spacing: 8) {
+                        HStack(spacing: CodySpacing.sm) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CodyColors.textSecondary)
+                                .accessibilityHidden(true)
                             TextField("Search chats...", text: $searchText)
                                 .textFieldStyle(.plain)
+                                .foregroundStyle(CodyColors.textPrimary)
                                 .autocorrectionDisabled()
                                 .focused($searchFocused)
                                 .onChange(of: searchText) { _ in scheduleSearch() }
                             searchClearButton
                         }
-                        // [T-ios-search-bar-glass-hit-hole] Trailing padding is
-                        // trimmed to 8 so the X button's 32pt-wide target sits
-                        // closer to the capsule edge instead of behind 18pt of
-                        // dead space (the button keeps its own internal
-                        // padding, so the glyph barely moves). Leading stays 18
-                        // — that side holds the magnifier and needs the inset.
-                        .padding(.leading, 18)
-                        .padding(.trailing, 8)
+                        .padding(.leading, CodyMetrics.Sidebar.rowPaddingH)
+                        .padding(.trailing, CodyMetrics.Sidebar.badgeTrailingPadding)
                         .frame(width: barWidth, height: fabSize)
                         .modifier(SearchBarSurface())
                         // [T-ios-search-bar-glass-hit-hole] `glassEffect(in:)`
@@ -328,13 +189,10 @@ extension ContentView {
                         // `searchClearButton` — that is what the user actually
                         // aims at, and it now hits at all four corners.
                         .contentShape(.capsule)
-                        .modifier(FABGlassMorphID(namespace: fabGlassNamespace))
+                        .modifier(FABGlassMorphID(namespace: searchGlassNamespace))
                         .position(x: barX + barWidth / 2, y: fabSize / 2)
                     }
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.85, anchor: fabOnLeft ? .leading : .trailing).combined(with: .opacity),
-                        removal: .scale(scale: 0.85, anchor: fabOnLeft ? .leading : .trailing).combined(with: .opacity)
-                    ))
+                    .modifier(FABSearchTransition(anchor: searchAnchor))
                     .onAppear { searchFocused = true }
                 } else {
                     // Search FAB (draggable, inverted side)
@@ -346,25 +204,70 @@ extension ContentView {
                     ) { [fabActions] in
                         fabActions.send(.openSearch)
                     } label: {
-                        Self.fabCircleSurface(
-                            tint: nil,
-                            fallbackFill: Color(UIColor.secondarySystemBackground),
-                            fallbackShadowOpacity: 0.15
-                        ) {
+                        Self.fabCircleSurface(isPrimary: false) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(Color(UIColor.label))
                         }
-                            .modifier(FABGlassMorphID(namespace: fabGlassNamespace))
+                            .accessibilityLabel(Text("Search chats..."))
+                            .modifier(FABGlassMorphID(namespace: searchGlassNamespace))
                     }
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.85, anchor: fabOnLeft ? .leading : .trailing).combined(with: .opacity),
-                        removal: .scale(scale: 0.85, anchor: fabOnLeft ? .leading : .trailing).combined(with: .opacity)
-                    ))
+                    .modifier(FABSearchTransition(anchor: searchAnchor))
                 }
             }
         }
-        .frame(height: 56)
-        .padding(.bottom, 20)
+        .modifier(FABSearchAnimation(showSearchBar: showSearchBar))
+        .frame(height: CodySpacing.s56)
+        .padding(.bottom, CodySpacing.xl)
+    }
+}
+
+private struct FABCircleSurface: ViewModifier {
+    let isPrimary: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        let icon = content
+            .foregroundStyle(isPrimary ? CodyColors.interactivePrimaryLabel : CodyColors.textPrimary)
+            .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+
+        Group {
+            if isPrimary {
+                icon
+                    .background(CodyColors.interactivePrimaryBg, in: Circle())
+                    .shadow(color: .black.opacity(0.2), radius: CodySpacing.sm, y: CodySpacing.xs)
+            } else if #available(iOS 26.0, *), !reduceTransparency {
+                icon.glassEffect(.regular.interactive(), in: .circle)
+            } else {
+                icon
+                    .background(CodyColors.bgSecondary, in: Circle())
+                    .overlay {
+                        Circle()
+                            .strokeBorder(CodyColors.borderDefault, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .shadow(color: .black.opacity(0.15), radius: CodySpacing.sm, y: CodySpacing.xs)
+            }
+        }
+        // The interaction and menu preview both use the full circular surface.
+        .contentShape(Circle())
+        .contentShape(.contextMenuPreview, Circle())
+    }
+}
+
+private struct FABSearchTransition: ViewModifier {
+    let anchor: UnitPoint
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.transition(reduceMotion ? .identity : .scale(scale: 0.85, anchor: anchor).combined(with: .opacity))
+    }
+}
+
+private struct FABSearchAnimation: ViewModifier {
+    let showSearchBar: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: showSearchBar)
     }
 }

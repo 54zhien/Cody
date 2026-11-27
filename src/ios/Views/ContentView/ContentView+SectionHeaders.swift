@@ -15,22 +15,26 @@ extension ContentView {
     // MARK: - Selectable Row
 
     func selectableRow(_ session: ChatSession) -> some View {
-        Button {
-            if selectedIds.contains(session.id) {
+        let isSelected = selectedIds.contains(session.id)
+        return Button {
+            if isSelected {
                 selectedIds.remove(session.id)
             } else {
                 selectedIds.insert(session.id)
             }
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: selectedIds.contains(session.id) ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(selectedIds.contains(session.id) ? Color.accentColor : Color(UIColor.tertiaryLabel))
+            HStack(spacing: 0) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(isSelected ? CodyColors.textAccent : CodyColors.textTertiary)
+                    .accessibilityHidden(true)
                 SessionRow(session: session)
             }
-            .padding(.leading, 16)
+            .padding(.leading, CodyMetrics.Sidebar.indicatorLeadingPadding)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Section Header
@@ -47,43 +51,41 @@ extension ContentView {
                     selectedIds.formUnion(groupIds)
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
                     Image(systemName: allSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 18))
-                        .foregroundStyle(allSelected ? Color.accentColor : Color(UIColor.tertiaryLabel))
+                        .foregroundStyle(allSelected ? CodyColors.textAccent : CodyColors.textTertiary)
+                        .accessibilityHidden(true)
                     // group.label is a stable English key (used for logic like
                     // == "Pinned"); localize only at display via LocalizedStringKey.
                     // Folder names are user data — render verbatim, not as a key.
                     if group.folderId != nil {
-                        Text(group.label)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color(UIColor.secondaryLabel))
+                        Text(verbatim: group.label)
                     } else {
                         Text(LocalizedStringKey(group.label))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color(UIColor.secondaryLabel))
                     }
                 }
-                .textCase(nil)
+                .modifier(SidebarSectionHeaderStyle())
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityAddTraits(allSelected ? .isSelected : [])
+            .listRowInsets(EdgeInsets())
         } else if index > 0 || group.label == "Pinned" {
-            HStack(spacing: 4) {
+            HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
                 if group.label == "Pinned" {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                        .accessibilityHidden(true)
                 }
                 // group.label stays an English key for logic; LocalizedStringKey
                 // resolves the display string per system language.
                 Text(LocalizedStringKey(group.label))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(UIColor.secondaryLabel))
             }
-            .textCase(nil)
+            .modifier(SidebarSectionHeaderStyle())
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(dropTargetFolderId == "" ? Color.accentColor.opacity(0.18) : Color.clear)
+                RoundedRectangle(cornerRadius: CodyRadius.md)
+                    .fill(dropTargetFolderId == "" ? CodyColors.textAccent.opacity(0.18) : Color.clear)
             )
             // Dropping on a date-bucket header moves the sessions OUT of any
             // folder — the drag gesture works both directions, otherwise
@@ -150,11 +152,7 @@ extension ContentView {
     /// their own indicators, and duplicating them in the header would leave
     /// the user guessing which row a header "!" refers to. Collapsing is what
     /// hides the members' state — that's exactly when a proxy is needed.
-    /// Folder card mirroring SessionRow's frame — same 44pt icon circle, same
-    /// title/subtitle stack, same trailing date column — so a folder reads as
-    /// the same species of thing as a session. Only the content differs:
-    /// composed member-glyph icon, folder name, and a "N chats · latest
-    /// title" summary where a session shows its last message.
+    /// Folder cards share the session rows' icon size and alignment.
     /// `scrollProxy` is forwarded to `toggleFolderCollapsed` so an expand can
     /// re-anchor this header after the accordion removes the previously-open
     /// folder's rows ([T-ios-folder-accordion-scroll-anchor]).
@@ -165,43 +163,10 @@ extension ContentView {
         // With a bare tap gesture the long-press belongs to the contextMenu
         // alone; the accessibility action keeps the card activatable for
         // AX clients and the debug tap harness.
-        HStack(spacing: 8) {
+        HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
                 FolderComposedIcon(glyphs: group.glyphs)
-                    // Same overlay corners as SessionRow: spinner ring for
-                    // running, bottom-trailing badge for paused, top-trailing
-                    // red dot for unread — the symbols the user already knows
-                    // from session rows, in the positions they know them.
-                    // Collapsed-only: expanded members carry their own
-                    // indicators, and a header copy would leave the user
-                    // guessing which row it refers to.
-                    .overlay {
-                        if group.isCollapsed && group.anyActive {
-                            SpinningRing(color: group.glyphs.first?.color ?? .gray)
-                                .frame(width: 42, height: 42)
-                        }
-                    }
-                    .overlay(alignment: .bottomTrailing) {
-                        if group.isCollapsed && group.anyPaused {
-                            ZStack {
-                                Circle().fill(Color(UIColor.systemBackground))
-                                    .frame(width: 16, height: 16)
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.orange)
-                            }
-                            .offset(x: 2, y: 2)
-                        }
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        if group.isCollapsed && group.anyUnread {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 8, height: 8)
-                                .offset(x: -1, y: 1)
-                        }
-                    }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                     // Folder names are user data — verbatim Text, never a
                     // LocalizedStringKey lookup.
                     // [T-search-folder-expand] A folder-name hit is highlighted
@@ -210,13 +175,13 @@ extension ContentView {
                         if searchResultsActive,
                            SearchKeywords.firstHit(in: group.label, terms: SearchKeywords.terms(searchQuery)) != nil {
                             Text(SessionRow.highlightedAttributedString(
-                                text: group.label, query: searchQuery, baseColor: Color(UIColor.label)))
+                                text: group.label, query: searchQuery, baseColor: CodyColors.textPrimary))
                         } else {
-                            Text(group.label).foregroundStyle(Color(UIColor.label))
+                            Text(group.label).foregroundStyle(CodyColors.textPrimary)
                         }
                     }
-                        .font(.system(size: 16, weight: .semibold))
-                        .lineLimit(1)
+                    .font(CodyTypography.titleMedium)
+                    .lineLimit(1)
                     Group {
                         if searchResultsActive {
                             // In a result set the members are the matches.
@@ -230,42 +195,55 @@ extension ContentView {
                             Text("Empty group")
                         }
                     }
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(UIColor.secondaryLabel))
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: 1)
-
-                VStack(alignment: .trailing, spacing: 6) {
+                VStack(alignment: .trailing, spacing: CodySpacing.xxs) {
                     if let date = group.latestDate {
                         Text(SessionRow.relativeDateImpl(date))
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color(UIColor.tertiaryLabel))
+                            .font(CodyTypography.sectionHeader)
+                            .foregroundStyle(CodyColors.textTertiary)
+                            .lineLimit(1)
                     }
-                    HStack(spacing: 4) {
+                    HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
                         if group.isFolderPinned {
                             Image(systemName: "pin.fill")
                                 .font(.system(size: 10))
-                                .foregroundStyle(Color(UIColor.tertiaryLabel))
                         }
-                        // [T-search-folder-expand] No fold chevron in a result
-                        // set: folders stay open there, so it would do nothing.
+                        // [T-search-folder-expand] Search results keep folders open.
                         if !searchResultsActive {
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Color(UIColor.tertiaryLabel))
                                 .rotationEffect(.degrees(group.isCollapsed ? -90 : 0))
                         }
                     }
+                    .foregroundStyle(CodyColors.textTertiary)
+                    .accessibilityHidden(true)
+                }
+
+                if group.isCollapsed && (group.anyActive || group.anyPaused || group.anyUnread) {
+                    VStack(spacing: CodySpacing.xxs) {
+                        if group.anyActive {
+                            SidebarRowActivity(isSuspended: false, tint: group.glyphs.first?.color ?? CodyColors.textSecondary)
+                        }
+                        if group.anyPaused {
+                            SidebarRowBadge(systemImage: "pause.fill", tint: CodyColors.statusWarningText)
+                        }
+                        if group.anyUnread {
+                            SidebarUnreadDot()
+                        }
+                    }
+                    .frame(width: CodyMetrics.Sidebar.statusIndicatorSlot)
+                    .padding(.trailing, CodyMetrics.Sidebar.badgeTrailingPadding)
+                    .accessibilityHidden(true)
                 }
             }
-            // Inner 10 + outer 6 = 16pt — the same lead as SessionRow's
-            // horizontal padding, so the folder icon's left edge and (via the
-            // shared 44pt icon frame + 8pt spacing) the folder TITLE both sit
-            // exactly on the session rows' alignment grid.
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.horizontal, CodyMetrics.Sidebar.rowPaddingH - CodySpacing.xsPlus)
+            .padding(.vertical, CodySpacing.xxs)
+            .frame(minHeight: CodyMetrics.Sidebar.rowMinHeight)
             .textCase(nil)
             .contentShape(Rectangle())
             // Mini-bar trigger: only an EXPANDED, populated group needs its
@@ -281,24 +259,15 @@ extension ContentView {
             .modifier(FolderCardBackground(
                 isDropTarget: dropTargetFolderId == group.folderId,
                 isExpanded: !group.isCollapsed && !group.ids.isEmpty))
-            // Outer insets float the rounded card inside the list width —
-            // the inset frame is what separates it from the full-bleed
-            // session rows at a glance. (The glass/pre-26 card is what the
-            // pinned header shows while its members scroll under; rows
-            // passing through the 12pt gutters is the standard floating-
-            // header look, not the ghosting the old opaque background fixed.)
-            // 6pt matches the splitList selection highlight's horizontal
-            // inset, so the folder container and a selected member row share
-            // the same left/right edges instead of the container overhanging.
-            .padding(.horizontal, 6)
-            .padding(.top, 4)
-            // Expanded: no bottom gap — the card welds onto the first member
-            // row's container segment.
-            .padding(.bottom, (group.isCollapsed || group.ids.isEmpty) ? 4 : 0)
+            .padding(.horizontal, CodySpacing.xsPlus)
+            .padding(.top, CodySpacing.xs)
+            .padding(.bottom, (group.isCollapsed || group.ids.isEmpty) ? CodySpacing.xs : 0)
         .onTapGesture {
             if let fid = group.folderId { toggleFolderCollapsed(fid, scrollProxy: scrollProxy) }
         }
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityHint(searchResultsActive ? Text("") : (group.isCollapsed ? Text("Expand") : Text("Collapse")))
         .accessibilityAction {
             if let fid = group.folderId { toggleFolderCollapsed(fid, scrollProxy: scrollProxy) }
         }
