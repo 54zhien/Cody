@@ -78,7 +78,7 @@ jobs:
 
       - name: Restore native dependencies cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             deps/libs
@@ -122,6 +122,18 @@ jobs:
           set -euo pipefail
           ./deps/build_rclone_ios.sh
 
+      - name: Save native dependencies cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            deps/libs
+            deps/include
+            deps/resources
+            deps/frameworks
+            deps/lame-build
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
+
       - name: Ensure ProviderCustomization.xcconfig exists
         run: |
           set -euo pipefail
@@ -130,7 +142,8 @@ jobs:
           fi
 
       - name: Restore SwiftPM cache
-        uses: actions/cache@v4
+        id: spm-cache
+        uses: actions/cache/restore@v4
         with:
           path: build/SourcePackages
           key: ios-spm-v1-xcode${{ steps.xcode.outputs.version }}-${{ hashFiles('src/ios/Cody.xcodeproj/project.pbxproj') }}
@@ -169,6 +182,13 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             2>&1 | tee build/xcodebuild.log
         shell: bash
+
+      - name: Save SwiftPM cache
+        if: (success() || failure()) && steps.spm-cache.outputs.cache-hit != 'true' && hashFiles('build/SourcePackages/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/SourcePackages
+          key: ${{ steps.spm-cache.outputs.cache-primary-key }}
 
       - name: Package unsigned IPA
         id: package

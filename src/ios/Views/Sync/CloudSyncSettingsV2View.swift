@@ -49,7 +49,7 @@ struct CloudSyncSettingsV2View: View {
                     } label: {
                         LabeledContent("Status") {
                             CodyStatusPill(
-                                localized: AppLocalized(statusText),
+                                localized: AppLocalized(String.LocalizationValue(statusText)),
                                 tone: statusTone,
                                 dotColor: v2Enabled && statusText == "Running" ? CodyColors.connectionReady : nil
                             )
