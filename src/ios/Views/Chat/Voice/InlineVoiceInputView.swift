@@ -39,7 +39,22 @@ struct InlineVoiceInputView: View {
     @State private var voiceUsageHintGeneration = 0
     /// Tear down voice mode (X button / done).
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @FocusState private var editFocused: Bool
+
+    private var panelLayoutAnimation: Animation? {
+        CodyMotion.resolved(CodyMotion.layout, reduceMotion: reduceMotion)
+    }
+
+    private var voiceAppearanceAnimation: Animation? {
+        CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)
+    }
+
+    private var showsRecognitionStatus: Bool {
+        guard !viewModel.isEditingTranscript, !viewModel.permissionDenied, viewModel.startError == nil else { return false }
+        return viewModel.isFinishingForSend || showCancelIcon || viewModel.state == .processing
+    }
     /// [T-voice-bg-fg-gap] Last global frame this panel reported — read by the
     /// keyboard/lifecycle log lines so position is visible at event edges.
     @State private var lastPanelFrame: CGRect = .zero
@@ -237,8 +252,8 @@ struct InlineVoiceInputView: View {
                     .transition(.identity)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, CodyMetrics.Composer.paddingH)
+        .padding(.vertical, CodySpacing.sm)
         .frame(maxWidth: .infinity)
         .frame(height: effectiveHeight)
         .background(
@@ -286,7 +301,7 @@ struct InlineVoiceInputView: View {
                             viewModel.setTranscript(joined)
                             if !expanded {
                                 VoiceLog.log("paste → expand")
-                                withAnimation(.easeInOut(duration: 0.28)) { expanded = true }
+                                withAnimation(panelLayoutAnimation) { expanded = true }
                             }
                             VoiceLog.log("voice panel paste: +\(text.count) chars")
                         } label: {
@@ -309,7 +324,7 @@ struct InlineVoiceInputView: View {
             // landed, switching the RECOGNITION language is meaningless (the audio is
             // already transcribed), so the slot is free — and reusing it costs zero new
             // screen space and no layout reflow, since the sparkles button has exactly the
-            // globe's 30×30 pill geometry.
+            // globe's 32×32 control geometry.
             //
             voiceCorrectionOrLanguageMenu
                 .padding(.top, 10)
@@ -385,17 +400,20 @@ struct InlineVoiceInputView: View {
                 if dy > 0 {
                     if expanded {
                         VoiceLog.log("drag down → collapse")
-                        withAnimation(.easeInOut(duration: 0.28)) { expanded = false }
+                        withAnimation(panelLayoutAnimation) { expanded = false }
                     }
                 } else {
                     if !expanded {
                         VoiceLog.log("drag up → expand")
-                        withAnimation(.easeInOut(duration: 0.28)) { expanded = true }
+                        withAnimation(panelLayoutAnimation) { expanded = true }
                     }
                 }
             }
         ))
-        .animation(.easeInOut(duration: 0.28), value: expanded)
+        .animation(panelLayoutAnimation, value: expanded)
+        .transaction { transaction in
+            if reduceMotion { transaction.disablesAnimations = true }
+        }
         .background(
             GeometryReader { geo in
                 Color.clear
@@ -544,7 +562,7 @@ struct InlineVoiceInputView: View {
                 VoiceLog.log("external input → transcript sync: \"\(newValue.prefix(40))\"")
                 if !expanded, !newValue.isEmpty {
                     VoiceLog.log("external input → expand (text=\(newValue.count) chars)")
-                    withAnimation(.easeInOut(duration: 0.28)) { expanded = true }
+                    withAnimation(panelLayoutAnimation) { expanded = true }
                 }
             }
         }
@@ -560,7 +578,7 @@ struct InlineVoiceInputView: View {
             // path won't re-expand.)
             if !expanded, !newValue.isEmpty {
                 VoiceLog.log("transcript change → expand (text=\(newValue.count) chars)")
-                withAnimation(.easeInOut(duration: 0.28)) { expanded = true }
+                withAnimation(panelLayoutAnimation) { expanded = true }
             }
         }
         // [T-voice-asr-failure-retry-prompt] A failed transcription keeps its
@@ -585,7 +603,7 @@ struct InlineVoiceInputView: View {
             // SAME gesture sequence) can't win the race and leave it expanded.
             VoiceLog.log("collapseAfterSendToken → collapse to compact")
             DispatchQueue.main.async {
-                withAnimation(.easeInOut(duration: 0.28)) { expanded = false }
+                withAnimation(panelLayoutAnimation) { expanded = false }
             }
         }
         .onChange(of: voiceSelection.inputEntryId) { _ in
@@ -614,10 +632,15 @@ struct InlineVoiceInputView: View {
         // vertically centered, so the mic shifts down just enough to make room for
         // the hint instead of overlapping it. No hint → mic is dead-centered.
         VStack(spacing: 6) {
-            if !viewModel.transcript.isEmpty {
+            if showsRecognitionStatus {
+                statusLineText
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .lineLimit(1)
+            } else if !viewModel.transcript.isEmpty {
                 Text("… \(viewModel.transcript.count) chars …", comment: "Compact voice buffered char count")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
             }
             micButtonWithSwitch
@@ -639,19 +662,19 @@ struct InlineVoiceInputView: View {
             // ── Status line (with Exit chip while editing). ──
             HStack(spacing: 8) {
                 statusLineText
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
                 if viewModel.isEditingTranscript {
                     Button {
                         viewModel.endEditing(resume: false)
                     } label: {
                         Text("Exit", comment: "Exit transcript editing")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                            .font(CodyTypography.labelMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .padding(.horizontal, CodySpacing.smPlus)
+                            .padding(.vertical, CodySpacing.xs)
+                            .background(Capsule().fill(CodyColors.interactiveSecondaryBg))
                     }
                     .buttonStyle(.plain)
                 }
@@ -666,21 +689,21 @@ struct InlineVoiceInputView: View {
                 voiceUsageHintGeneration = hint.generation
                 try? await Task.sleep(nanoseconds: UInt64(Self.usageHintDebounce * 1_000_000_000))
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeInOut(duration: 0.25)) { voiceUsageHint = hint }
+                withAnimation(voiceAppearanceAnimation) { voiceUsageHint = hint }
                 try? await Task.sleep(nanoseconds: UInt64(Self.usageHintDuration * 1_000_000_000))
                 guard !Task.isCancelled, voiceUsageHint?.generation == hint.generation else { return }
-                withAnimation(.easeInOut(duration: 0.25)) { voiceUsageHint = nil }
+                withAnimation(voiceAppearanceAnimation) { voiceUsageHint = nil }
             }
             // Starting a recording is the voice-panel analogue of "input
             // began": the line yields immediately instead of finishing its
             // window over the live recording tips.
             .onChange(of: viewModel.state) { newState in
                 if newState == .recording, voiceUsageHint != nil {
-                    withAnimation(.easeInOut(duration: 0.2)) { voiceUsageHint = nil }
+                    withAnimation(voiceAppearanceAnimation) { voiceUsageHint = nil }
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: viewModel.state)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.isEditingTranscript)
+            .animation(voiceAppearanceAnimation, value: viewModel.state)
+            .animation(voiceAppearanceAnimation, value: viewModel.isEditingTranscript)
 
             // Absorbs spare vertical space so the controls below are pushed to the
             // bottom of the panel. When transcript text grows, this spacer shrinks
@@ -702,16 +725,16 @@ struct InlineVoiceInputView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CodyColors.statusWarningText)
                     Text(error)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(Color.orange.opacity(0.12)))
+                .background(Capsule().fill(CodyColors.statusWarningBg))
                 .transition(.opacity)
             }
             // [voice-correction] Non-error one-off status ("No corrections
@@ -757,14 +780,11 @@ struct InlineVoiceInputView: View {
     /// Compact↔expand toggle. Mirrors the globe's pill styling.
     private var expandCollapseButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.28)) { expanded.toggle() }
+            withAnimation(panelLayoutAnimation) { expanded.toggle() }
         } label: {
             Image(systemName: expanded ? "chevron.down" : "chevron.up")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(ChatColors.secondaryText)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(ChatColors.inputIconBg))
-                .overlay(Circle().strokeBorder(ChatColors.inputIconBorder, lineWidth: 0.5))
+                .modifier(ComposerSecondaryControlSurface())
         }
         .accessibilityLabel(expanded
             ? Text("Collapse voice panel", comment: "Voice panel collapse")
@@ -796,9 +816,9 @@ struct InlineVoiceInputView: View {
                 set: { viewModel.setTranscript($0); inputText = $0 }
             ), axis: .vertical)
                 .focused($editFocused)
-                .font(.body)
+                .font(CodyTypography.bodyLarge)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(ChatColors.primaryText)
+                .foregroundStyle(CodyColors.textPrimary)
                 .onAppear { editFocused = true }
                 .toolbar {
                     ToolbarItemGroup(placement: .keyboard) {
@@ -812,7 +832,7 @@ struct InlineVoiceInputView: View {
                             viewModel.endEditing(resume: false)
                         } label: {
                             Text("Done", comment: "Finish transcript editing")
-                                .font(.body.weight(.semibold))
+                                .font(CodyTypography.titleMedium)
                         }
                     }
                 }
@@ -839,8 +859,8 @@ struct InlineVoiceInputView: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: true) {
                     Text(viewModel.transcript)
-                        .font(.body)
-                        .foregroundStyle(ChatColors.primaryText)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity)
@@ -885,7 +905,7 @@ struct InlineVoiceInputView: View {
                 }
                 // Auto-scroll to the newest text as it streams in.
                 .onChange(of: viewModel.transcript) { _ in
-                    withAnimation(.linear(duration: 0.12)) {
+                    withAnimation(CodyMotion.resolved(.linear(duration: 0.12), reduceMotion: reduceMotion)) {
                         proxy.scrollTo("voiceTranscriptTail", anchor: .bottom)
                     }
                 }
@@ -912,22 +932,29 @@ struct InlineVoiceInputView: View {
             HStack(spacing: 5) {
                 if let g = activeGroupName {
                     Text(g)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Text("·").font(.caption2).foregroundStyle(.quaternary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .lineLimit(1)
+                    Text("·").font(CodyTypography.labelSmall).foregroundStyle(CodyColors.textTertiary)
                 }
                 Text(activeModelLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(CodyColors.iconDisclosure)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(Color.secondary.opacity(0.1)))
+            .padding(.horizontal, CodySpacing.smPlus)
+            .padding(.vertical, CodySpacing.xs)
+            .background(Capsule().fill(CodyColors.bgTertiary))
+            .overlay {
+                Capsule().strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(Capsule())
         }
+        .buttonStyle(CodyPressableButtonStyle())
     }
 
     /// Recognition-language switcher (options from the system's preferred locales).
@@ -949,10 +976,7 @@ struct InlineVoiceInputView: View {
             // other controls: black fill, white icon, subtle border.
             Image(systemName: "globe")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(ChatColors.secondaryText)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(ChatColors.inputIconBg))
-                .overlay(Circle().strokeBorder(ChatColors.inputIconBorder, lineWidth: 0.5))
+                .modifier(ComposerSecondaryControlSurface())
         }
         .accessibilityLabel(Text("Recognition language: \(VoiceLanguages.option(for: viewModel.language).label)", comment: "Inline voice language switch"))
     }
@@ -971,16 +995,16 @@ struct InlineVoiceInputView: View {
         if viewModel.isEditingTranscript {
             // Editing: the user's attention is on the keyboard. Show nothing here rather
             // than a button competing for it.
-            Color.clear.frame(width: 30, height: 30)
+            Color.clear.frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
         } else if !viewModel.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // A transcript exists → offer manual AI correction. Switching the RECOGNITION
             // language is meaningless once the audio is already transcribed, so this slot is
             // free to host the correction button.
             correctionButton
-                .transition(.scale.combined(with: .opacity))
+                .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
         } else {
             languageMenu
-                .transition(.scale.combined(with: .opacity))
+                .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
         }
     }
 
@@ -1006,13 +1030,11 @@ struct InlineVoiceInputView: View {
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(ChatColors.secondaryText)
                 }
             }
-            .frame(width: 30, height: 30)
-            .background(Circle().fill(ChatColors.inputIconBg))
-            .overlay(Circle().strokeBorder(ChatColors.inputIconBorder, lineWidth: 0.5))
+            .modifier(ComposerSecondaryControlSurface(isActive: true))
         }
+        .buttonStyle(CodyPressableButtonStyle())
         .disabled(isCorrecting)
         .accessibilityLabel(Text("Correct transcript with AI", comment: "Voice manual-correction button"))
         .alert(AppLocalized("Improve voice corrections?",
@@ -1140,14 +1162,14 @@ struct InlineVoiceInputView: View {
                 Image(systemName: "forward.end.fill")
                     .font(.system(size: 10, weight: .semibold))
                 Text("Switch Model", comment: "Voice ASR stalled: short label of the button that retries on the next voice model")
-                    .font(.caption.weight(.semibold))
+                    .font(CodyTypography.labelMedium)
                     .lineLimit(1)
             }
-            .foregroundStyle(ChatColors.secondaryText)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(ChatColors.inputIconBg))
-            .overlay(Capsule().strokeBorder(ChatColors.inputIconBorder, lineWidth: 0.5))
+            .foregroundStyle(CodyColors.textSecondary)
+            .padding(.horizontal, CodySpacing.smPlus)
+            .padding(.vertical, CodySpacing.xsPlus)
+            .background(Capsule().fill(CodyColors.bgListIcon))
+            .overlay(Capsule().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -1163,14 +1185,9 @@ struct InlineVoiceInputView: View {
             }
         } label: {
             ZStack {
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: micDiameter, height: micDiameter)
-                    .shadow(color: .black.opacity(0.18), radius: expanded ? 7 : 5, y: expanded ? 3 : 2)
-
                 if viewModel.isTranscribing {
-                    TimelineView(.animation) { context in
-                        let t = context.date.timeIntervalSinceReferenceDate
+                    TimelineView(.animation(paused: reduceMotion)) { context in
+                        let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
                         let angle = Angle(degrees: (t / 0.9).truncatingRemainder(dividingBy: 1) * 360)
                         // [T-voice-ring-inside] Inside the white disc, flush with
                         // its rim, fading toward its tail - see TranscribingRingArc.
@@ -1181,28 +1198,53 @@ struct InlineVoiceInputView: View {
 
                 switch viewModel.state {
                 case .recording:
-                    InlineMiniWaveform(levels: viewModel.waveformLevels)
-                        .frame(width: expanded ? 38 : 26, height: expanded ? 24 : 18)
+                    VoiceWaveformView(
+                        levels: Array(viewModel.waveformLevels.suffix(7)),
+                        tint: viewModel.isTranscribing ? .black : CodyColors.interactivePrimaryLabel,
+                        height: expanded ? CodySpacing.xxl : 18
+                    )
                 default:
                     if showCancelIcon {
                         Image(systemName: "xmark")
                             .font(.system(size: expanded ? 22 : 16, weight: .semibold))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(viewModel.isTranscribing ? .black : CodyColors.iconPrimary)
                     } else {
                         Image(systemName: "mic.fill")
                             .font(.system(size: expanded ? 24 : 18, weight: .medium))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(viewModel.isTranscribing ? .black : CodyColors.iconPrimary)
                     }
                 }
             }
             .frame(width: micDiameter, height: micDiameter)
+            .background { micDisc }
             .contentShape(Circle())
+            .animation(voiceAppearanceAnimation, value: viewModel.state)
+            .animation(voiceAppearanceAnimation, value: viewModel.isTranscribing)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CodyPressableButtonStyle())
         .disabled(viewModel.permissionDenied)
         .accessibilityLabel(showCancelIcon
             ? Text("Cancel transcription", comment: "Voice cancel transcription")
             : Text("Toggle recording", comment: "Inline voice mic"))
+    }
+
+    private var micDisc: some View {
+        Group {
+            if viewModel.isTranscribing {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: micDiameter, height: micDiameter)
+            } else {
+                Circle()
+                    .fill(viewModel.state == .recording ? CodyColors.interactivePrimaryBg : CodyColors.bgListIcon)
+                    .frame(width: micDiameter, height: micDiameter)
+                    .overlay {
+                        Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+            }
+        }
+        .shadow(color: .black.opacity(0.14), radius: expanded ? 7 : 5, y: 2)
     }
 
     // MARK: - [T-ios-context-usage-hint] Usage line in the status row
@@ -1227,6 +1269,9 @@ struct InlineVoiceInputView: View {
             Text(Self.highlightedUsageLine(hint))
                 .transition(.opacity)
                 .id("usage-\(hint.generation)")
+        } else if showsRecognitionStatus && !reduceTransparency {
+            CodyShimmeringText(Text(stateLabel))
+                .transition(.opacity)
         } else {
             Text(stateLabel)
                 .transition(.opacity)
@@ -1283,6 +1328,9 @@ struct InlineVoiceInputView: View {
         // recognition has finished. Says why the send button is busy.
         if viewModel.isFinishingForSend {
             return AppLocalized("Transcribing, then sending…", comment: "Voice input: status while a tapped Send waits for speech recognition to finish")
+        }
+        if showCancelIcon {
+            return AppLocalized("Recognizing…", comment: "Inline voice processing")
         }
         switch viewModel.state {
         case .waiting:
@@ -1387,10 +1435,10 @@ private struct VoiceDeleteButton: View {
     var body: some View {
         Image(systemName: "delete.left.fill")
             .font(.system(size: 21, weight: .medium))
-            .foregroundStyle(ChatColors.secondaryText)
+            .foregroundStyle(CodyColors.iconSecondary)
             .frame(width: Self.diameter, height: Self.diameter)
-            .background(Circle().fill(ChatColors.inputIconBg))
-            .overlay(Circle().strokeBorder(ChatColors.inputIconBorder, lineWidth: 0.5))
+            .background(Circle().fill(CodyColors.bgListIcon))
+            .overlay(Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px))
             .scaleEffect(pressing ? 0.9 : 1.0)
             .overlay(
                 DeletePressOverlay(
@@ -1454,7 +1502,7 @@ private struct DeletePressOverlay: UIViewRepresentable {
     }
 }
 
-// MARK: - Mini waveform (dark bars, sits inside the white mic button)
+// MARK: - Transcript geometry
 
 // Measures the transcript's intrinsic content height so the panel can grow
 // with content and then cap-and-scroll.
@@ -1462,21 +1510,6 @@ private struct TranscriptContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
-    }
-}
-
-private struct InlineMiniWaveform: View {
-    let levels: [Float]
-
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(Array(levels.suffix(7).enumerated()), id: \.offset) { _, level in
-                Capsule()
-                    .fill(Color.black.opacity(0.85))
-                    .frame(width: 3, height: max(5, CGFloat(level) * 26))
-                    .animation(.spring(response: 0.18, dampingFraction: 0.6), value: level)
-            }
-        }
     }
 }
 

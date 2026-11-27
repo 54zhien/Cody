@@ -19,6 +19,7 @@ import UIKit
 //     driven by `vm.speechPlayerExpanded`).
 
 struct SpeechPlayerControl: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// GLOBAL read-replies state — this control is a single app-root instance that
     /// persists across chat → home (mounted in CodyApp beside AudioPiPCapsule).
     @ObservedObject private var state = VoiceOutputState.shared
@@ -56,9 +57,17 @@ struct SpeechPlayerControl: View {
     /// Horizontal/vertical inset for the drag bounds — matched to the message
     /// content's distance from the screen edge (the chat list uses 16pt), so the
     /// capsule can't be dragged past the message content's left/right margin.
-    private static let edgeMargin: CGFloat = 16
+    private static let edgeMargin = CodyMetrics.Composer.outerMarginH
 
     private var expanded: Bool { expandedState }
+
+    private var layoutAnimation: Animation? {
+        CodyMotion.resolved(CodyMotion.layout, reduceMotion: reduceMotion)
+    }
+
+    private var appearanceAnimation: Animation? {
+        CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)
+    }
 
     /// Show whenever read-replies is ON (so it can be turned off from anywhere) or
     /// something is actively playing/synthesizing. When the keyboard is up the
@@ -70,7 +79,7 @@ struct SpeechPlayerControl: View {
     }
 
     /// Default gap from the screen's bottom safe-area edge for the resting capsule.
-    private static let restingBottomGap: CGFloat = 12
+    private static let restingBottomGap = CodySpacing.md
 
     /// The avoidance offset currently applied (points the capsule is lifted up).
     @State private var avoidLift: CGFloat = 0
@@ -98,7 +107,7 @@ struct SpeechPlayerControl: View {
             }
             if isActive {
                 control
-                    .padding(.trailing, 16)
+                    .padding(.trailing, Self.edgeMargin)
                     .padding(.bottom, Self.restingBottomGap)
                     .background(
                         GeometryReader { cg in
@@ -108,14 +117,17 @@ struct SpeechPlayerControl: View {
                         }
                     )
                     .offset(y: -avoidLift)
-                    .animation(.easeInOut(duration: 0.2), value: avoidLift)
+                    .animation(layoutAnimation, value: avoidLift)
                     // [GH#399] Never hidden: when cramped, recompute() pins it
                     // at the top limit as the compact button instead.
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .ignoresSafeArea(.keyboard)
-        .animation(.easeInOut(duration: 0.2), value: isActive)
+        .animation(appearanceAnimation, value: isActive)
+        .transaction { transaction in
+            if reduceMotion { transaction.disablesAnimations = true }
+        }
         .onReceive(placement.$protectedRects) { _ in scheduleRecompute() }
         // [GH#399] Turning read-replies on re-checks the position: a saved
         // offset that is no longer usable is dropped and the capsule comes back
@@ -237,10 +249,10 @@ struct SpeechPlayerControl: View {
         ZStack(alignment: .bottomTrailing) {
             if expanded {
                 expandedCapsule
-                    .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
+                    .transition(reduceMotion ? .identity : .scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
             } else {
                 compactButton
-                    .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
+                    .transition(reduceMotion ? .identity : .scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
             }
         }
         // Measure the base frame BEFORE the offset, and ONLY while not dragging, so
@@ -453,7 +465,7 @@ struct SpeechPlayerControl: View {
     private func setExpanded(_ v: Bool) {
         guard expandedState != v else { return }
         VoiceLog.log("[capsule] expanded → \(v)")
-        withAnimation(.easeInOut(duration: 0.16)) { expandedState = v }
+        withAnimation(layoutAnimation) { expandedState = v }
     }
 
     // MARK: - Compact
@@ -465,46 +477,48 @@ struct SpeechPlayerControl: View {
     @ViewBuilder
     private func speakerGlyph(size: CGFloat, ring: CGFloat) -> some View {
         // Muted → dimmed slashed speaker; otherwise active accent speaker.
-        let tint: Color = showFailureFlash ? .red
-            : (state.isMuted ? Color.secondary : Color.accentColor)
+        let tint = showFailureFlash
+            ? CodyColors.statusErrorText
+            : (state.isMuted ? CodyColors.iconSecondary : CodyCategoryTint.blue.color)
         Image(systemName: state.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
             .font(.system(size: size, weight: .medium))
             .foregroundStyle(tint)
-            .opacity(state.isMuted ? 0.55 : 1.0)
             .overlay {
                 // Rotating 75° blue arc around the icon while synthesizing.
                 if voicePlayer.isSynthesizing && !state.isMuted && !showFailureFlash {
                     RotatingArc(diameter: ring)
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: showFailureFlash)
+            .animation(appearanceAnimation, value: showFailureFlash)
     }
 
     private var compactButton: some View {
         ZStack(alignment: .bottomTrailing) {
             // No shadow — a faint border instead, matching the scroll-to-bottom pill.
-            Circle()
-                .fill(.ultraThinMaterial)
-                .frame(width: 40, height: 40)
-                .overlay(Circle().stroke(Color.gray.opacity(0.25), lineWidth: 0.5))
-            speakerGlyph(size: 15, ring: 40).frame(width: 40, height: 40)
+            speakerGlyph(size: 15, ring: CodyControlHeight.md)
+                .frame(width: CodyControlHeight.md, height: CodyControlHeight.md)
+                .modifier(SpeechPlayerSurface(shape: Circle()))
             if state.speechSpeed > 1.0 {
                 Text(Self.speedLabel(state.speechSpeed))
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4).padding(.vertical, 1)
-                    .background(Capsule().fill(Color.accentColor))
+                    .font(CodyTypography.labelSmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.xs)
+                    .padding(.vertical, CodySpacing.px)
+                    .background(Capsule().fill(CodyColors.interactivePrimaryBg))
                     .offset(x: 6, y: 4)
             }
         }
-        .contentShape(Circle())
+        .contentShape(Circle().inset(by: -CodySpacing.xxs))
         // Double-tap toggles MUTE (temporary silence; capsule stays visible).
         .onTapGesture(count: 2) { state.isMuted.toggle() }
         // Single-tap always EXPANDS to the controls.
         .onTapGesture { setExpanded(true); bumpIdle() }
         .highPriorityGesture(dragGesture)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(Text("Read-aloud controls"))
+        .accessibilityAction { setExpanded(true); bumpIdle() }
     }
-
 
     // MARK: - Expanded
 
@@ -529,19 +543,20 @@ struct SpeechPlayerControl: View {
         HStack(spacing: 8) {
             Image(systemName: state.readAloudVolume <= 0 ? "speaker.fill" : "speaker.wave.1.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
+                .foregroundStyle(CodyColors.iconSecondary)
+                .frame(width: CodySpacing.lg)
                 .accessibilityHidden(true)
             Slider(value: Binding(
                 get: { Double(state.readAloudVolume) },
                 set: { state.readAloudVolume = Float($0); bumpIdle() }
             ), in: 0...1, step: 0.05)
             .controlSize(.small)
+            .tint(CodyColors.interactivePrimaryBg)
             .accessibilityLabel(Text("Read-aloud volume"))
             .accessibilityValue(Text(verbatim: "\(ReadAloudVolume.percent(state.readAloudVolume))%"))
             Text(verbatim: "\(ReadAloudVolume.percent(state.readAloudVolume))%")
-                .font(.caption2.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.labelSmall.weight(.semibold).monospacedDigit())
+                .foregroundStyle(CodyColors.textSecondary)
                 .lineLimit(1)
                 // Large Dynamic Type shrinks the digits instead of truncating
                 // them inside the fixed-width row.
@@ -552,8 +567,7 @@ struct SpeechPlayerControl: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .frame(width: Self.volumeRowWidth)
-        .background(Capsule().fill(.ultraThinMaterial))
-        .overlay(Capsule().stroke(Color.gray.opacity(0.25), lineWidth: 0.5))
+        .modifier(SpeechPlayerSurface(shape: Capsule()))
         .accessibilityElement(children: .contain)
     }
 
@@ -566,7 +580,8 @@ struct SpeechPlayerControl: View {
             } label: {
                 speakerGlyph(size: 15, ring: 28).frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
+            .accessibilityLabel(state.isMuted ? Text("Unmute read aloud") : Text("Mute read aloud"))
 
             // Model chip (tap to switch the TTS model).
             Button {
@@ -575,34 +590,34 @@ struct SpeechPlayerControl: View {
                 HStack(spacing: 4) {
                     Image(systemName: "waveform")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.iconSecondary)
                     Text(modelLabel.isEmpty ? "Voice" : modelLabel)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.primary)
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(CodyColors.iconDisclosure)
                 }
                 .frame(maxWidth: 130)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
 
             // Speed chip (tap to cycle 1×→1.25×→1.5×→2×).
             Button {
                 state.nextSpeed(); bumpIdle()
             } label: {
                 Text(Self.speedLabel(state.speechSpeed))
-                    .font(.caption2.weight(.bold))
+                    .font(CodyTypography.labelSmall.weight(.bold).monospacedDigit())
                     .lineLimit(1)
-                    .foregroundStyle(state.speechSpeed > 1.0 ? Color.accentColor : .secondary)
+                    .foregroundStyle(state.speechSpeed > 1.0 ? CodyCategoryTint.blue.color : CodyColors.textSecondary)
                     // Fixed width sized for the widest label ("1.25×") so cycling
                     // through speeds doesn't change the chip width (→ no jitter).
                     .frame(width: 34)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                    .background(Capsule().fill(CodyColors.interactiveSecondaryBg))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
 
             // Close (turn read-replies off).
             Button {
@@ -610,16 +625,16 @@ struct SpeechPlayerControl: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
+                    .foregroundStyle(CodyColors.iconSecondary)
+                    .frame(width: CodySpacing.xxl, height: CodySpacing.xxl)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
+            .accessibilityLabel(Text("Turn read aloud off"))
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, CodySpacing.mdPlus)
         .padding(.vertical, 9)
         // No shadow — a faint border instead, matching the scroll-to-bottom pill.
-        .background(Capsule().fill(.ultraThinMaterial))
-        .overlay(Capsule().stroke(Color.gray.opacity(0.25), lineWidth: 0.5))
+        .modifier(SpeechPlayerSurface(shape: Capsule()))
         // Drag to reposition. Highest priority so the outer tap-to-dismiss layer
         // doesn't steal it.
         .highPriorityGesture(dragGesture)
@@ -650,12 +665,35 @@ struct SpeechPlayerControl: View {
     }
 }
 
+// MARK: - Player surface
+
+private struct SpeechPlayerSurface<S: InsettableShape>: ViewModifier {
+    let shape: S
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if reduceTransparency {
+                    shape.fill(CodyColors.bgElevatedPrimary)
+                } else {
+                    shape.fill(.ultraThinMaterial)
+                }
+            }
+            .overlay {
+                shape.strokeBorder(CodyColors.borderInput, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
 // MARK: - Synthesizing loading ring (rotating 75° arc)
 
 /// A thin blue 75° arc traced on a `diameter`-wide circle, spinning continuously
 /// while cloud TTS audio is being generated. Driven by `TimelineView(.animation)`
 /// so it keeps spinning across compact↔expand morphs (no onAppear restart needed).
 private struct RotatingArc: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let diameter: CGFloat
     /// Arc length as a fraction of the full circle — 75° / 360° ≈ 0.208.
     private let arcFraction: CGFloat = 75.0 / 360.0
@@ -663,12 +701,12 @@ private struct RotatingArc: View {
     private let period: Double = 0.9
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(paused: reduceMotion)) { context in
+            let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
             let angle = Angle(degrees: (t / period).truncatingRemainder(dividingBy: 1) * 360)
             Circle()
                 .trim(from: 0, to: arcFraction)
-                .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .stroke(CodyCategoryTint.blue.color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                 .frame(width: diameter, height: diameter)
                 .rotationEffect(angle)
         }

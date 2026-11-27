@@ -17,7 +17,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -93,25 +92,28 @@ struct FloatingCircleButtonSurface: ViewModifier {
 /// preserves the invariant rather than reintroducing the bug. Verified on device
 /// by long-pressing composer text to raise the edit menu — see the task notes.
 ///
-/// The two hand-rolled shadows are dropped on the glass path (Liquid Glass
-/// renders its own edge and shadow; stacking the old ones reads as a dark halo —
-/// the same finding as the FAB conversion). The sub-26 branch keeps the original
-/// fill and BOTH shadows byte-for-byte, including the dark-mode-only top shadow
-/// that lifts the bar off the message list.
+/// Liquid Glass draws its own edge and shadow. The opaque surface keeps a
+/// border and lift on earlier systems and when Reduce Transparency is enabled.
 struct ComposerSurface: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous)
     }
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, *), !reduceTransparency {
             content
                 .glassEffect(.regular, in: shape)
                 .clipShape(shape)
         } else {
             content
-                .background(shape.fill(ChatColors.inputBg))
+                .background(shape.fill(CodyColors.bgPrimary))
                 .clipShape(shape)
+                .overlay {
+                    shape.strokeBorder(CodyColors.borderInput, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
                 .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 2)
                 .shadow(color: Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0, alpha: 0.5) : UIColor(white: 0, alpha: 0) }), radius: 8, x: 0, y: -4)
         }
@@ -153,7 +155,7 @@ struct ComposerContextGlow: View {
     /// Must match ComposerSurface's shape exactly: it is the stroke path and
     /// the clip that keeps the glow inside the wall.
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous)
     }
     private var color: Color {
         tier == .critical ? Color(UIColor.systemRed) : Color(UIColor.systemOrange)
@@ -205,6 +207,38 @@ struct ComposerContextGlow: View {
         } else {
             withAnimation(.easeInOut(duration: 0.3)) { breathing = false }
         }
+    }
+}
+
+// Split the space between neighboring controls and extend vertically to 44 pt.
+struct ComposerControlHitShape: Shape {
+    static func bounds(in rect: CGRect) -> CGRect {
+        let horizontal = min(
+            max(0, CodyMetrics.Composer.buttonHitSize - rect.width),
+            CodyMetrics.Composer.buttonSpacing
+        ) / 2
+        let vertical = max(0, CodyMetrics.Composer.buttonHitSize - rect.height) / 2
+        return rect.insetBy(dx: -horizontal, dy: -vertical)
+    }
+
+    func path(in rect: CGRect) -> Path {
+        Path(Self.bounds(in: rect))
+    }
+}
+
+struct ComposerSecondaryControlSurface: ViewModifier {
+    var isActive = false
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(isActive ? CodyCategoryTint.blue.color : CodyColors.iconSecondary)
+            .frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
+            .background(Circle().fill(isActive ? CodyColors.bgSecondary : CodyColors.bgListIcon))
+            .overlay {
+                Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(ComposerControlHitShape())
     }
 }
 

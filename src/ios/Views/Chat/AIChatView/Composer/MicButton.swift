@@ -14,7 +14,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -39,7 +38,11 @@ struct MicButton: View {
     /// Press feedback for the custom-gesture button.
     @State private var micPressed = false
 
-    private static let diameter: CGFloat = 34
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let diameter = CodyMetrics.Composer.buttonVisualSize
+
+    private var isRecording: Bool { speechManager.state == .recording }
 
     var body: some View {
         // NOT a Button: SwiftUI's Button has a generous system touch-slop / touch-
@@ -51,13 +54,17 @@ struct MicButton: View {
         // glyph is wider than the mic, so render it ~4pt smaller for parity.
         Image(systemName: isVoiceActive ? "keyboard" : "mic")
             .font(.system(size: isVoiceActive ? 15 : 18, weight: .medium))
-            .foregroundStyle(ChatColors.secondaryText)
+            .foregroundStyle(isRecording ? CodyColors.statusErrorText : CodyColors.iconSecondary)
             .frame(width: Self.diameter, height: Self.diameter)
-            .background(ChatColors.inputIconBg)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(ChatColors.inputIconBorder, lineWidth: 0.5))
-            .scaleEffect(micPressed ? 0.9 : 1.0)
-            .contentShape(Circle())
+            .background(Circle().fill(isRecording ? CodyColors.statusErrorBg : CodyColors.bgListIcon))
+            .overlay {
+                Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .opacity(micPressed ? CodyMotion.pressedOpacity : 1)
+            .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isRecording)
+            .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isVoiceActive)
+            .contentShape(ComposerControlHitShape())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
@@ -69,20 +76,24 @@ struct MicButton: View {
                         let moved = hypot(value.translation.width, value.translation.height)
                         micPressed = false
                         guard started, ended, moved < 10 else { return }
-                        inputFocused = false
-                        onTap()
+                        activate()
                     }
             )
             .accessibilityAddTraits(.isButton)
+            .accessibilityAction { activate() }
             .accessibilityLabel(isVoiceActive
                 ? Text("Switch to text input", comment: "Mic button exits voice mode")
                 : Text("Voice input", comment: "Mic button opens voice panel"))
     }
 
     /// Whether a point (in the button's local space) is within the visible circle.
-    private static func isInside(_ p: CGPoint) -> Bool {
-        let r = diameter / 2
-        let dx = p.x - r, dy = p.y - r
-        return (dx * dx + dy * dy) <= r * r
+    private func activate() {
+        inputFocused = false
+        onTap()
+    }
+
+    private static func isInside(_ point: CGPoint) -> Bool {
+        let frame = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+        return ComposerControlHitShape.bounds(in: frame).contains(point)
     }
 }

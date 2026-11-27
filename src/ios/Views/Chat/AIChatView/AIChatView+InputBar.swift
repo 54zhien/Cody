@@ -16,7 +16,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -79,22 +78,29 @@ extension AIChatView {
     var inputBar: some View {
         VStack(spacing: 0) {
             if vm.isSuspended {
-                HStack(spacing: 8) {
+                HStack(spacing: CodySpacing.sm) {
                     ProgressView()
-                        .tint(.yellow)
+                        .controlSize(.small)
+                        .tint(CodyColors.statusWarningText)
                     Text("Waiting for other tasks to complete...")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
-                .padding(.vertical, 8)
+                .padding(.horizontal, CodyMetrics.Composer.paddingH)
+                .padding(.vertical, CodySpacing.sm)
                 .frame(maxWidth: .infinity)
-                .background(Color.yellow.opacity(0.08))
+                .background {
+                    RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                        .fill(CodyColors.statusWarningBg)
+                }
+                .frame(maxWidth: maxContentWidth)
+                .padding(.horizontal, CodyMetrics.Composer.outerMarginH)
             }
 
             // [T-ios-chat-body-stack-erase] Same as body: erase the composer
             // before its modifier chain so each opaque step copies a pointer,
             // not the whole composer (30 dynamic stack buffers in this closure).
-            AnyView(VStack(spacing: 5) {
+            AnyView(VStack(spacing: CodySpacing.xs) {
                 // [T-paste-placeholder] Stashed long pastes referenced by the
                 // draft. Removal also strips the literal from the input text.
                 if !vm.pastedTexts.isEmpty {
@@ -133,10 +139,10 @@ extension AIChatView {
                     // Padding applied AFTER the observer, so the measured
                     // width is the row's own usable space and needs no
                     // constant subtracted back out of it.
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, CodyMetrics.Composer.paddingH)
+                    .padding(.bottom, CodyMetrics.Composer.paddingV)
             })
-            .contentShape(RoundedRectangle(cornerRadius: 20))
+            .contentShape(RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous))
             .onTapGesture { inputFocused = true }
             .onReceive(speechManager.$recognizedText) { text in
                 guard speechManager.state == .recording || !text.isEmpty else { return }
@@ -158,15 +164,18 @@ extension AIChatView {
                 if hasInjectedShareContent && hasMovableShareContent {
                     Button { showMoveToSheet = true } label: {
                         Label("Move to…", systemImage: "arrow.right.circle")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(ChatColors.secondaryText)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Capsule())
+                            .font(CodyTypography.labelMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .padding(.horizontal, CodySpacing.sm)
+                            .padding(.vertical, CodySpacing.xs)
+                            .background {
+                                RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+                                    .fill(CodyColors.interactiveSecondaryBg)
+                            }
                     }
-                    .padding(.top, 6)
-                    .padding(.trailing, 10)
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .padding(.top, CodySpacing.xsPlus)
+                    .padding(.trailing, CodyMetrics.Composer.paddingH)
                 }
             }
             .modifier(ComposerSurface())
@@ -178,8 +187,9 @@ extension AIChatView {
                 ComposerContextGlow(tier: vm.contextUsage?.tier ?? .normal)
             }
             .frame(maxWidth: maxContentWidth)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, CodyMetrics.Composer.outerMarginH)
+            .padding(.top, CodySpacing.sm)
+            .padding(.bottom, CodyMetrics.Composer.outerMarginBottom)
             // [T-ios-geometry-observer-crash] onGeometryChange replaces the
             // GeometryReader scaffold (async-renderer SIGTRAP — see the
             // floating-bar site). Fires with the initial value too, so the

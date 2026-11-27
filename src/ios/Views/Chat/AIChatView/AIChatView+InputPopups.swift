@@ -15,7 +15,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -68,11 +67,12 @@ extension AIChatView {
                 }
             }
         }
-        // Single spring drives both popups' show/hide transitions. Short
-        // snappy curve (~0.22s) — instant on `/` / `@` keypress with a
-        // touch of overshoot to read as iOS 26-native.
-        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: vm.showSlashMenu)
-        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: vm.showMentionMenu)
+        .animation(inputPopupAnimation, value: vm.showSlashMenu)
+        .animation(inputPopupAnimation, value: vm.showMentionMenu)
+    }
+
+    private var inputPopupAnimation: Animation? {
+        CodyMotion.resolved(CodyMotion.quick, reduceMotion: UIAccessibility.isReduceMotionEnabled)
     }
 
     /// [T-ipad-inputbar-height-zero] Bounds of the window hosting the chat, in
@@ -127,7 +127,7 @@ extension AIChatView {
             ))
     }
 
-    /// Slash command popup — matches FloatingToolBar width/radius/shadow, overlays on top of it.
+    /// Slash command popup in the band above the composer.
     /// [T-slash-picker-scroll] Wrapped in ScrollView with a half-screen height
     /// cap so long command lists (skills + builtin actions) stay reachable
     /// even when their natural height would push the bottom rows behind the
@@ -152,7 +152,6 @@ extension AIChatView {
                             let supported = vm.currentModelSupportsReasoning
                             SlashCommandRow(
                                 cmd: cmd,
-                                isSelected: isSelected,
                                 memoryEnabled: vm.memoryEnabled,
                                 thinkingLevel: vm.currentThinkingLevel,
                                 thinkingSupported: supported,
@@ -173,7 +172,6 @@ extension AIChatView {
                             } label: {
                                 SlashCommandRow(
                                     cmd: cmd,
-                                    isSelected: isSelected,
                                     memoryEnabled: vm.memoryEnabled
                                 )
                                 .contentShape(Rectangle())
@@ -215,8 +213,8 @@ extension AIChatView {
                             Text(FileMentionIndex.shared.isScanning
                                  ? AppLocalized("Scanning files…")
                                  : AppLocalized("No matching files"))
-                                .font(.system(size: 13))
-                                .foregroundStyle(ChatColors.secondaryText)
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
                             Spacer()
                         }
                         .padding(.horizontal, 12)
@@ -238,7 +236,7 @@ extension AIChatView {
                                     Button {
                                         vm.selectMention(entry)
                                     } label: {
-                                        MentionRow(entry: entry, isSelected: isSelected, query: vm.mentionFilter)
+                                        MentionRow(entry: entry)
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(SlashMenuButtonStyle(isSelected: isSelected))
@@ -261,7 +259,7 @@ extension AIChatView {
                         .frame(height: Self.slashPickerFixedHeight)
                         .onChange(of: vm.mentionSelectedIndex) { newIndex in
                             guard newIndex >= 0, newIndex < rows.count else { return }
-                            withAnimation(.easeOut(duration: 0.12)) {
+                            withAnimation(inputPopupAnimation) {
                                 proxy.scrollTo(newIndex, anchor: .center)
                             }
                         }
@@ -270,8 +268,8 @@ extension AIChatView {
                         HStack(spacing: 6) {
                             ProgressView().scaleEffect(0.6)
                             Text("Scanning more locations…")
-                                .font(.system(size: 11))
-                                .foregroundStyle(ChatColors.secondaryText)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                             Spacer()
                         }
                         .padding(.horizontal, 12)
@@ -282,118 +280,53 @@ extension AIChatView {
         }
     }
 
-    /// Shared chrome wrapper for the `/` and `@` input-bar popups — locks
-    /// the visual styling (material, continuous rounded corners, edge,
-    /// shadow, width clamp via `maxWidth`, 12pt horizontal inset) so the two
-    /// pickers stay pixel-identical. The caller supplies the content
-    /// (ScrollView, LazyVStack, etc.) and owns its own height. We
-    /// deliberately do NOT wrap the content in a ScrollView here because the
-    /// two pickers want different scroll reader / lazy semantics — chrome
-    /// only.
-    ///
-    /// iOS 26+: system Liquid Glass (`glassEffect(.regular, in:)`), the same
-    /// material the composer (`ComposerSurface`) and FloatingToolBar use, so
-    /// the popup reads as part of that surface family. No hand-rolled shadow
-    /// or stroke on this path — the material draws its own edge highlight
-    /// and lift, and stacking extra ones reads as a dark halo.
-    ///
-    /// Below iOS 26: `.regularMaterial` blur (thick enough that the chat
-    /// underneath never fights the row text) plus a hairline edge highlight
-    /// and a soft two-layer shadow, approximating the glass look.
-    ///
-    /// The material is painted INTO the rounded shape rather than as a
-    /// rectangular `.background` + `.clipShape` pair — see the
-    /// [T-popup-white-patch] note on `ComposerSurface`.
+    /// Shared surface and horizontal alignment for both autocomplete lists.
     private struct InputBarPopupChrome<Content: View>: View {
         let maxContentWidth: CGFloat?
         @ViewBuilder let content: () -> Content
 
-        static var shape: RoundedRectangle {
-            RoundedRectangle(cornerRadius: AIChatView.popupCornerRadius, style: .continuous)
-        }
-
         var body: some View {
             content()
                 .frame(maxWidth: .infinity)
-                .modifier(InputBarPopupSurface(shape: Self.shape))
+                .modifier(CodySurfaceModifier(radius: CodyRadius.surface))
                 .frame(maxWidth: maxContentWidth)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, CodyMetrics.Composer.outerMarginH)
         }
     }
 
-    private struct InputBarPopupSurface: ViewModifier {
-        let shape: RoundedRectangle
-
-        func body(content: Content) -> some View {
-            if #available(iOS 26.0, *) {
-                content
-                    .glassEffect(.regular, in: shape)
-                    .clipShape(shape)
-            } else {
-                content
-                    .background(.regularMaterial, in: shape)
-                    .clipShape(shape)
-                    .overlay(
-                        shape.strokeBorder(Self.edgeHighlight, lineWidth: 0.5)
-                    )
-                    .shadow(color: Color.black.opacity(0.06), radius: 2, x: 0, y: 1)
-                    .shadow(color: Self.ambientShadow, radius: 18, x: 0, y: 8)
-            }
-        }
-
-        /// Bright hairline in dark mode (glass rim), faint dark line in light
-        /// mode where a white rim would vanish.
-        private static let edgeHighlight = Color(UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(white: 1, alpha: 0.14)
-                : UIColor(white: 0, alpha: 0.08)
-        })
-        private static let ambientShadow = Color(UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(white: 0, alpha: 0.45)
-                : UIColor(white: 0, alpha: 0.12)
-        })
-    }
 
     /// A single row in the file-mention menu.
     private struct MentionRow: View {
         let entry: FileMentionEntry
-        let isSelected: Bool
-        let query: String
 
         var body: some View {
             HStack(spacing: 10) {
                 Image(systemName: iconName)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.white : ChatColors.secondaryText)
+                    .foregroundStyle(CodyColors.iconSecondary)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.basename)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(isSelected ? Color.white : ChatColors.primaryText)
+                        .font(CodyTypography.labelLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .lineLimit(1)
                     Text(entry.displayPath)
-                        .font(.system(size: 11))
-                        .foregroundStyle(isSelected ? Color.white.opacity(0.75) : ChatColors.secondaryText)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 Spacer()
                 Text(entry.mountName ?? entry.scope.displayLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.white.opacity(0.9) : ChatColors.secondaryText)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule().fill(
-                            isSelected
-                            ? Color.white.opacity(0.2)
-                            : Color.primary.opacity(0.07)
-                        )
-                    )
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, CodySpacing.xsPlus)
+                    .padding(.vertical, CodySpacing.xxs)
+                    .background(Capsule().fill(CodyColors.bgTertiary))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, CodySpacing.md)
+            .padding(.vertical, CodySpacing.sm)
         }
 
         private var iconName: String {
@@ -417,17 +350,14 @@ extension AIChatView {
             loadingVideoCount: vm.loadingVideoCount,
             onRemove: { attachment in vm.removeAttachment(attachment) },
             onMove: { fromID, toID in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(CodyMotion.resolved(CodyMotion.layout, reduceMotion: UIAccessibility.isReduceMotionEnabled)) {
                     vm.moveAttachment(fromID: fromID, toID: toID)
                 }
             }
         )
     }
 
-    /// Button style for slash / mention menu items. The keyboard-selected
-    /// row gets an accent pill inset from the card edge (iOS context-menu
-    /// style); a finger press on an unselected row gets a neutral wash, since
-    /// its text is not switched to white and would be unreadable on accent.
+    /// Shared focus and press feedback for autocomplete rows.
     private struct SlashMenuButtonStyle: ButtonStyle {
         let isSelected: Bool
         func makeBody(configuration: Configuration) -> some View {
@@ -440,34 +370,41 @@ extension AIChatView {
     private struct SlashMenuRowHighlight: View {
         let isSelected: Bool
         var isPressed: Bool = false
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         var body: some View {
             // Concentric with the card: inner radius = outer radius - inset,
             // so the gap stays even around the pill's corners too.
-            RoundedRectangle(
-                cornerRadius: AIChatView.popupCornerRadius - AIChatView.popupRowInset,
+            let shape = RoundedRectangle(
+                cornerRadius: CodyRadius.surface - AIChatView.popupRowInset,
                 style: .continuous
             )
-                .fill(fill)
+            shape.fill(fill)
+                .overlay {
+                    if isSelected {
+                        // The elevated surface and selected fill share a dark-mode value.
+                        shape.strokeBorder(CodyColors.borderHeavy, lineWidth: CodySpacing.px)
+                    }
+                }
+                .allowsHitTesting(false)
+                .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isSelected)
+                .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isPressed)
         }
 
         private var fill: Color {
-            if isSelected { return Color.accentColor }
-            if isPressed { return Color.primary.opacity(0.08) }
+            if isSelected { return CodyColors.bgSecondary }
+            if isPressed { return CodyColors.interactiveRowPress }
             return Color.clear
         }
     }
 
     /// Inset between the popup card edge and the row highlight pills, on all
     /// four sides (the top/bottom share is reserved in slashPickerFixedHeight).
-    fileprivate static let popupRowInset: CGFloat = 6
-    /// Corner radius of the `/` and `@` popup card.
-    fileprivate static let popupCornerRadius: CGFloat = 20
+    fileprivate static let popupRowInset = CodySpacing.xsPlus
 
     /// Single row in the slash command menu.
     private struct SlashCommandRow: View {
         let cmd: AIChatViewModel.SlashCommand
-        let isSelected: Bool
         let memoryEnabled: Bool
         var thinkingLevel: ThinkingLevel = .off
         var thinkingSupported: Bool = true
@@ -494,26 +431,23 @@ extension AIChatView {
                     .frame(width: 22)
                     VStack(alignment: .leading, spacing: 1) {
                         let isThinkingActive = cmd.id == "thinking" && thinkingLevel.isEnabled && thinkingSupported
-                        let titleColor: Color = isThinkingActive
-                            ? .blue : (isSelected ? .white : ChatColors.primaryText)
+                        let titleColor = isThinkingActive ? CodyCategoryTint.blue.color : CodyColors.textPrimary
                         let subtitleText = (cmd.id == "thinking" && !thinkingSupported)
                             ? AppLocalized("Not supported by current model")
                             : cmd.subtitle
-                        let subtitleColor: Color = (cmd.id == "thinking" && !thinkingSupported)
-                            ? .secondary
-                            : (isThinkingActive ? .blue.opacity(0.7) : (isSelected ? .white.opacity(0.7) : ChatColors.secondaryText))
+                        let subtitleColor = CodyColors.textSecondary
                         // [T-slash-picker-product-rules] Title + subtitle
                         // each clamped to a single line. Long skill names
                         // and descriptions used to wrap and pump the row
                         // height past 60pt, which then snowballed into a
                         // multi-screen picker.
                         Text("/\(cmd.title.lowercased())")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(CodyTypography.labelLarge)
                             .foregroundStyle(titleColor)
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Text(subtitleText)
-                            .font(.system(size: 11))
+                            .font(CodyTypography.bodySmall)
                             .foregroundStyle(subtitleColor)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -529,7 +463,7 @@ extension AIChatView {
                     // VoiceOver read "checkmark circle fill" / "slash circle".
                     Image(systemName: memoryEnabled ? "checkmark.circle.fill" : "slash.circle")
                         .font(.system(size: 16))
-                        .foregroundStyle(memoryEnabled ? (isSelected ? .white : .green) : (isSelected ? .white.opacity(0.6) : .secondary))
+                        .foregroundStyle(memoryEnabled ? CodyCategoryTint.green.color : CodyColors.iconSecondary)
                         .accessibilityLabel(Text(
                             memoryEnabled
                                 ? AppLocalized("Memory on", comment: "VoiceOver label for the memory status icon when enabled")
@@ -540,17 +474,14 @@ extension AIChatView {
                     thinkingLevelPicker
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(minHeight: 44)
+            .padding(.horizontal, CodySpacing.md)
+            .padding(.vertical, CodyMetrics.Composer.paddingV)
+            .frame(minHeight: CodyControlHeight.standard)
         }
 
         private var thinkingIconColor: Color {
-            guard cmd.id == "thinking" else {
-                return isSelected ? .white.opacity(0.8) : ChatColors.secondaryText
-            }
-            if !thinkingSupported { return .secondary }
-            return thinkingLevel.isEnabled ? .blue : (isSelected ? .white.opacity(0.8) : ChatColors.secondaryText)
+            let active = cmd.id == "thinking" && thinkingSupported && thinkingLevel.isEnabled
+            return active ? CodyCategoryTint.blue.color : CodyColors.iconSecondary
         }
 
         private var thinkingLevelPicker: some View {
@@ -565,23 +496,23 @@ extension AIChatView {
 
                     HStack(spacing: 1) {
                         Text(level.displayName)
-                            .font(.system(size: 11, weight: isHighlighted ? .semibold : .medium))
+                            .font(isHighlighted ? CodyTypography.labelMedium : CodyTypography.bodySmall)
                             .lineLimit(1)
                         if isClampedHighlight {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 8, weight: .bold))
                         }
                     }
-                    .foregroundStyle(isHighlighted ? .white : (isSelected ? .white.opacity(0.75) : .secondary))
+                    .foregroundStyle(isClampedHighlight ? CodyColors.statusWarningText : (isHighlighted ? CodyColors.interactivePrimaryLabel : CodyColors.textSecondary))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: CodyRadius.sm, style: .continuous)
                             .fill(
                                 isHighlighted
                                     ? (isClampedHighlight
-                                        ? Color.orange.opacity(0.85)
-                                        : Color.blue)
+                                        ? CodyColors.statusWarningBg
+                                        : CodyColors.interactivePrimaryBg)
                                     : Color.clear
                             )
                             .shadow(color: isHighlighted ? Color.black.opacity(0.15) : .clear, radius: 1.5, x: 0, y: 1)
@@ -593,8 +524,8 @@ extension AIChatView {
             }
             .padding(2)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.18) : Color.primary.opacity(0.07))
+                RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                    .fill(CodyColors.bgTertiary)
             )
         }
     }

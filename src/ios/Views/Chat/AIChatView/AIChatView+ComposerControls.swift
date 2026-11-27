@@ -15,7 +15,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -33,12 +32,8 @@ extension AIChatView {
         // announce the same thing; otherwise VoiceOver reads "plus".
         let icon = Image(systemName: "plus")
             .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(ChatColors.secondaryText)
-            .frame(width: 34, height: 34)
+            .modifier(ComposerSecondaryControlSurface())
             .accessibilityLabel(Text("Add attachment", comment: "VoiceOver label for the attachment button"))
-            .background(ChatColors.inputIconBg)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(ChatColors.inputIconBorder, lineWidth: 0.5))
 
         if #available(iOS 17, *) {
             Menu {
@@ -64,33 +59,35 @@ extension AIChatView {
     /// Returns AnyView to keep `inputBar`'s generic type compact; SwiftUI
     /// runtime demangle chokes on deep nested types otherwise.
     var inputBottomRow: AnyView {
-        let row = HStack(spacing: 12) {
-            attachmentMenuButton
-            slashMenuButton
-            if vm.editingMessageIndex != nil { editExitButton }
-            Spacer()
-            // Mutually exclusive with editExitButton: while editing a past
-            // message the exit capsule owns this row — showing both capsules
-            // overflows the row and they render overlapped.
-            if voiceInputActive, vm.editingMessageIndex == nil {
-                readAloudToolbarToggle
-                Spacer()
+        let row = HStack(spacing: CodyMetrics.Composer.buttonSpacing) {
+            HStack(spacing: CodyMetrics.Composer.buttonSpacing) {
+                attachmentMenuButton
+                slashMenuButton
             }
-            micButtonContainer
-            sendButton
+            if vm.editingMessageIndex != nil {
+                editExitButton
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if voiceInputActive {
+                readAloudToolbarToggle
+                    .frame(maxWidth: .infinity)
+            } else {
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: CodyMetrics.Composer.buttonSpacing) {
+                micButtonContainer
+                sendButton
+            }
         }
         return AnyView(row)
     }
 
-    /// [T-ios-de-voice-toolbar] Fixed controls in `inputBottomRow`: two 34pt
-    /// leading buttons, the 34pt mic and the 34pt send button, plus the four
-    /// 12pt HStack gaps between them. Everything left over is what the
-    /// read-aloud capsule may use.
-    private static let readAloudRowFixedWidth: CGFloat = 34 * 4 + 12 * 4
+    /// Width of the four outer controls and the four gaps around the center slot.
+    private static let readAloudRowFixedWidth: CGFloat =
+        CodyMetrics.Composer.buttonVisualSize * 4 + CodyMetrics.Composer.buttonSpacing * 4
 
     /// Free width below which the toggle drops its text and becomes icon-only.
     ///
-    /// Measured, not guessed. Capsule width is icon(16) + spacing(5) + text +
+    /// Measured, not guessed. Capsule width is icon(16) + spacing(4) + text +
     /// padding(20); at `minimumScaleFactor(0.75)` the shipped translations need
     /// 86pt (zh-Hans) to 161pt (fil), with German at 141pt and English 105pt.
     ///
@@ -102,9 +99,8 @@ extension AIChatView {
     /// drops under 130pt, where even a short label would be cramped against
     /// the mic and send buttons, does the text go entirely.
     ///
-    /// Effect per device (usable = width − 24 side padding − 184 fixed):
-    /// 320pt SE → 112pt → icon-only (the reported German case);
-    /// 375pt mini → 167pt, 393pt → 185pt, 430pt → 222pt → label kept.
+    /// In a full-width pane, 320pt leaves 96pt for the toggle, so it uses
+    /// the icon alone. A 375pt pane leaves 151pt, so the label stays visible.
     private static let readAloudLabelMinWidth: CGFloat = 130
 
     /// Whether the read-aloud toggle shows its text label.
@@ -148,7 +144,7 @@ extension AIChatView {
                 VoiceOutputPreferences.isEnabled = true
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: CodySpacing.xs) {
                 // Fixed-width icon slot so the size stays constant when the glyph
                 // swaps between wave / slash.
                 // [T-ios-voiceover-labels] The glyph only mirrors the on/off
@@ -160,35 +156,27 @@ extension AIChatView {
                     .font(.system(size: 12))
                     .frame(width: 16)
                     .accessibilityHidden(true)
-                // [T-ios-de-voice-toolbar] The label is the only part of this
-                // row that may shrink, and past a point it disappears entirely,
-                // leaving the speaker glyph as an icon-only control.
-                //
-                // Two stages because one is not enough: `minimumScaleFactor`
-                // recovers ~25% of the width, which covers the mild cases
-                // (fr/pl/tr on a 375pt screen) but not German at 320pt, where
-                // the capsule needs 174pt against 112pt of free space. Rather
-                // than let the text squash to an unreadable size, the label is
-                // dropped below `readAloudLabelMinWidth` and the glyph — which
-                // already carries the on/off/muted state — stands alone.
+                // Scale the label first and use the speaker alone in narrow panes.
                 if showReadAloudLabel {
                     Text("Read replies", comment: "Voice TTS toggle (compact)")
-                        .font(.subheadline)
+                        .font(CodyTypography.bodyMedium)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .layoutPriority(-1)
                         .transition(.opacity)
                 }
             }
-            .foregroundStyle(on ? Color.accentColor : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule().fill(on ? Color.accentColor.opacity(0.15)
-                                  : Color.secondary.opacity(0.10))
-            )
+            .foregroundStyle(on ? CodyCategoryTint.blue.color : CodyColors.iconSecondary)
+            .padding(.horizontal, showReadAloudLabel ? CodySpacing.smPlus : 0)
+            .frame(minWidth: CodyMetrics.Composer.buttonVisualSize, minHeight: CodyMetrics.Composer.buttonVisualSize)
+            .background(Capsule().fill(on ? CodyColors.bgSecondary : CodyColors.bgListIcon))
+            .overlay {
+                Capsule().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(ComposerControlHitShape())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CodyPressableButtonStyle())
         // [T-ios-de-voice-toolbar] Name the control explicitly. It used to be
         // named implicitly by the visible Text, which is exactly what the
         // icon-only fallback removes — and the glyph beside it is
@@ -223,11 +211,8 @@ extension AIChatView {
             Text("/")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .italic()
-                .foregroundStyle(ChatColors.secondaryText)
-                .frame(width: 34, height: 34)
-                .background(ChatColors.inputIconBg)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(ChatColors.inputIconBorder, lineWidth: 0.5))
+                .modifier(ComposerSecondaryControlSurface(isActive: vm.showSlashMenu))
+                .accessibilityLabel(Text("Slash commands"))
         }
     }
 
@@ -237,13 +222,16 @@ extension AIChatView {
             vm.cancelEdit()
         } label: {
             Text("Exit Edit Mode", comment: "Cancel message editing")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(ChatColors.secondaryText)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(ChatColors.inputIconBg)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(ChatColors.inputIconBorder, lineWidth: 0.5))
+                .font(CodyTypography.labelMedium)
+                .foregroundStyle(CodyColors.textSecondary)
+                .lineLimit(1)
+                .padding(.horizontal, CodySpacing.smPlus)
+                .frame(minHeight: CodyMetrics.Composer.buttonVisualSize)
+                .background {
+                    RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+                        .fill(CodyColors.interactiveSecondaryBg)
+                }
+                .contentShape(ComposerControlHitShape())
         }
     }
 
@@ -253,25 +241,22 @@ extension AIChatView {
             speechManager.showLanguagePicker = true
         } label: {
             Text(speechManager.languageLabel)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(ChatColors.secondaryText)
-                .frame(width: 34, height: 34)
-                .background(ChatColors.inputIconBg)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(ChatColors.inputIconBorder, lineWidth: 0.5))
+                .font(CodyTypography.labelMedium)
+                .modifier(ComposerSecondaryControlSurface())
         }
     }
 
     /// Mic button plus the attached language-picker sheet.
     private var micButtonContainer: some View {
         MicButton(speechManager: speechManager, inputFocused: $inputFocused, onTap: {
+            let animation = CodyMotion.resolved(CodyMotion.layout, reduceMotion: UIAccessibility.isReduceMotionEnabled)
             if voiceInputActive {
                 // Already in voice mode — the "T" button switches back to text.
                 // [T-ios-voice-keyboard-text-carry] Keep the transcript: the
                 // composer mirrors it, so clearing here would empty the input
                 // box and lose the dictated text on the way back to keyboard.
                 voiceVM.reset(clearTranscript: false)
-                withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = false }
+                withAnimation(animation) { voiceInputActive = false }
             } else {
                 // Mark the composition as voice-assisted (committed to the
                 // "voice" input-mode preference only at send time). Switch the
@@ -280,7 +265,7 @@ extension AIChatView {
                 // Switching text→voice opens the panel expanded this one time;
                 // afterwards it resumes the remembered expand/compact state.
                 VoiceModePreference.shared.enteredFromText = true
-                withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = true }
+                withAnimation(animation) { voiceInputActive = true }
             }
         }, isVoiceActive: voiceInputActive)
     }
@@ -315,7 +300,7 @@ extension AIChatView {
         // [T-ios-chat-body-stack-erase] Deepest app frame of the chat page's
         // body; record how much main-thread stack is left here (new lows only).
         MainStackHeadroom.note("chat-input")
-        let topPadding: CGFloat = (vm.attachments.isEmpty && vm.loadingVideoCount == 0) ? 16 : 11
+        let topPadding = CodyMetrics.Composer.paddingV + (composerResizeEnabled ? CodySpacing.xsPlus : 0)
         if voiceInputActive {
             return AnyView(
                 // [voice-correction §6] Recent conversation turns, straight from the
@@ -352,8 +337,8 @@ extension AIChatView {
                     ScrollViewReader { proxy in
                         ScrollView(.vertical, showsIndicators: true) {
                             Text(speechManager.recognizedText)
-                                .font(.subheadline)
-                                .foregroundStyle(ChatColors.secondaryText)
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: .infinity)
                                 .background(GeometryReader { geo in
@@ -371,9 +356,9 @@ extension AIChatView {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, topPadding)
-            .padding(.bottom, 10)
+            .padding(.horizontal, CodyMetrics.Composer.paddingH)
+            .padding(.vertical, CodyMetrics.Composer.paddingV)
+            .frame(minHeight: CodyMetrics.Composer.minHeight)
             return AnyView(waveform)
         }
         _ = returnKeyBehavior  // [T-send-longpress-return-mode] dependency, see declaration
@@ -470,9 +455,10 @@ extension AIChatView {
                 field.fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, CodyMetrics.Composer.paddingH)
         .padding(.top, topPadding)
-        .padding(.bottom, 10)
+        .padding(.bottom, CodyMetrics.Composer.paddingV)
+        .frame(minHeight: CodyMetrics.Composer.minHeight)
         .overlay(alignment: .top) {
             if composerResizeEnabled { composerResizeHandle }
         }
@@ -482,7 +468,7 @@ extension AIChatView {
     /// translation is negated. Double-tapping toggles between the two extremes.
     private var composerResizeHandle: some View {
         Capsule()
-            .fill(ChatColors.secondaryText.opacity(0.35))
+            .fill(CodyColors.iconSecondary.opacity(0.35))
             .frame(width: 36, height: 5)
             .padding(.top, 4)
             .contentShape(Rectangle().inset(by: -12))  // enlarge the hit area

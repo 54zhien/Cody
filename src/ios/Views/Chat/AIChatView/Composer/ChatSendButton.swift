@@ -15,7 +15,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -36,6 +35,7 @@ private let codyLogger = AppLogger(category: "CodyURL")
 /// away the control that stops it.
 struct ChatSendButton: View {
     @ObservedObject var vm: AIChatViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let canSend: Bool
     let canEnqueue: Bool
     /// [T-voice-send-lock] Send was tapped while voice input still owed text:
@@ -111,23 +111,22 @@ struct ChatSendButton: View {
             // waits for recognition the button would otherwise still look like
             // Send (or Queue) and take taps for seconds with nothing visible
             // happening, which reads as "the tap did not register". Not a control:
-            // nothing to press, so nothing to press twice. Same 34 pt footprint as
+            // nothing to press, so nothing to press twice. Same footprint as
             // the glyphs below, so the row does not move.
             if isWaitingToSendVoice {
                 ZStack {
-                    Image(systemName: "circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(ChatColors.sendButtonDisabled)
+                    Circle()
+                        .fill(CodyColors.interactiveControlDefault)
+                        .frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
                     ProgressView()
                         .controlSize(.small)
+                        .tint(CodyColors.iconPrimary)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text("Transcribing, then sending…", comment: "Voice input: status while a tapped Send waits for speech recognition to finish"))
             } else if vm.isProcessing && canEnqueue {
                 returnModeMenu(primaryAction: onEnqueue) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(ChatColors.sendButton)
+                    actionGlyph("arrow.up")
                 }
                 .accessibilityLabel(Text("Add to queue", comment: "VoiceOver label for the send button while a reply is generating"))
                 .accessibilityHint(Text("Queues this message to send after the current reply finishes", comment: "VoiceOver hint for the queue button"))
@@ -159,9 +158,7 @@ struct ChatSendButton: View {
                         vm.stopByUser()
                     }
                 }) {
-                    Image(systemName: "stop.circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(.red)
+                    actionGlyph("stop.fill")
                 }
                 // Hosted here rather than on the chat root: this button owns the
                 // decision, and the existing "Task Running" alert up there belongs
@@ -205,9 +202,7 @@ struct ChatSendButton: View {
                 // open from the grey button too (switching Return mode before
                 // typing is the common case). The tap is gated instead.
                 returnModeMenu(primaryAction: { if canSend { onSend() } }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(canSend ? ChatColors.sendButton : ChatColors.sendButtonDisabled)
+                    actionGlyph("arrow.up", enabled: canSend)
                 }
                 .accessibilityLabel(Text("Send", comment: "VoiceOver label for the send button"))
             }
@@ -219,6 +214,11 @@ struct ChatSendButton: View {
         // must never stop the next turn. Also clears the flags, which live
         // on this struct and would otherwise re-present the alert the next
         // time the stop button appears.
+        .buttonStyle(ComposerSendPressStyle())
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: canSend)
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: canEnqueue)
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isBusy)
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isWaitingToSendVoice)
         .onReceive(vm.$isProcessing) { processing in
             guard !processing else { return }
             processingEndCount &+= 1
@@ -244,6 +244,25 @@ struct ChatSendButton: View {
     /// uses a Button + context menu instead, because the Menu's tap is broken
     /// there (see below). ⌘Return keeps sending: through a hidden button on
     /// iOS 26, since a keyboard shortcut on a Menu would open the menu.
+    private func actionGlyph(_ systemImage: String, enabled: Bool = true) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(enabled ? CodyColors.interactivePrimaryLabel : CodyColors.iconSecondary)
+            .frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
+            .background(Circle().fill(enabled ? CodyColors.interactivePrimaryBg : CodyColors.interactiveControlDefault))
+            .contentShape(ComposerControlHitShape())
+    }
+
+    private struct ComposerSendPressStyle: ButtonStyle {
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .opacity(configuration.isPressed ? CodyMotion.pressedOpacity : 1)
+                .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: configuration.isPressed)
+        }
+    }
+
     @ViewBuilder
     private func returnModeMenu<Label: View>(primaryAction: @escaping () -> Void,
                                              @ViewBuilder label: () -> Label) -> some View {

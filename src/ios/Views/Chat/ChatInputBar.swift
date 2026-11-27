@@ -181,7 +181,7 @@ struct InputAttachmentGridView: View {
     @State private var previewTarget: AttachmentPreviewTarget?
 
     var body: some View {
-        FlowLayout(hSpacing: 8, vSpacing: 8) {
+        FlowLayout(hSpacing: CodySpacing.sm, vSpacing: CodySpacing.sm) {
             ForEach(attachments) { attachment in
                 AttachmentChip(attachment: attachment, onRemove: {
                     onRemove(attachment)
@@ -203,8 +203,8 @@ struct InputAttachmentGridView: View {
                 VideoLoadingChip()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 6)  // room for × button overhang (offset y: -4)
+        .padding(.horizontal, CodyMetrics.Composer.paddingH)
+        .padding(.top, CodySpacing.xsPlus)  // room for the remove button
         .sheet(item: $previewTarget) { target in
             AttachmentPreviewSheet(
                 attachments: attachments.filter { $0.loadState == .ready },
@@ -243,6 +243,42 @@ private struct AttachmentDropDelegate: DropDelegate {
 
 // MARK: - Video Loading Placeholder
 
+private struct ComposerAttachmentTileSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+        content
+            .background(shape.fill(CodyColors.bgTertiary))
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
+private struct ComposerAttachmentRemoveButton: View {
+    let label: Text
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(CodyColors.iconPrimary)
+                .frame(width: CodySpacing.xl, height: CodySpacing.xl)
+                .background(Circle().fill(CodyColors.bgElevatedPrimary))
+                .overlay {
+                    Circle().strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Rectangle().inset(by: -CodySpacing.xs))
+        }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(label)
+        .offset(x: CodySpacing.xs, y: -CodySpacing.xs)
+    }
+}
+
 private struct VideoLoadingChip: View {
     var body: some View {
         VStack(spacing: 4) {
@@ -250,13 +286,13 @@ private struct VideoLoadingChip: View {
                 .controlSize(.small)
 
             Text("Loading…")
-                .font(.caption2)
-                .foregroundStyle(ChatColors.secondaryText)
+                .font(CodyTypography.labelSmall)
+                .foregroundStyle(CodyColors.textSecondary)
         }
-        .frame(width: 64, height: 64)
-        .background(ChatColors.secondaryBg)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4), lineWidth: 0.5))
+        .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+        .modifier(ComposerAttachmentTileSurface())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Loading video"))
     }
 }
 
@@ -286,17 +322,27 @@ private struct AttachmentChip: View {
     /// A normal, loaded attachment (image / video thumbnail or file chip).
     @ViewBuilder
     private var readyChip: some View {
-        Group {
-            if attachment.kind == .image {
-                thumbnailChip(image: cachedImage)
-            } else if attachment.kind == .video {
-                thumbnailChip(image: cachedImage, isVideo: true)
-            } else {
-                fileChip
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if attachment.kind == .image {
+                    thumbnailChip(image: cachedImage)
+                } else if attachment.kind == .video {
+                    thumbnailChip(image: cachedImage, isVideo: true)
+                } else {
+                    fileChip
+                }
             }
+            .onAppear { loadThumbnailIfNeeded() }
+            .contentShape(RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous))
+            .onTapGesture { onPreview() }
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text("Preview attachment: \(attachment.fileName)"))
+            .accessibilityAction { onPreview() }
+
+            removeButton
         }
-        .onAppear { loadThumbnailIfNeeded() }
-        .onTapGesture { onPreview() }
+        .fixedSize()
     }
 
     /// [T-ios-photo-pick-placeholder] Loading placeholder shown while the picked
@@ -304,10 +350,9 @@ private struct AttachmentChip: View {
     private var loadingChip: some View {
         ProgressView()
             .controlSize(.small)
-            .frame(width: 64, height: 64)
-            .background(ChatColors.secondaryBg)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4), lineWidth: 0.5))
+            .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+            .modifier(ComposerAttachmentTileSurface())
+            .accessibilityLabel(Text("Loading attachment: \(attachment.fileName)"))
     }
 
     /// [T-ios-photo-pick-placeholder] Error chip for a photo that failed to load.
@@ -317,25 +362,17 @@ private struct AttachmentChip: View {
             VStack(spacing: 4) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(CodyColors.statusWarningText)
                 Text("Failed")
-                    .font(.caption2)
-                    .foregroundStyle(ChatColors.secondaryText)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
-            .frame(width: 64, height: 64)
-            .background(ChatColors.secondaryBg)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.5), lineWidth: 0.5))
+            .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+            .modifier(ComposerAttachmentTileSurface())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Attachment failed: \(attachment.fileName)"))
 
-            Button {
-                onRemove()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.5), radius: 2)
-            }
-            .offset(x: 4, y: -4)
+            removeButton
         }
         .fixedSize()
     }
@@ -344,38 +381,21 @@ private struct AttachmentChip: View {
     @ViewBuilder
     private func thumbnailChip(image: UIImage?, isVideo: Bool = false) -> some View {
         if let uiImage = image {
-            ZStack(alignment: .topTrailing) {
-                ZStack(alignment: .bottomLeading) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4), lineWidth: 0.5))
-                        .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
-
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+                .modifier(ComposerAttachmentTileSurface())
+                .overlay(alignment: .bottomLeading) {
                     if isVideo {
                         Image(systemName: "play.fill")
                             .font(.system(size: 10))
-                            .foregroundStyle(.white)
-                            .padding(4)
-                            .background(.black.opacity(0.5))
-                            .clipShape(Circle())
-                            .padding(4)
+                            .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                            .padding(CodySpacing.xs)
+                            .background(Circle().fill(CodyColors.interactivePrimaryBg))
+                            .padding(CodySpacing.xs)
                     }
                 }
-
-                Button {
-                    onRemove()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.5), radius: 2)
-                }
-                .offset(x: 4, y: -4)
-            }
-            .fixedSize()
         } else {
             fileChip
         }
@@ -440,39 +460,31 @@ private struct AttachmentChip: View {
 
     /// Non-image attachment: icon on top, filename on bottom, same size as image thumbnails.
     private var fileChip: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 2) {
-                Image(systemName: fileIconName)
-                    .font(.system(size: 20))
-                    .foregroundStyle(ChatColors.secondaryText)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+        VStack(spacing: CodySpacing.xxs) {
+            Image(systemName: fileIconName)
+                .font(.system(size: 20))
+                .foregroundStyle(CodyColors.iconSecondary)
+                .frame(maxHeight: .infinity, alignment: .bottom)
 
-                Text(attachment.fileName)
-                    .font(.system(size: 9))
-                    .foregroundStyle(ChatColors.primaryText)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .truncationMode(.middle)
-                    .frame(maxHeight: .infinity, alignment: .top)
-            }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 6)
-            .frame(width: 64, height: 64)
-            .background(ChatColors.secondaryBg)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4), lineWidth: 0.5))
-
-            Button {
-                onRemove()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.4), radius: 2)
-            }
-            .offset(x: 4, y: -4)
+            Text(attachment.fileName)
+                .font(CodyTypography.labelSmall)
+                .foregroundStyle(CodyColors.textPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .truncationMode(.middle)
+                .frame(maxHeight: .infinity, alignment: .top)
         }
-        .fixedSize()
+        .padding(.horizontal, CodySpacing.xs)
+        .padding(.vertical, CodySpacing.xsPlus)
+        .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+        .modifier(ComposerAttachmentTileSurface())
+    }
+
+    private var removeButton: some View {
+        ComposerAttachmentRemoveButton(
+            label: Text("Remove attachment: \(attachment.fileName)"),
+            action: onRemove
+        )
     }
 
     private var fileIconName: String {
@@ -514,48 +526,40 @@ struct PastedTextChipRow: View {
                         VStack(spacing: 2) {
                             Image(systemName: "doc.text")
                                 .font(.system(size: 20))
-                                .foregroundStyle(ChatColors.secondaryText)
+                                .foregroundStyle(CodyColors.iconSecondary)
                                 .frame(maxHeight: .infinity, alignment: .bottom)
 
                             Text("#\(entry.id)")
-                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(ChatColors.primaryText)
+                                .font(CodyTypography.labelMedium.monospacedDigit())
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text(String(format: AppLocalized("%d chars"), entry.charCount))
-                                .font(.system(size: 8))
-                                .foregroundStyle(ChatColors.secondaryText)
+                                .font(CodyTypography.labelSmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                                 .frame(maxHeight: .infinity, alignment: .top)
                         }
                         .padding(.horizontal, 4)
                         .padding(.vertical, 6)
-                        .frame(width: 64, height: 64)
-                        .background(ChatColors.secondaryBg)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4), lineWidth: 0.5))
-                        .contentShape(RoundedRectangle(cornerRadius: 8))
-                        // The ✕ Button keeps priority for its own hit area; the
-                        // rest of the card opens the read-only preview.
+                        .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+                        .modifier(ComposerAttachmentTileSurface())
+                        .contentShape(RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous))
                         .onTapGesture { previewEntry = entry }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel(Text("Preview pasted text #\(entry.id)"))
+                        .accessibilityValue(Text(String(format: AppLocalized("%d chars"), entry.charCount)))
+                        .accessibilityAction { previewEntry = entry }
 
-                        Button {
+                        ComposerAttachmentRemoveButton(label: Text("Remove pasted text #\(entry.id)")) {
                             onRemove(entry.id)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.4), radius: 2)
                         }
-                        .buttonStyle(.plain)
-                        .offset(x: 4, y: -4)
                     }
                     .fixedSize()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            // Room for the ✕ that overhangs the top-right corner.
-            .padding(.trailing, 4)
+            .padding(.horizontal, CodyMetrics.Composer.paddingH)
+            .padding(.top, CodySpacing.xsPlus)
         }
         .sheet(item: $previewEntry) { entry in
             NavigationStack {
