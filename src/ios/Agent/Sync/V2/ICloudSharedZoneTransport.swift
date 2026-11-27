@@ -27,7 +27,7 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
 
     // MARK: - Configuration
 
-    static let containerIdentifier = "iCloud.com.cody.app"
+    static let containerIdentifier = "iCloud.com.imzhien.cody"
 
     /// Fixed zone names. Never include device id.
     static let sharedZoneName  = "cody-shared"

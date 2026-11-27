@@ -14,7 +14,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     /// Root directory for all FileProvider-visible files in the App Group container.
     static var providerRoot: URL {
         let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.cody.app"
+            forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody"
         )!
         let url = container.appendingPathComponent("CodyFileProvider", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -99,7 +99,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         }
 
         // Location 2: under CodyConfig (private but still pure cruft).
-        if let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.cody.app") {
+        if let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody") {
             let inConfig = container.appendingPathComponent("CodyConfig/logs", isDirectory: true)
             if fm.fileExists(atPath: inConfig.path, isDirectory: &isDir), isDir.boolValue {
                 try? fm.removeItem(at: inConfig)
@@ -118,7 +118,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         guard fm.fileExists(atPath: legacy.path) else { return }
         // Only delete if the canonical copy already exists under CodyConfig —
         // otherwise we'd lose the data.
-        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.cody.app") else { return }
+        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody") else { return }
         let canonical = container.appendingPathComponent("CodyConfig/mounted-folders.json")
         if fm.fileExists(atPath: canonical.path) {
             try? fm.removeItem(at: legacy)

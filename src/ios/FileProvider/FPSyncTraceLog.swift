@@ -22,7 +22,7 @@ enum FPSyncTraceLog {
 
     private static var fileURL: URL? {
         guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.cody.app"
+            forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody"
         ) else { return nil }
         let dir = container.appendingPathComponent("CodyConfig", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

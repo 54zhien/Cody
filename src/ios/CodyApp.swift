@@ -791,7 +791,7 @@ struct CodyApp: App {
         guard previous != current else { return }
         UserDefaults.standard.set(current, forKey: key)
 
-        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.cody.app") else { return }
+        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody") else { return }
         let dir = container.appendingPathComponent("CodyConfig", isDirectory: true)
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("fp-sync-trace.log")
@@ -1178,7 +1178,7 @@ struct CodyApp: App {
     private static func migrateSharedDirToAppGroup() {
         let fm = FileManager.default
         let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.cody.app")!
+        let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody")!
 
         let migrations: [(source: URL, dest: URL, label: String)] = [
             // Legacy Library/CodyChat/shared → new shared
@@ -1219,7 +1219,7 @@ struct CodyApp: App {
     /// targets logged during MOUNT setup.
     private static func logFPSyncTracePaths() {
         let fm = FileManager.default
-        let groupID = "group.com.cody.app"
+        let groupID = "group.com.imzhien.cody"
         let containerURL = fm.containerURL(forSecurityApplicationGroupIdentifier: groupID)
         let containerPath = containerURL?.path ?? "<nil>"
         let resolvedContainer = containerURL?.resolvingSymlinksInPath().path ?? "<nil>"

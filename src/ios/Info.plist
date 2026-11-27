@@ -4,8 +4,8 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.cody.app.liveactivity-refresh</string>
-		<string>com.cody.app.continued.*</string>
+		<string>com.imzhien.cody.liveactivity-refresh</string>
+		<string>com.imzhien.cody.continued.*</string>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
@@ -164,7 +164,7 @@
 			<string>Claude OAuth Callback</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.cody.app</string>
+				<string>com.imzhien.cody</string>
 			</array>
 		</dict>
 		<dict>
