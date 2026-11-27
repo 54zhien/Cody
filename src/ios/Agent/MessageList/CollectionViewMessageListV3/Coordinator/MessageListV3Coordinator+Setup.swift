@@ -33,6 +33,11 @@ extension CollectionViewMessageListV3.Coordinator {
             self.vm = vm
             vc.loadViewIfNeeded()
             guard let collectionView = vc.collectionView else { return }
+            if #available(iOS 26.0, *) {
+                collectionView.topEdgeEffect.style = .soft
+                collectionView.bottomEdgeEffect.isHidden = true
+                vc.setContentScrollView(collectionView, for: .top)
+            }
             collectionView.delegate = self
             collectionView.prefetchDataSource = self
             // Disable UIKit's main-thread cell prefetch. Profile (Time Profiler)
@@ -98,7 +103,7 @@ extension CollectionViewMessageListV3.Coordinator {
             // Install sheet overlay (outside UIHostingConfiguration cell tree)
             if sheetOverlayHost == nil {
                 let overlay = SheetOverlayView(toolPresenter: sheetPresenter, compactPresenter: compactSummaryPresenter)
-                let host = UIHostingController(rootView: overlay)
+                let host = MessageListSheetOverlayHost(rootView: overlay)
                 host.view.backgroundColor = .clear
                 host.view.isUserInteractionEnabled = true
                 host.view.frame = .zero
@@ -220,4 +225,53 @@ extension CollectionViewMessageListV3.Coordinator {
 
             bindViewModel(vm)
         }
+}
+
+/// The existing child host forwards appearance events for the UIKit list.
+private final class MessageListSheetOverlayHost: UIHostingController<SheetOverlayView> {
+    private weak var scrollEdgeOwner: UIViewController?
+    private weak var previousTopScrollView: UIScrollView?
+    private weak var transcriptScrollView: UIScrollView?
+    private var collectionView: UICollectionView? {
+        (parent as? MessageListViewController)?.collectionView
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if #available(iOS 26.0, *), let collectionView {
+            bindTopScrollEdge(to: collectionView)
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if #available(iOS 26.0, *), let collectionView {
+            bindTopScrollEdge(to: collectionView)
+            collectionView.settleCodyScrollEdgeEffect()
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func bindTopScrollEdge(to collectionView: UICollectionView) {
+        guard let owner = navigationController?.topViewController,
+              let ownerView = owner.viewIfLoaded,
+              collectionView.isDescendant(of: ownerView),
+              owner.contentScrollView(for: .top) !== collectionView else { return }
+        scrollEdgeOwner = owner
+        previousTopScrollView = owner.contentScrollView(for: .top)
+        transcriptScrollView = collectionView
+        owner.setContentScrollView(collectionView, for: .top)
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if #available(iOS 26.0, *),
+           let owner = scrollEdgeOwner, let list = transcriptScrollView,
+           owner.contentScrollView(for: .top) === list {
+            owner.setContentScrollView(previousTopScrollView, for: .top)
+        }
+        scrollEdgeOwner = nil
+        previousTopScrollView = nil
+        transcriptScrollView = nil
+    }
 }

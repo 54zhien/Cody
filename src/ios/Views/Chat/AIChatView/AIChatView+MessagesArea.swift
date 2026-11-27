@@ -15,7 +15,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -74,7 +73,8 @@ extension AIChatView {
                 floatingBarHeight: floatingBarHeight,
                 inputBarHeight: inputBarHeight,
                 extraTopInset: Self.listTopInset(forTopBanners: topBannersHeight),
-                composerLiveHeight: composerLiveHeight
+                composerLiveHeight: composerLiveHeight,
+                bottomFadeClearance: composerFadeClearance
             )
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
@@ -103,50 +103,58 @@ extension AIChatView {
             }
         }
         .overlay(alignment: .bottom) {
-            // Open the overlay only when at least one button will actually
-            // render — i.e. the gate is the OR of the two buttons' own
-            // conditions. Otherwise an in-between state (e.g. far from top but
-            // within one screen of the bottom, at rest) would mount an empty
-            // VStack.
-            if !vm.messages.isEmpty && !vm.isNearBottom {
-                VStack(spacing: 10) {
-                    // Up-button: walk back one user turn at a time. Visible when
-                    // off the bottom AND there's still an earlier turn to jump to
-                    // (isAtFirstTurn == false). Once the user has walked all the
-                    // way up to the first turn, it hides — nothing further up.
-                    if !vm.isAtFirstTurn {
-                        Button {
-                            vm.forceScrollToTop.send()
-                        } label: {
-                            // arrow.up.to.line: "jump to a top anchor" reads truer
-                            // for the turn-walk / scroll-to-top action than a plain
-                            // chevron, and distinguishes it from the down button's
-                            // chevron.down. Available since iOS 16 (both our legacy
-                            // and iOS 26 floors).
-                            scrollFloatingButtonLabel("arrow.up.to.line")
+            if showsComposerFade && !vm.messages.isEmpty {
+                VStack(spacing: 0) {
+                    CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
+                    CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            ZStack {
+                // Keep the animation host mounted while the buttons transition.
+                if !vm.messages.isEmpty && !vm.isNearBottom {
+                    VStack(spacing: 10) {
+                        // Up-button: walk back one user turn at a time. Visible when
+                        // off the bottom AND there's still an earlier turn to jump to
+                        // (isAtFirstTurn == false). Once the user has walked all the
+                        // way up to the first turn, it hides — nothing further up.
+                        if !vm.isAtFirstTurn {
+                            Button {
+                                vm.forceScrollToTop.send()
+                            } label: {
+                                // arrow.up.to.line: "jump to a top anchor" reads truer
+                                // for the turn-walk / scroll-to-top action than a plain
+                                // chevron, and distinguishes it from the down button's
+                                // chevron.down. Available since iOS 16 (both our legacy
+                                // and iOS 26 floors).
+                                scrollFloatingButtonLabel("arrow.up.to.line")
+                            }
+                            .accessibilityLabel(Text("Jump to previous turn"))
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
                         }
+                        // Scroll to bottom — ORIGINAL behavior: shown whenever not
+                        // near the bottom (within the 20pt nearBottom threshold), so
+                        // it appears as soon as you leave the bottom.
+                        Button {
+                            vm.forceScrollToBottom.send()
+                        } label: {
+                            scrollFloatingButtonLabel("chevron.down")
+                        }
+                        .accessibilityLabel(Text("Jump to latest message"))
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
-                    // Scroll to bottom — ORIGINAL behavior: shown whenever not
-                    // near the bottom (within the 20pt nearBottom threshold), so
-                    // it appears as soon as you leave the bottom.
-                    Button {
-                        vm.forceScrollToBottom.send()
-                    } label: {
-                        scrollFloatingButtonLabel("chevron.down")
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    .padding(.trailing, 4)
+                    .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, inputBarHeight + (hasFloatingPreview ? 80 : 12))
+                    // The capsule must not cover these floating scroll-jump buttons.
+                    .capsuleProtectedFrame("scrollButtons")
                 }
-                .padding(.trailing, 4)
-                .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
-                .padding(.horizontal, 12)
-                .padding(.bottom, inputBarHeight + (hasFloatingPreview ? 80 : 12))
-                .animation(.easeInOut(duration: 0.2), value: vm.isNearBottom)
-                .animation(.easeInOut(duration: 0.2), value: vm.isAtFirstTurn)
-                .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
-                // The capsule must not cover these floating scroll-jump buttons.
-                .capsuleProtectedFrame("scrollButtons")
             }
+            .modifier(ScrollJumpMotion(nearBottom: vm.isNearBottom, atFirstTurn: vm.isAtFirstTurn, hasPreview: hasFloatingPreview))
         }
         // [T-browser-download-ux-v2] Floating download button — same visual
         // family as the scroll buttons, stacked ABOVE their slot (the scroll
@@ -164,6 +172,20 @@ extension AIChatView {
             .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
             .capsuleProtectedFrame("downloadButton")
         }
+    }
+
+    private var showsComposerFade: Bool {
+        inputBarHeight > 0 && !isChatSearchActive
+    }
+
+    private var composerFadeFloorHeight: CGFloat {
+        let height = latestInputBarFrameH > 0 ? latestInputBarFrameH : inputBarHeight
+        return max(0, height + floatingBarHeight - CodySpacing.sm)
+    }
+
+    /// Reserve the part of the ramp above the list's existing 8pt breathing room.
+    private var composerFadeClearance: CGFloat {
+        showsComposerFade ? CodyMetrics.Conversation.bottomFadeHeight - 2 * CodySpacing.sm : 0
     }
 
     /// Shared label style for the floating scroll buttons (up / down).
@@ -254,5 +276,20 @@ extension AIChatView {
     /// capped in regular (landscape / iPad) for readability.
     var maxContentWidth: CGFloat? {
         hSizeClass == .regular ? 900 : nil
+    }
+}
+
+private struct ScrollJumpMotion: ViewModifier {
+    let nearBottom: Bool
+    let atFirstTurn: Bool
+    let hasPreview: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let animation = CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)
+        content
+            .animation(animation, value: nearBottom)
+            .animation(animation, value: atFirstTurn)
+            .animation(animation, value: hasPreview)
     }
 }

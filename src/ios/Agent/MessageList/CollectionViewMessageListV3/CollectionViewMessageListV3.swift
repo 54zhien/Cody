@@ -129,6 +129,7 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
     /// rows appended right after a send can take the space a shrinking composer
     /// releases (see `ComposerShrinkAbsorption`). nil = no composer.
     var composerLiveHeight: ComposerLiveHeight? = nil
+    var bottomFadeClearance: CGFloat = 0
 
     func makeUIViewController(context: Context) -> MessageListViewController {
         let vc = MessageListViewController()
@@ -195,21 +196,22 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         }
         coord.composerShrink.noteCommitted(inputBarHeight)
         let bottomPad: CGFloat = inputBarHeight + floatingBarHeight + 8 - coord.composerShrink.absorbed
-        let baseChanged = abs(coord.baseBottomInset - bottomPad) > 0.5
+        let insetWithFade = bottomPad + bottomFadeClearance
+        let baseChanged = abs(coord.baseBottomInset - insetWithFade) > 0.5
         if baseChanged {
             let cv = vc.collectionView!
             let previousBase = coord.baseBottomInset
-            let wasSmaller = previousBase < bottomPad
+            let wasSmaller = previousBase < insetWithFade
             let offsetBeforeBaseChange = cv.contentOffset.y
             // Capture follow-intent BEFORE mutating the inset: enlarging the
             // inset enlarges maxOffset, so a user pinned at the bottom would
             // measure as >20pt away from it and fail the isNearBottom() guard.
             let wasNearBottomBefore = coord.isNearBottom()
-            coord.baseBottomInset = bottomPad
+            coord.baseBottomInset = insetWithFade
             // Apply the base immediately so contentInset.bottom reflects the
             // new base before applySubViewportCompensation runs (which may
             // further inflate it). Compensation will overwrite if needed.
-            cv.contentInset.bottom = bottomPad
+            cv.contentInset.bottom = insetWithFade
             // [T-inputbar-shrink-content-bump] Re-pin on BOTH directions, not just
             // growth.
             //
@@ -234,7 +236,7 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
             // still never yanked to the bottom by a composer resize.
             if coord.scrollMode == .autoScrolling || wasNearBottomBefore {
                 if !wasSmaller {
-                    AppLogger(category: "ScrollDiag").info("[ScrollDiag][baseInsetShrink] \(String(format: "%.2f", previousBase))→\(String(format: "%.2f", bottomPad)) inputBar=\(String(format: "%.2f", inputBarHeight)) offset=\(String(format: "%.1f", cv.contentOffset.y)) — re-pinning to hide the UIKit clamp")
+                    AppLogger(category: "ScrollDiag").info("[ScrollDiag][baseInsetShrink] \(String(format: "%.2f", previousBase))→\(String(format: "%.2f", insetWithFade)) inputBar=\(String(format: "%.2f", inputBarHeight)) offset=\(String(format: "%.1f", cv.contentOffset.y)) — re-pinning to hide the UIKit clamp")
                 }
                 coord.scrollMode = .autoScrolling
                 coord.scrollToBottomNow(animated: false)

@@ -2,30 +2,11 @@ import SwiftUI
 
 // MARK: - Context-menu preview
 
-/// Opaque rounded-card preview shown under a message's long-press context menu.
-///
-/// [T-ios-longpress-menu-preview-background] The message cells are hosted with a
-/// clear background (host.view / cell backgroundColor = .clear), and the message
-/// `.contextMenu`s are attached either to a zero-size `Color.clear` overlay
-/// (assistant block/footer) or to a bubble whose fill is the translucent
-/// `tertiarySystemFill` (user). Without an explicit `preview:`, SwiftUI snapshots
-/// that (transparent) attached view, so the long-press preview platter shows
-/// through to the messages below — the reported "transparent preview" bug.
-///
-/// Supplying this as the `.contextMenu(preview:)` gives the platter an opaque
-/// `systemBackground` rounded card with the message text, so it reads as a
-/// floating card. System colors only, so dark mode stays correct.
-///
-/// [T-ios-longpress-preview-full-content-card] The earlier version hard-capped
-/// the text at 1500 chars with a trailing "…", which is what users saw as a
-/// "truncated" preview on long assistant messages. It now renders the FULL
-/// message content inside a vertical ScrollView: short messages size to their
-/// content, long ones are capped to a fraction of the screen height and scroll
-/// inside the platter, so the preview is both opaque
-/// and complete. An explicit measured height is required because a ScrollView
-/// has no intrinsic height — without it the context-menu platter would collapse.
+/// Opaque, scrollable platter shown during a message's long press.
 struct MessageContextMenuPreview: View {
     let text: String
+    var isUserMessage = false
+    var isQueued = false
 
     /// [T-ios-usermsg-preview-adaptive-width] Width is now a CAP, not a fixed
     /// size. A short user bubble ("ok") previously lifted into a full 360pt
@@ -78,9 +59,9 @@ struct MessageContextMenuPreview: View {
             // which starts at the cap and shrinks to the measured content.
             Text(shown)
                 .font(.system(size: FontSettings.shared.scaledMessage(16.5)))
-                .foregroundStyle(ChatColors.primaryText)
+                .foregroundStyle(isQueued ? CodyColors.textSecondary : CodyColors.textPrimary)
                 .multilineTextAlignment(.leading)
-                .padding(16)
+                .padding(CodySpacing.lg)
                 .background(
                     // Measure the laid-out text size so the platter can hug
                     // content (short) or cap + wrap/scroll (long).
@@ -99,66 +80,38 @@ struct MessageContextMenuPreview: View {
             width: contentSize.width > 0 ? min(max(contentSize.width, 60), maxCardWidth) : maxCardWidth,
             height: contentSize.height > 0 ? min(contentSize.height, maxCardHeight) : maxCardHeight
         )
-        .modifier(ContextMenuPreviewSurface())
+        .modifier(ContextMenuPreviewSurface(isUserMessage: isUserMessage, isQueued: isQueued))
     }
 }
 
-/// Background for the long-press preview platter.
-///
-/// Matches `UserBubbleSurface` so lifting a bubble doesn't jump from Liquid
-/// Glass to a flat colour card — the shape (`RoundedRectangle(cornerRadius: 18)`,
-/// non-`.continuous`) is deliberately the same one the bubble and the row's
-/// `.contentShape(.contextMenuPreview, …)` already use.
-///
-/// **The opaque base stays.** [T-ios-longpress-menu-preview-background] exists
-/// because the platter was showing through to the messages underneath: cells are
-/// hosted on a clear background and the menus hang off either a zero-size
-/// `Color.clear` overlay or a `tertiarySystemFill` bubble, so SwiftUI's snapshot
-/// of the attached view was effectively transparent. Glass is a translucent
-/// material, so using it ALONE would risk re-opening exactly that bug. Painting
-/// it over `ChatColors.background` keeps the platter opaque no matter what the
-/// system composites behind it, while the material still supplies the glass
-/// highlight and edge that make it read as continuous with the bubble.
+private var chatBubbleShape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: CodyRadius.bubble, style: .circular)
+}
+
+/// The preview is composited over an opaque floor, including queued bubbles.
 private struct ContextMenuPreviewSurface: ViewModifier {
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 18)
-    }
+    let isUserMessage: Bool
+    let isQueued: Bool
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if isUserMessage {
             content
-                // Opaque floor first — see the note above.
-                .background(shape.fill(ChatColors.background))
-                .glassEffect(.regular, in: shape)
+                .modifier(UserBubbleSurface(isQueued: isQueued))
+                .background(chatBubbleShape.fill(CodyColors.bgCanvas))
+                .clipShape(chatBubbleShape)
         } else {
-            content.background(ChatColors.background)
+            content
+                .background(chatBubbleShape.fill(CodyColors.bgPrimary))
+                .clipShape(chatBubbleShape)
+                .overlay {
+                    chatBubbleShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
         }
     }
 }
 
-/// Preference key carrying the laid-out preview text size up to the platter.
-/// Background for the user message bubble.
-///
-/// Two states that must stay tellable apart at a glance:
-///
-///  - **Sent** (`isQueued == false`) — Liquid Glass on iOS 26+. These bubbles
-///    scroll over other messages, images and code blocks, so the material has
-///    genuinely varied content to sample; this is the case glass is for, the
-///    same as the tool-status bar and unlike `FolderSurface`, which had to fall
-///    back to a sampled constant for want of anything behind it.
-///  - **Queued** (`isQueued == true`) — deliberately NOT glass, on either OS.
-///    Glass reads as a settled, physical surface, which is the opposite of what
-///    a not-yet-sent message means. It keeps the existing empty fill + dashed
-///    border, so "queued" still looks provisional next to the solid glass of
-///    everything already sent.
-///
-/// The text is the modified content rather than an `.overlay`, which is what
-/// keeps it above the material: `.glassEffect` composites the material over the
-/// view it modifies, so an overlaid label would be painted underneath it and
-/// disappear (the FAB regression).
-/// [T-multi-select-share] True while chat rows are drawn for the share picker or an
-/// export: surfaces that only the live compositor can draw (Liquid Glass) fall back
-/// to their plain fill, so an offscreen `layer.render` still shows them.
+/// Used by the offscreen export renderer to give translucent fills a canvas.
 private struct ChatSnapshotRenderingKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -174,29 +127,24 @@ private struct UserBubbleSurface: ViewModifier {
     let isQueued: Bool
     @Environment(\.chatSnapshotRendering) private var snapshotRendering
 
-    /// Matches `.contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18))`
-    /// on the row exactly — including the default (non-`.continuous`) corner
-    /// style. A `.continuous` bubble against a circular-arc preview clip would
-    /// show the corners subtly change shape as the long-press lift begins.
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 18)
-    }
-
     func body(content: Content) -> some View {
-        if isQueued {
-            // Provisional look, identical on every OS version.
-            content
-                .background(shape.fill(Color.clear))
-                .overlay(
-                    shape
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                        .foregroundStyle(ChatColors.secondaryText.opacity(0.5))
-                )
-        } else if #available(iOS 26.0, *), !snapshotRendering {
-            content.glassEffect(.regular, in: shape)
-        } else {
-            content.background(shape.fill(ChatColors.userBubble))
-        }
+        let shape = chatBubbleShape
+        content
+            .background(shape.fill(isQueued ? Color.clear : CodyColors.bgUserBubble))
+            .background {
+                if snapshotRendering && !isQueued {
+                    shape.fill(CodyColors.bgCanvas)
+                }
+            }
+            .overlay {
+                if isQueued {
+                    shape.strokeBorder(CodyColors.borderDefault, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                        .allowsHitTesting(false)
+                } else {
+                    shape.strokeBorder(CodyColors.borderLight, lineWidth: 0.5)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }
 
@@ -442,9 +390,9 @@ struct ChatMessageRow: View {
                     HStack(spacing: 6) {
                         SearchHighlightText(userDisplayText, key: searchKey())
                             .font(.system(size: FontSettings.shared.scaledMessage(16.5)))
-                            .foregroundStyle(message.isQueued ? ChatColors.secondaryText : ChatColors.primaryText)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
+                            .foregroundStyle(message.isQueued ? CodyColors.textSecondary : CodyColors.textPrimary)
+                            .padding(.horizontal, CodySpacing.mdPlus)
+                            .padding(.vertical, CodySpacing.smPlus)
                             .modifier(UserBubbleSurface(isQueued: message.isQueued))
 
                         if message.isQueued {
@@ -454,8 +402,9 @@ struct ChatMessageRow: View {
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 22))
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(CodyColors.statusErrorText)
                                 }
+                                .accessibilityLabel(Text("Remove queued message"))
                             }
                         }
                     }
@@ -463,13 +412,8 @@ struct ChatMessageRow: View {
             }
             .modifier(CodyOpenURLHandler())
             .contentShape(Rectangle())
-            // [T-ios-usermsg-contextmenu-preview-shape] The hit-test shape above
-            // stays a full Rectangle (so the whole row is long-pressable), but
-            // the context-menu PREVIEW must clip to the bubble's rounded shape —
-            // otherwise the lifted preview shows square corners while the bubble
-            // is RoundedRectangle(cornerRadius: 18). iOS 16+ lets us specify the
-            // preview clip shape independently from the interaction shape.
-            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18))
+            // The hit area stays rectangular. The lift uses the bubble's circular corners.
+            .contentShape(.contextMenuPreview, chatBubbleShape)
             .contextMenu {
                 Button {
                     UIPasteboard.general.string = message.content
@@ -529,11 +473,11 @@ struct ChatMessageRow: View {
             } preview: {
                 // [T-ios-longpress-menu-preview-background] Opaque card so the
                 // long-press preview isn't transparent (see MessageContextMenuPreview).
-                MessageContextMenuPreview(text: message.content)
+                MessageContextMenuPreview(text: message.content, isUserMessage: true, isQueued: message.isQueued)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.vertical, CodySpacing.xs)
         // [T-ios-delete-from-message] Suffix deletion is irreversible and takes
         // the following replies with it, so it gets an explicit confirmation
         // rather than firing straight off the menu.
@@ -550,9 +494,9 @@ struct ChatMessageRow: View {
     // MARK: Assistant Row
 
     private var assistantRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
             // Assistant label
-            HStack(spacing: 6) {
+            HStack(spacing: CodySpacing.xsPlus) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(
@@ -563,11 +507,14 @@ struct ChatMessageRow: View {
                             endPoint: .bottomTrailing
                         )
                     )
+                    .accessibilityHidden(true)
                 AssistantSoulName()
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(ChatColors.primaryText)
+                    .font(CodyTypography.titleMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
             }
-            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.top, CodySpacing.xs)
 
             ForEach(message.blocks) { block in
                 AssistantBlockView(
@@ -628,6 +575,7 @@ struct ChatMessageRow: View {
                     if let usage = message.usage {
                         usageCapsule(usage)
                             .opacity(usageContentVisible ? 1 : 0)
+                            .accessibilityHidden(!usageContentVisible)
                     }
                     Spacer()
                     // [T-usage-capsule-time] Right-aligned, outside the
@@ -640,8 +588,9 @@ struct ChatMessageRow: View {
                     if showUsage, let completedAt = message.completedAt {
                         Text(Self.completedAtFormatter.string(from: completedAt))
                             .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(ChatColors.tertiaryText)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .opacity(usageContentVisible ? 1 : 0)
+                            .accessibilityHidden(!usageContentVisible)
                     }
                 }
             }
@@ -767,10 +716,10 @@ struct ChatMessageRow: View {
             Text(usageSummary(usage))
                 .font(.system(size: 10, design: .monospaced))
         }
-        .foregroundStyle(ChatColors.tertiaryText)
+        .foregroundStyle(CodyColors.textSecondary)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(ChatColors.userBubble.opacity(0.6))
+        .background(CodyColors.bgUserBubble)
         .clipShape(Capsule())
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }

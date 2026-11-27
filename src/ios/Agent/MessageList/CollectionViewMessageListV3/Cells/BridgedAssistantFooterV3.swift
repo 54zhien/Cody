@@ -50,7 +50,7 @@ struct BridgedAssistantFooterV3: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
             // Typing indicator — "request out, nothing back yet", evaluated per
             // ROUND. See `ChatMessage.shouldShowTypingIndicator`.
             if showsTypingIndicator {
@@ -82,6 +82,7 @@ struct BridgedAssistantFooterV3: View {
                     if let usage = message.usage {
                         usageCapsule(usage)
                             .opacity(bridge.usageContentVisible ? 1 : 0)
+                            .accessibilityHidden(!bridge.usageContentVisible)
                     }
                     Spacer()
                     // [T-usage-capsule-time] The completion clock sits at the
@@ -98,8 +99,9 @@ struct BridgedAssistantFooterV3: View {
                     if bridge.showUsage, let completedAt = message.completedAt {
                         Text(Self.completedAtFormatter.string(from: completedAt))
                             .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(ChatColors.tertiaryText)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .opacity(bridge.usageContentVisible ? 1 : 0)
+                            .accessibilityHidden(!bridge.usageContentVisible)
                     }
                 }
             }
@@ -107,8 +109,8 @@ struct BridgedAssistantFooterV3: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: maxWidth > 0 ? maxWidth : nil, alignment: .leading)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, hasFooterContent ? 16 : 0)
-        .padding(.vertical, hasFooterContent ? 2 : 0)
+        .padding(.horizontal, hasFooterContent ? CodyMetrics.Conversation.rowPaddingH : 0)
+        .padding(.vertical, hasFooterContent ? CodySpacing.xxs : 0)
         .environment(\.chatSearchDimmed, message.isCompactedHistory)
         .opacity(message.isCompactedHistory ? 0.5 : 1.0)
         .accessibilityIdentifier("assistantFooter")
@@ -272,9 +274,9 @@ struct BridgedAssistantFooterV3: View {
             Image(systemName: "speedometer").font(.system(size: 9))
             Text(usageSummary(usage)).font(.system(size: 10, design: .monospaced))
         }
-        .foregroundStyle(ChatColors.tertiaryText)
+        .foregroundStyle(CodyColors.textSecondary)
         .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(ChatColors.userBubble.opacity(0.6)).clipShape(Capsule())
+        .background(CodyColors.bgUserBubble).clipShape(Capsule())
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }
 

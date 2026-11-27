@@ -15,7 +15,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -73,24 +72,10 @@ struct NavBarStyleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            // iOS 26: extend content behind nav bar so liquid-glass has
-            // something to show through; the collection view's
-            // contentInsetAdjustmentBehavior = .automatic keeps messages
-            // starting below the bar.
+            // The transcript extends behind the bar so UIKit can soften the top
+            // edge. Automatic content insets keep the first row below the bar.
             content
                 .ignoresSafeArea(.container, edges: .top)
-                .toolbarBackgroundVisibility(.visible, for: .navigationBar)
-                // [T-macos27-liquid-glass-navbar] See MacOS27GlassWorkaround in
-                // ContentView. `toolbarBackgroundVisibility(.visible)` only
-                // declares "there should be a backdrop"; the material is still
-                // produced by glass sampling — which does not render in a
-                // foreground window on macOS 27, leaving the bar fully
-                // transparent. Pin an opaque colour here instead (the same one
-                // the iOS 16–18 branch below uses). The message list is a
-                // UIKit-hosted UICollectionView, so the modifier's
-                // scrollEdgeEffectHidden is a no-op for it; what does the work
-                // here is toolbarBackground. No change needed in
-                // MessageListViewController.
                 .modifier(MacOS27OpaqueNavigationBar(background: ChatColors.background))
         } else {
             // iOS 16–18: opaque navbar background

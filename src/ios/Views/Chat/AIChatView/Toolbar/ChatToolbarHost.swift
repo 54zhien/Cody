@@ -18,7 +18,6 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -479,7 +478,7 @@ private struct ChatTrailingMenu: View, Equatable {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(ChatColors.primaryText)
+                .foregroundStyle(CodyColors.iconPrimary)
         }
         // [T-ios-voiceover-labels] Matches the label the UIKit ellipsis button
         // elsewhere in this file already sets, so both read the same.

@@ -18,7 +18,7 @@
 //     every word has settled, so an idle (non-streaming) view costs nothing.
 //
 //  This file deliberately owns no parsing or rendering logic; it is a pure
-//  per-word alpha scheduler over an existing NSTextStorage.
+//  per-word color scheduler over an existing NSTextStorage.
 
 import UIKit
 
@@ -30,11 +30,6 @@ final class TextFadeAnimator {
 
     // MARK: - Tunables
 
-    /// How long a single word takes to fade from alpha 0 → 1. Matches
-    /// Microsoft SwiftStreamingMarkdown's 0.5s; slightly shorter reads as more
-    /// responsive on a phone without losing the smooth settle.
-    private static let wordFadeDuration: CFTimeInterval = 0.45
-
     /// Hard cap on how many reveal units (words + inter-word gaps) a single
     /// schedule call will animate. A large paste (or a big non-streaming
     /// append) would otherwise schedule hundreds of fades on one frame; above
@@ -44,29 +39,24 @@ final class TextFadeAnimator {
     /// contributes its trailing-gap unit (~2× the count for the same text).
     private static let maxAnimatedWords = 160
 
-    /// Total stagger window for ONE batch, divided across its words — the key
-    /// to a steady reveal regardless of bursty token arrival (this is exactly
-    /// Microsoft SwiftStreamingMarkdown's `0.1 / wordCount`). A 2-word batch
-    /// staggers 0.05s apart; a 30-word burst staggers ~0.003s apart, so every
-    /// batch finishes in ~`window + duration` (~0.55s) no matter its size. The
-    /// per-batch baseStart is simply `now`, so consecutive batches overlap
-    /// naturally rather than queueing into an ever-growing tail.
+    /// Bound each batch's stagger so a burst settles alongside subsequent appends.
     private static let staggerWindow: CFTimeInterval = 0.10
 
-    private static func stagger(forWordCount count: Int) -> CFTimeInterval {
-        guard count > 0 else { return 0 }
-        return staggerWindow / CFTimeInterval(count)
-    }
-
     // MARK: - State
+
+    private struct ColorRun {
+        let range: NSRange
+        let originalColor: UIColor
+    }
 
     private struct FadeWord {
         let range: NSRange
         let startTime: CFTimeInterval
-        let duration: CFTimeInterval
-        /// Original (fully-opaque) foreground color to restore on completion.
-        let originalColor: UIColor
+        let colors: [ColorRun]
     }
+
+    private let preset: CodyMotion.StreamingPreset
+    private let highlight: UIColor?
 
     /// The storage we mutate. Weak — the textView (and its storage) outlives
     /// us via the Coordinator, but we never want to keep it alive ourselves.
@@ -82,8 +72,14 @@ final class TextFadeAnimator {
 
     /// - Parameter requestRedraw: invoked on the main thread after each frame's
     ///   alpha mutation. The owner should call `textView.setNeedsDisplay()`.
-    init(requestRedraw: @escaping () -> Void) {
+    init(preset: CodyMotion.StreamingPreset = .enhanced, requestRedraw: @escaping () -> Void) {
+        self.preset = preset
         self.requestRedraw = requestRedraw
+        switch preset {
+        case .enhanced, .snappy: highlight = CodyUIColors.streamingHighlight
+        case .neutral: highlight = CodyUIColors.thinkingNeutral
+        case .fallback: highlight = nil
+        }
     }
 
     deinit {
@@ -100,6 +96,10 @@ final class TextFadeAnimator {
     /// the NSRange of the freshly-appended tail. Safe to call repeatedly while
     /// streaming — each call adds its words to the shared in-flight set.
     func scheduleAnimation(for range: NSRange, in targetStorage: NSTextStorage) {
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            if !words.isEmpty { cancelAll() }
+            return
+        }
         guard range.length > 0 else { return }
         let storageLen = targetStorage.length
         // Defensive clamp: the caller computed `range` from the same storage,
@@ -111,15 +111,15 @@ final class TextFadeAnimator {
         )
         guard safeRange.length > 0 else { return }
 
-        self.storage = targetStorage
+        if storage !== targetStorage && !words.isEmpty { cancelAll() }
+        storage = targetStorage
 
         // Split the appended tail into reveal units. Unlike a bare
         // `.byWords` enumeration (which omits the punctuation / whitespace /
         // symbols / emoji BETWEEN words, leaving them to pop in instantly),
         // this also emits the inter-word gaps + leading/trailing separators so
-        // EVERY character in the new range fades — matching Microsoft
-        // SwiftStreamingMarkdown's `splitIntoWords`. We collect ranges first
-        // (cheap, read-only) so we can bail before mutating on a huge paste.
+        // EVERY character in the new range fades. Collect ranges before editing
+        // so a paste over the cap appears instantly.
         let nsString = targetStorage.string as NSString
         let wordRanges = Self.revealUnits(in: nsString, within: safeRange, cap: Self.maxAnimatedWords)
 
@@ -127,33 +127,19 @@ final class TextFadeAnimator {
         // text is already in the storage at full opacity, so it just appears.
         guard !wordRanges.isEmpty, wordRanges.count <= Self.maxAnimatedWords else { return }
 
-        let now = CACurrentMediaTime()
-        let step = Self.stagger(forWordCount: wordRanges.count)
-        // Each batch starts its ripple at `now` and overlaps any still-fading
-        // earlier batch — this is what makes the reveal read as a steady,
-        // natural flow rather than a queue that grows a longer and longer tail
-        // the faster tokens arrive (Microsoft SwiftStreamingMarkdown does the
-        // same: baseStartTime = CACurrentMediaTime() per batch).
-        let baseStart = now
+        let baseStart = CACurrentMediaTime()
+        let step = min(preset.stagger, Self.staggerWindow / CFTimeInterval(wordRanges.count))
 
-        // Batch all alpha-0 writes inside one begin/endEditing so TextKit only
-        // posts a single processEditing pass for the whole appended tail.
         targetStorage.beginEditing()
-        for (i, wr) in wordRanges.enumerated() {
-            let original = currentForegroundColor(at: wr.location, in: targetStorage)
-            let start = baseStart + CFTimeInterval(i) * step
-            words.append(FadeWord(
-                range: wr,
-                startTime: start,
-                duration: Self.wordFadeDuration,
-                originalColor: original
-            ))
-            // Seed at alpha 0.
-            targetStorage.addAttribute(
-                .foregroundColor,
-                value: original.withAlphaComponent(0),
-                range: wr
-            )
+        for (index, range) in wordRanges.enumerated() {
+            var colors: [ColorRun] = []
+            targetStorage.enumerateAttribute(.foregroundColor, in: range, options: []) { value, subrange, _ in
+                colors.append(ColorRun(range: subrange, originalColor: value as? UIColor ?? .label))
+            }
+            words.append(FadeWord(range: range, startTime: baseStart + CFTimeInterval(index) * step, colors: colors))
+            for run in colors {
+                targetStorage.addAttribute(.foregroundColor, value: run.originalColor.withAlphaComponent(0), range: run.range)
+            }
         }
         targetStorage.endEditing()
 
@@ -173,8 +159,8 @@ final class TextFadeAnimator {
         if let storage, !words.isEmpty {
             let len = storage.length
             storage.beginEditing()
-            for w in words where w.range.location + w.range.length <= len {
-                storage.addAttribute(.foregroundColor, value: w.originalColor, range: w.range)
+            for word in words where NSMaxRange(word.range) <= len {
+                Self.restore(word, in: storage)
             }
             storage.endEditing()
             requestRedraw()
@@ -200,6 +186,10 @@ final class TextFadeAnimator {
     }
 
     @objc private func tick() {
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            cancelAll()
+            return
+        }
         guard let storage else {
             stopDisplayLink()
             words.removeAll(keepingCapacity: true)
@@ -208,37 +198,38 @@ final class TextFadeAnimator {
         let now = CACurrentMediaTime()
         let storageLen = storage.length
 
-        var completed: [Int] = []
+        let duration = preset.duration
+        let delay = preset.colorDelay
+        let highlight = self.highlight
         storage.beginEditing()
-        for (i, w) in words.enumerated() {
-            // Stale range guard — a racing edit could have invalidated it.
-            guard w.range.location + w.range.length <= storageLen else {
-                completed.append(i)
-                continue
+        words.removeAll { word in
+            guard NSMaxRange(word.range) <= storageLen else { return true }
+            let elapsed = now - word.startTime
+            guard elapsed > 0 else { return false }
+            if elapsed >= duration {
+                Self.restore(word, in: storage)
+                return true
             }
-            let elapsed = now - w.startTime
-            if elapsed <= 0 {
-                continue // not started yet (still inside its stagger delay)
+
+            let progress = elapsed / duration
+            let opacity: CGFloat
+            let tintAmount: CGFloat
+            if let delay {
+                let reveal = min(1, progress / 0.18)
+                opacity = CGFloat(reveal * reveal * (3 - 2 * reveal))
+                let settling = max(0, (elapsed - delay) / (duration - delay))
+                tintAmount = 0.40 * CGFloat(1 - Self.easeOutCubic(settling))
+            } else {
+                opacity = CGFloat(Self.easeOutCubic(progress))
+                tintAmount = 0
             }
-            let t = min(1, elapsed / w.duration)
-            let eased = Self.easeOutCubic(t)
-            let color = w.originalColor.withAlphaComponent(CGFloat(eased))
-            storage.addAttribute(.foregroundColor, value: color, range: w.range)
-            if t >= 1 {
-                // Restore the exact original (avoids float-rounding leaving a
-                // hair under full opacity) and retire the word.
-                storage.addAttribute(.foregroundColor, value: w.originalColor, range: w.range)
-                completed.append(i)
+            for run in word.colors {
+                let color = Self.revealColor(for: run.originalColor, highlight: highlight, tintAmount: tintAmount, opacity: opacity)
+                storage.addAttribute(.foregroundColor, value: color, range: run.range)
             }
+            return false
         }
         storage.endEditing()
-
-        if !completed.isEmpty {
-            // Remove from the back so earlier indices stay valid.
-            for i in completed.reversed() {
-                words.remove(at: i)
-            }
-        }
 
         requestRedraw()
 
@@ -288,15 +279,29 @@ final class TextFadeAnimator {
         return units
     }
 
-    /// The foreground color a glyph currently carries, defaulting to label.
-    /// We read it (rather than assuming `.label`) so colored inline spans —
-    /// links, syntax-highlighted code, custom-styled runs — fade back to their
-    /// real color rather than to black.
-    private func currentForegroundColor(at location: Int, in storage: NSTextStorage) -> UIColor {
-        guard location >= 0, location < storage.length else { return .label }
-        if let c = storage.attribute(.foregroundColor, at: location, effectiveRange: nil) as? UIColor {
-            return c
+    private static func restore(_ word: FadeWord, in storage: NSTextStorage) {
+        for run in word.colors {
+            storage.addAttribute(.foregroundColor, value: run.originalColor, range: run.range)
         }
-        return .label
+    }
+
+    private static func revealColor(for original: UIColor, highlight: UIColor?, tintAmount: CGFloat, opacity: CGFloat) -> UIColor {
+        UIColor { traits in
+            let base = original.resolvedColor(with: traits)
+            let alpha = base.cgColor.alpha * opacity
+            guard let highlight, tintAmount > 0 else { return base.withAlphaComponent(alpha) }
+
+            let accent = highlight.resolvedColor(with: traits)
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+            var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0
+            guard base.getRed(&r, green: &g, blue: &b, alpha: nil),
+                  accent.getRed(&ar, green: &ag, blue: &ab, alpha: nil) else {
+                return base.withAlphaComponent(alpha)
+            }
+            return UIColor(red: r + (ar - r) * tintAmount,
+                           green: g + (ag - g) * tintAmount,
+                           blue: b + (ab - b) * tintAmount,
+                           alpha: alpha)
+        }
     }
 }

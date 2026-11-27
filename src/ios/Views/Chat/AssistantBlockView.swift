@@ -42,31 +42,31 @@ struct AssistantBlockView: View {
             )
             .padding(.vertical, 2)
         case .shellTool:
-            ToolCapsuleView(block: block, icon: "terminal", accentColor: .green,
+            ToolCapsuleView(block: block, icon: "terminal", category: .green,
                             commandStartTime: commandStartTime, onStop: onStop, browserPool: browserPool,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .fileReadTool:
-            ToolCapsuleView(block: block, icon: "doc.text", accentColor: .cyan,
+            ToolCapsuleView(block: block, icon: "doc.text", category: .neutral,
                             commandStartTime: commandStartTime, onStop: onStop,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .fileWriteTool:
-            ToolCapsuleView(block: block, icon: "doc.text.fill", accentColor: .blue,
+            ToolCapsuleView(block: block, icon: "doc.text.fill", category: .blue,
                             commandStartTime: commandStartTime, onStop: onStop,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .fileEditTool:
-            ToolCapsuleView(block: block, icon: "square.and.pencil", accentColor: .orange,
+            ToolCapsuleView(block: block, icon: "square.and.pencil", category: .orange,
                             commandStartTime: commandStartTime, onStop: onStop,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .browserTool:
-            ToolCapsuleView(block: block, icon: "globe", accentColor: .blue,
+            ToolCapsuleView(block: block, icon: "globe", category: .blue,
                             commandStartTime: commandStartTime, onStop: onStop, browserPool: browserPool,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .readImageTool:
-            ToolCapsuleView(block: block, icon: "photo", accentColor: .purple,
+            ToolCapsuleView(block: block, icon: "photo", category: .purple,
                             commandStartTime: commandStartTime, onStop: onStop,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .memoryTool:
-            ToolCapsuleView(block: block, icon: "brain.head.profile", accentColor: .pink,
+            ToolCapsuleView(block: block, icon: "brain.head.profile", category: .purple,
                             commandStartTime: commandStartTime, onStop: onStop,
                             toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
         case .userAskTool:
@@ -87,7 +87,7 @@ struct AssistantBlockView: View {
                 // tappable detail sheet carrying the full arguments and result,
                 // and the sub agent accent so it still reads as agent work.
                 ToolCapsuleView(block: block, icon: "slider.horizontal.3",
-                                accentColor: HelperAccent.color,
+                                category: .purple,
                                 commandStartTime: commandStartTime, onStop: onStop,
                                 toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
             } else {
@@ -102,31 +102,31 @@ struct AssistantBlockView: View {
             let lines = ChatSearchDisplayText.infoLines(block.content)
             let displayReasons = lines.reasons
             let switchedLine = lines.switched
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(Array(displayReasons.enumerated()), id: \.offset) { i, line in
-                    SearchHighlightText(line, blockId: block.id, field: .line(i), messageId: message.id)
-                        .font(.system(size: 10))
-                        .foregroundStyle(ChatColors.primaryText.opacity(0.45))
-                        .lineLimit(2)
-                }
-                if let switchedLine {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.orange.opacity(0.8))
+            let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+            HStack(alignment: .top, spacing: CodySpacing.sm) {
+                CodyListIconBadge(systemImage: switchedLine == nil ? "info.circle" : "arrow.triangle.2.circlepath", tint: .orange)
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                    ForEach(Array(displayReasons.enumerated()), id: \.offset) { i, line in
+                        SearchHighlightText(line, blockId: block.id, field: .line(i), messageId: message.id)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .lineLimit(2)
+                    }
+                    if let switchedLine {
                         SearchHighlightText(switchedLine, blockId: block.id, field: .title, messageId: message.id)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(ChatColors.primaryText.opacity(0.75))
+                            .font(CodyTypography.labelMedium)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .lineLimit(2)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.orange.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.14), lineWidth: 0.5))
+            .padding(CodySpacing.sm)
+            .background(CodyColors.bgPrimary, in: shape)
+            .overlay {
+                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                    .allowsHitTesting(false)
+            }
             .contextMenu {
                 Button {
                     UIPasteboard.general.string = block.content
@@ -156,79 +156,17 @@ struct AssistantBlockView: View {
     }
 }
 
-// MARK: - Shimmer Overlay (continuous diagonal shine via offset animation)
-
-/// A diagonal shimmer band that sweeps from top-leading to bottom-trailing.
-/// Uses a single stable gradient with an animated offset rather than rebuilding
-/// gradient stops every frame — avoids a CAGradientLayer colorspace teardown
-/// race during CATransaction flush (EXC_BAD_ACCESS at encode_colorspace).
-struct ShimmerOverlay: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var offsetX: CGFloat = -1.0
-
-    private var peakOpacity: CGFloat {
-        colorScheme == .light ? 0.75 : 0.25
-    }
-
-    private func bell(_ x: CGFloat) -> CGFloat {
-        exp(-4.5 * x * x)
-    }
-
-    private var stableStops: [Gradient.Stop] {
-        let stepCount = 12
-        let bandRadius: CGFloat = 0.40
-        let center: CGFloat = 0.5
-        var stops: [Gradient.Stop] = []
-        stops.append(.init(color: .white.opacity(0), location: 0))
-        for i in 0...stepCount {
-            let frac = CGFloat(i) / CGFloat(stepCount)
-            let pos = center - bandRadius + frac * bandRadius * 2.0
-            let dist = (pos - center) / bandRadius
-            let alpha = bell(dist) * peakOpacity
-            stops.append(.init(color: .white.opacity(Double(alpha)), location: pos))
-        }
-        stops.append(.init(color: .white.opacity(0), location: 1))
-        return stops
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            let diag = geo.size.width + geo.size.height
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        stops: stableStops,
-                        startPoint: UnitPoint(x: 0, y: 1),
-                        endPoint: UnitPoint(x: 1, y: 0)
-                    )
-                )
-                .frame(width: diag, height: geo.size.height)
-                .offset(x: offsetX * geo.size.width)
-                .onAppear {
-                    withAnimation(
-                        .linear(duration: 2.8)
-                        .repeatForever(autoreverses: false)
-                    ) {
-                        offsetX = 1.0
-                    }
-                }
-        }
-        .clipped()
-    }
-}
-
 // MARK: - Tool Capsule View (unified pill for all tool types)
 
 struct ToolCapsuleView: View {
     @ObservedObject var block: AssistantBlock
     let icon: String
-    let accentColor: Color
+    let category: CodyCategoryTint
     var commandStartTime: Date?
     var onStop: (() -> Void)?
     var browserPool: BrowserTabPool?
     var toolSnapshots: [ToolSnapshotItem] = []
     @Binding var detailBlock: AssistantBlock?
-    @State private var dotsActive = false
     /// [T-tool-bg-suspended-hint] Drives the background-suspension info alert.
     @State private var showBgHintAlert = false
     /// [T-ios-memory-write-revoke] Confirmation + result alerts for undoing a
@@ -367,55 +305,21 @@ struct ToolCapsuleView: View {
         """
     }
 
-    private var isStreaming: Bool {
-        if case .streaming = block.toolStatus { return true }
-        return false
-    }
-
-    private var isActive: Bool {
-        switch block.toolStatus {
-        case .streaming, .running: return true
-        default: return false
-        }
-    }
-
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
         HStack {
-            HStack(spacing: 8) {
-                // Status indicator / icon
-                statusOrIcon
+            HStack(spacing: CodySpacing.sm) {
+                CodyListIconBadge(systemImage: icon, tint: iconTint)
 
-                // Description text with bouncing dots during streaming
                 HStack(spacing: 0) {
                     SearchHighlightText(displayText, blockId: block.id, field: .body, messageId: searchMessageId)
-                        .font(.system(size: 13, weight: .medium))
-                        // [T-subagent-control-capsule] Sub agent control calls
-                        // title in the accent, every other tool in the normal
-                        // text colour.
-                        //
-                        // Elsewhere the accent lives only on the icon, which is
-                        // enough when the title names a file or a command — the
-                        // text itself is the content. A control call's title IS
-                        // the operation ("Sent a course correction"), and it
-                        // belongs to the sub agent world the purple identifies;
-                        // leaving it in the default colour made these read as
-                        // ordinary tool calls that happened to have a purple
-                        // glyph, which is what the report is about.
-                        .foregroundStyle(isSubAgentControl ? accentColor : ChatColors.primaryText)
+                        .font(CodyTypography.sectionHeader.weight(.medium))
+                        .foregroundStyle(isSubAgentControl ? category.color : CodyColors.textPrimary)
                         .lineLimit(1)
-                    if isStreaming {
-                        ForEach(0..<3, id: \.self) { i in
-                            Text(".")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(ChatColors.primaryText)
-                                .offset(y: dotsActive ? -2 : 1)
-                                .animation(
-                                    .easeInOut(duration: 0.35)
-                                        .repeatForever(autoreverses: true)
-                                        .delay(Double(i) * 0.12),
-                                    value: dotsActive
-                                )
-                        }
+                    if case .streaming? = block.toolStatus {
+                        CodyShimmeringText(Text("…"))
+                            .font(CodyTypography.sectionHeader)
+                            .accessibilityHidden(true)
                     }
                 }
                 .lineLimit(1)
@@ -427,7 +331,7 @@ struct ToolCapsuleView: View {
                 if let dur = durationText {
                     Text(dur)
                         .font(.system(size: 11, weight: .regular, design: .monospaced))
-                        .foregroundStyle(ChatColors.tertiaryText)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
 
                 // Stop button for running commands
@@ -440,33 +344,24 @@ struct ToolCapsuleView: View {
                         // padding pins the *layout* footprint back to 18×18 so the
                         // capsule width/height is identical to before.
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(.red)
+                            .fill(CodyColors.statusErrorText)
                             .frame(width: 10, height: 10)
                             .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
                             .padding(-3)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(Text(AppLocalized("Stop")))
                 }
             }
-            .padding(.horizontal, 12)
-            .frame(height: 36)
-            .background(Color(UIColor.systemGray6))
-            .clipShape(Capsule())
-            .overlay(
-                Group {
-                    if isActive {
-                        ShimmerOverlay()
-                            .clipShape(Capsule())
-                            .allowsHitTesting(false)
-                    }
-                }
-            )
-            .overlay(
-                Capsule()
-                    .stroke(ChatColors.toolBorder, lineWidth: 0.5)
-            )
-            .contentShape(Capsule())
+            .padding(.horizontal, CodySpacing.md)
+            .frame(height: CodyControlHeight.compact)
+            .background(CodyColors.bgPrimary, in: shape)
+            .overlay {
+                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(shape)
             .onTapGesture {
                 detailBlock = block
             }
@@ -608,43 +503,14 @@ struct ToolCapsuleView: View {
         .alert(revokeMemoryResult ?? "", isPresented: $showRevokeMemoryResultAlert) {
             Button(AppLocalized("OK")) {}
         }
-        .onChange(of: isStreaming) { streaming in
-            dotsActive = streaming
-        }
-        .onAppear {
-            if isStreaming {
-                dotsActive = true
-            }
-        }
     }
 
-    // MARK: - Status / Icon
-
-    @ViewBuilder
-    private var statusOrIcon: some View {
-        Image(systemName: icon)
-            .font(.system(size: 13))
-            .foregroundStyle(iconColor)
-    }
-
-    private var iconColor: Color {
+    private var iconTint: CodyCategoryTint {
         switch block.toolStatus {
-        // [T-subagent-control-capsule] A sub agent control call keeps its
-        // accent when it succeeds, instead of turning the universal green.
-        //
-        // Green answers "did this tool work", which every other capsule needs
-        // because they are all the same colour once finished. These are the
-        // exception: their accent is what says "this was the model operating
-        // on its sub agents", and that identity is exactly what the reader is
-        // scanning for in a transcript full of tool calls — a succeeded
-        // control call rendered green was indistinguishable from a shell
-        // command. Failure and cancellation still override, since those must
-        // read as problems before they read as anything else.
-        case .success where isSubAgentControl: return accentColor
-        case .success: return .green
+        case .success where !isSubAgentControl: return .green
         case .failed: return .red
-        case .cancelled: return .yellow
-        default: return accentColor
+        case .cancelled: return .orange
+        default: return category
         }
     }
 
@@ -922,6 +788,7 @@ enum ThinkingAutoExpand {
 struct ThinkingBlockView: View {
     @ObservedObject var block: AssistantBlock
     let isStreaming: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // [T-thinking-scroll-followback GH#125] Per-view follow state. Reset on
     // cell reuse / re-entry is fine — a fresh view simply follows again.
@@ -958,21 +825,28 @@ struct ThinkingBlockView: View {
     }
 
     var body: some View {
+        let cardShape = RoundedRectangle(
+            cornerRadius: isExpanded.wrappedValue ? CodyRadius.card : CodyRadius.control,
+            style: .continuous
+        )
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            HStack(spacing: 6) {
-                Image("ThinkingIcon")
-                    .resizable()
-                    .frame(width: 14, height: 14)
-                    .foregroundStyle(.blue)
-                Text(AppLocalized("Deep Thinking"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.blue)
-                if isStreaming {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(.blue)
+            HStack(spacing: CodySpacing.xsPlus) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(CodyCategoryTint.neutral.color)
+                    .frame(width: CodySpacing.lg, height: CodySpacing.lg)
+                    .background(CodyColors.bgListIcon, in: RoundedRectangle(cornerRadius: CodyRadius.xs))
+                    .accessibilityHidden(true)
+                let title = Text(AppLocalized("Deep Thinking"))
+                Group {
+                    if isStreaming {
+                        CodyShimmeringText(title)
+                    } else {
+                        title.foregroundStyle(CodyColors.textSecondary)
+                    }
                 }
+                .font(CodyTypography.sectionHeader.weight(.semibold))
                 Spacer()
                 // [T-thinking-count-beside-chevron] The character count sits at
                 // the RIGHT end, tight against the chevron, matching Android
@@ -988,11 +862,12 @@ struct ThinkingBlockView: View {
                         let charCount = max(block.content.count, block.thinkingContentBuffer.count)
                         Text(charCount > 1000 ? "\(charCount / 1000)K" : "\(charCount)")
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.blue.opacity(0.6))
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                     Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.blue.opacity(0.5))
+                        .foregroundStyle(CodyColors.iconDisclosure)
+                        .accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, 12)
@@ -1012,6 +887,10 @@ struct ThinkingBlockView: View {
                 }
                 isExpanded.wrappedValue.toggle()
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(AppLocalized("Deep Thinking")))
+            .accessibilityHint(Text(AppLocalized(isExpanded.wrappedValue ? "Show less" : "Show more")))
+            .accessibilityAddTraits(.isButton)
 
             // Content — only visible when expanded, windowed to the tail
             // to prevent UI freeze on very long thinking (T-thinking-render-perf-ios).
@@ -1132,7 +1011,7 @@ struct ThinkingBlockView: View {
                         if len > 3000 {
                             proxy.scrollTo("thinkingBottom", anchor: .bottom)
                         } else {
-                            withAnimation(.linear(duration: 0.15)) {
+                            withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
                                 proxy.scrollTo("thinkingBottom", anchor: .bottom)
                             }
                         }
@@ -1164,12 +1043,12 @@ struct ThinkingBlockView: View {
         .onDisappear {
             ThinkingHitchMonitor.shared.stop(owner: block.id)
         }
-        .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.blue.opacity(0.15), lineWidth: 0.5)
-        )
+        .background(CodyColors.bgPrimary, in: cardShape)
+        .clipShape(cardShape)
+        .overlay {
+            cardShape.strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                .allowsHitTesting(false)
+        }
         .task(id: block.id) {
             // One-shot per-block auto-expand. Runs when this cell first hosts
             // a given thinking block (block.id is stable across content
@@ -1292,7 +1171,6 @@ private struct ThinkingBodyHeightKey: PreferenceKey {
 // MARK: - Typing Indicator
 
 struct TypingIndicator: View {
-    @State private var dotOffsets: [Bool] = [false, false, false]
     /// Live Soul name so the indicator reads "<custom name> is thinking…" when
     /// the user has renamed the assistant in Soul settings. Updates via
     /// `.soulMdChanged` Notification — same wiring used by `AssistantSoulName`.
@@ -1302,36 +1180,12 @@ struct TypingIndicator: View {
     }()
 
     var body: some View {
-        // The thinking-level badge that used to trail this indicator was
-        // removed — the nav-bar title (AIChatView.thinkingLevelBadge) is now
-        // the single place that shows and changes the thinking level, so a
-        // duplicate here was redundant. ThinkingLevelSheetView is unchanged;
-        // it's still presented from the nav-bar badge.
-        HStack(spacing: 0) {
-            Text("\(soulName) is thinking")
-            ForEach(0..<3, id: \.self) { i in
-                Text(".")
-                    .offset(y: dotOffsets[i] ? -3 : 1)
-            }
-        }
+        CodyShimmeringText(Text("\(soulName) is thinking"))
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
             let n = SoulStore.cachedMetadata.name.trimmingCharacters(in: .whitespacesAndNewlines)
             soulName = n.isEmpty ? "Cody" : n
         }
         .font(.system(size: 15, weight: .medium))
-        .foregroundStyle(ChatColors.tertiaryText)
-        .padding(.top, 0)
-        .onAppear {
-            for i in 0..<3 {
-                withAnimation(
-                    .easeInOut(duration: 0.4)
-                        .repeatForever(autoreverses: true)
-                        .delay(Double(i) * 0.15)
-                ) {
-                    dotOffsets[i] = true
-                }
-            }
-        }
     }
 }
 

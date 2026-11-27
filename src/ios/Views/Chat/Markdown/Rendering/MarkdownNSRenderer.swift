@@ -52,12 +52,11 @@ final class MarkdownNSRenderer {
     func updateFontSize(_ size: CGFloat) {
         theme = SelectableMarkdownTheme(baseFontSize: size)
     }
-    private var bodyLineSpacing: CGFloat { theme.baseFontSize * 0.25 }
-    /// codyChat list item: .em(0.25) top margin
-    private var listItemTopMargin: CGFloat { theme.baseFontSize * 0.25 }
-    /// codyChat headings: .em(1) top and bottom
-    private var headingTopMargin: CGFloat { theme.baseFontSize }
-    private var headingBottomMargin: CGFloat { theme.baseFontSize }
+    private var bodyLineSpacing: CGFloat { CodyProseMetrics.bodyLineSpacing(for: theme.baseFont) }
+    private var quoteLineSpacing: CGFloat {
+        max(0, CodyProseMetrics.quoteLineHeight * theme.baseFontSize / CodyProseMetrics.baseBodySize - theme.baseFont.lineHeight)
+    }
+    private let listItemTopMargin = CodyMetrics.Conversation.listItemSpacing
 
     /// Reuse existing media attachments across re-renders to avoid reload flicker during streaming.
     var imageAttachmentCache: [String: ImageAttachment] = [:]
@@ -116,12 +115,15 @@ final class MarkdownNSRenderer {
         let topMargin: CGFloat?
         let bottomMargin: CGFloat?
         let isBlockAttachment: Bool
+        let isDivider: Bool
 
-        init(attributed: NSAttributedString, topMargin: CGFloat?, bottomMargin: CGFloat?, isBlockAttachment: Bool = false) {
+        init(attributed: NSAttributedString, topMargin: CGFloat?, bottomMargin: CGFloat?,
+             isBlockAttachment: Bool = false, isDivider: Bool = false) {
             self.attributed = attributed
             self.topMargin = topMargin
             self.bottomMargin = bottomMargin
             self.isBlockAttachment = isBlockAttachment
+            self.isDivider = isDivider
         }
     }
 
@@ -156,7 +158,7 @@ final class MarkdownNSRenderer {
     private func renderBlock(_ block: BlockNode, listDepth: Int, quoteDepth: Int) -> RenderedBlock {
         switch block {
         case .paragraph(let content):
-            return renderParagraph(content, quoteDepth: quoteDepth)
+            return renderParagraph(content, listDepth: listDepth, quoteDepth: quoteDepth)
         case .heading(let level, let content):
             return renderHeading(level: level, content: content, quoteDepth: quoteDepth)
         case .codeBlock(let fenceInfo, let content):
@@ -198,7 +200,9 @@ final class MarkdownNSRenderer {
             let current = blocks[i]
             let suppressBottom = tightSpacing && !previous.isBlockAttachment && !current.isBlockAttachment
             let previousBottom = suppressBottom ? 0 : (previous.bottomMargin ?? 0)
-            let spacing = max(current.topMargin ?? 0, previousBottom)
+            let spacing = previous.isDivider || current.isDivider
+                ? CodySpacing.sm
+                : max(current.topMargin ?? 0, previousBottom)
             // Apply spacing as paragraphSpacing on the last paragraph of the accumulated result
             addSpacingAfterBlock(result, spacing: spacing)
             result.append(blockSeparator(height: spacing))
@@ -248,20 +252,12 @@ final class MarkdownNSRenderer {
 
     // MARK: Paragraph
 
-    private func renderParagraph(_ inlines: [InlineNode], quoteDepth: Int) -> RenderedBlock {
-        var baseAttrs = baseAttributes(quoteDepth: quoteDepth)
-        let style: NSMutableParagraphStyle
-        if let existing = baseAttrs[.paragraphStyle] as? NSParagraphStyle {
-            style = existing.mutableCopy() as! NSMutableParagraphStyle
-        } else {
-            style = NSMutableParagraphStyle()
-        }
-        style.lineSpacing = bodyLineSpacing
-        baseAttrs[.paragraphStyle] = style
+    private func renderParagraph(_ inlines: [InlineNode], listDepth: Int, quoteDepth: Int) -> RenderedBlock {
+        let baseAttrs = baseAttributes(quoteDepth: quoteDepth)
         return RenderedBlock(
             attributed: renderInlines(inlines, baseAttributes: baseAttrs),
             topMargin: 0,
-            bottomMargin: 12
+            bottomMargin: listDepth > 0 ? CodySpacing.md : CodyMetrics.Conversation.paragraphSpacing
         )
     }
 
@@ -269,10 +265,12 @@ final class MarkdownNSRenderer {
 
     private func renderHeading(level: Int, content: [InlineNode], quoteDepth: Int) -> RenderedBlock {
         var attrs = baseAttributes(quoteDepth: quoteDepth)
-        attrs[.font] = theme.headingFont(level: level)
+        let font = theme.headingFont(level: level)
+        attrs[.font] = font
         let style = NSMutableParagraphStyle()
-        // codyChat doesn't set relativeLineSpacing for headings
-        style.lineSpacing = 0
+        let scale = theme.baseFontSize / CodyProseMetrics.baseBodySize
+        let target = level == 3 ? CodyProseMetrics.h3LineHeight : CodyProseMetrics.bodyLineHeight
+        style.lineSpacing = max(0, target * scale - font.lineHeight)
         if quoteDepth > 0 {
             style.headIndent = CGFloat(quoteDepth) * Self.quoteIndentPerLevel
             style.firstLineHeadIndent = style.headIndent
@@ -280,8 +278,8 @@ final class MarkdownNSRenderer {
         attrs[.paragraphStyle] = style
         return RenderedBlock(
             attributed: renderInlines(content, baseAttributes: attrs),
-            topMargin: headingTopMargin,
-            bottomMargin: headingBottomMargin
+            topMargin: CodyMetrics.Conversation.paragraphSpacing,
+            bottomMargin: CodySpacing.sm
         )
     }
 
@@ -353,10 +351,9 @@ final class MarkdownNSRenderer {
             // codyChat blockquote uses secondaryText color
             result.addAttribute(.foregroundColor, value: theme.secondaryLabelColor, range: fullRange)
         }
-        // Blockquote inherits margins from children (no explicit markdownMargin in codyChat)
         return RenderedBlock(
             attributed: result,
-            topMargin: renderedChildren.topMargin,
+            topMargin: CodyMetrics.Conversation.paragraphSpacing,
             bottomMargin: renderedChildren.bottomMargin
         )
     }
@@ -518,8 +515,8 @@ final class MarkdownNSRenderer {
                 style = existing.mutableCopy() as! NSMutableParagraphStyle
             } else {
                 style = NSMutableParagraphStyle()
+                style.lineSpacing = bodyLineSpacing
             }
-            style.lineSpacing = max(style.lineSpacing, bodyLineSpacing)
             style.headIndent = max(style.headIndent, continuationIndent)
             if isFirstParagraph {
                 style.firstLineHeadIndent = max(style.firstLineHeadIndent, firstLineIndent)
@@ -682,21 +679,14 @@ final class MarkdownNSRenderer {
         let attachment = ThematicBreakAttachment(theme: theme)
         let result = NSMutableAttributedString(attachment: attachment)
         result.addAttribute(.font, value: theme.baseFont, range: NSRange(location: 0, length: result.length))
-        return RenderedBlock(attributed: result, topMargin: 16, bottomMargin: 16, isBlockAttachment: true)
+        return RenderedBlock(attributed: result, topMargin: CodySpacing.sm, bottomMargin: CodySpacing.sm,
+                             isBlockAttachment: true, isDivider: true)
     }
 
     // MARK: HTML Block
 
     private func renderHTMLBlock(_ content: String, quoteDepth: Int) -> RenderedBlock {
-        var attrs = baseAttributes(quoteDepth: quoteDepth)
-        let style: NSMutableParagraphStyle
-        if let existing = attrs[.paragraphStyle] as? NSParagraphStyle {
-            style = existing.mutableCopy() as! NSMutableParagraphStyle
-        } else {
-            style = NSMutableParagraphStyle()
-        }
-        style.lineSpacing = bodyLineSpacing
-        attrs[.paragraphStyle] = style
+        let attrs = baseAttributes(quoteDepth: quoteDepth)
         return RenderedBlock(
             attributed: NSAttributedString(string: content, attributes: attrs),
             topMargin: 0,
@@ -996,15 +986,15 @@ final class MarkdownNSRenderer {
             .font: theme.baseFont,
             .foregroundColor: quoteDepth > 0 ? theme.secondaryLabelColor : theme.labelColor,
         ]
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = quoteDepth > 0 ? quoteLineSpacing : bodyLineSpacing
         if quoteDepth > 0 {
             attrs[.blockquoteDepth] = quoteDepth
-            let style = NSMutableParagraphStyle()
             let indent = CGFloat(quoteDepth) * Self.quoteIndentPerLevel
             style.headIndent = indent
             style.firstLineHeadIndent = indent
-            style.lineSpacing = bodyLineSpacing
-            attrs[.paragraphStyle] = style
         }
+        attrs[.paragraphStyle] = style
         return attrs
     }
 

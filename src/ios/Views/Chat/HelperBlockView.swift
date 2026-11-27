@@ -302,30 +302,30 @@ struct HelperBlockInfo {
 
     static func statusColor(_ status: String) -> Color {
         switch status {
-        case "completed": return .green
+        case "completed": return CodyCategoryTint.green.color
         // [T-subagent-no-deliverable-status] Warning, not error: the run is
         // recoverable by re-delegating with a narrower task or a bigger
         // budget — the same "needs attention, nothing is broken" reading as
         // timeout/interrupted, which is the closest existing neighbour.
-        case "no_deliverable": return .yellow
-        case "cancelled", "timeout", "interrupted": return .yellow
+        case "no_deliverable": return CodyCategoryTint.orange.color
+        case "cancelled", "timeout", "interrupted": return CodyCategoryTint.orange.color
         // Waiting its turn, not a problem — the accent, not a warning colour.
         case "queued": return HelperAccent.color
         // Never ran and never will — the same "needs attention, not broken"
-        // yellow that interrupted uses.
-        case "queue_lost": return .yellow
+        // warm tint that interrupted uses.
+        case "queue_lost": return CodyCategoryTint.orange.color
         // [T-subagent-error-surface] A run that genuinely failed IS red. It
         // used to fall through to the neutral default below, so a real error
         // looked the same as "the app cannot tell how this ended" — and with
-        // an empty result it was reclassified to the yellow "No result", which
+        // an empty result it was reclassified to the warning-coloured "No result", which
         // reads as "nothing to hand back" rather than "something broke".
-        case "failed": return .red
+        case "failed": return CodyCategoryTint.red.color
         // [T-subagent-unknown-status-label] Neutral, not red. Red asserts the
         // run failed; an unrecognised or missing status only says the app does
         // not know how it ended, and the transcript may well be intact. Use
         // the same secondary grey the rest of the card's chrome uses so it
         // reads as "no information" rather than "error".
-        default: return ChatColors.secondaryText
+        default: return CodyColors.textSecondary
         }
     }
 
@@ -336,16 +336,7 @@ struct HelperBlockInfo {
 
 /// Shared accent for every helper surface (capsule, sheet header, block).
 enum HelperAccent {
-    /// [T-agent-accent-color] Electric violet — reads as "AI / tech" without
-    /// colliding with the app's semantic hues (red = stop/error, green =
-    /// done, yellow = warning/timeout, system blue = thinking). Slightly
-    /// deeper in light mode for contrast on the light card, lifted in dark
-    /// mode so it stays luminous on near-black.
-    static let color = Color(UIColor { tc in
-        tc.userInterfaceStyle == .dark
-            ? UIColor(red: 0.64, green: 0.52, blue: 1.00, alpha: 1)   // #A385FF
-            : UIColor(red: 0.45, green: 0.30, blue: 0.93, alpha: 1)   // #734DED
-    })
+    static let color = CodyCategoryTint.purple.color
     /// Glyph with its own circular background — for places that draw the
     /// icon bare (detail header, tool sheet nav bar). [T-agent-icon]
     static let icon = "person.2.circle.fill"
@@ -387,7 +378,6 @@ enum HelperAccent {
 struct HelperBlockView: View {
     @ObservedObject var block: AssistantBlock
     @Binding var detailBlock: AssistantBlock?
-    @State private var pulse = false
 
     /// Set the moment Resume is tapped so the button cannot be pressed twice
     /// while the restart is in flight.
@@ -458,10 +448,11 @@ struct HelperBlockView: View {
 
     var body: some View {
         let info = self.info
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
         // [T-agent-block-height] ~25% taller than the first cut (46 → 58 pt)
         // with the extra going into line spacing, not just padding — the
         // two text lines sat too tight against each other.
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: CodySpacing.md) {
             leadingIcon(info)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
@@ -471,14 +462,12 @@ struct HelperBlockView: View {
                     // badge would appear and then change, which reads as a
                     // glitch — HelperRunner sets the name at `markRunning`.
                     Text(badgeLabel(info))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CodyTypography.labelSmall.weight(.semibold))
                         .foregroundStyle(HelperAccent.color)
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(HelperAccent.color.opacity(0.15))
-                        .clipShape(Capsule())
+                        .lineLimit(1)
                     SearchHighlightText(info.title, blockId: block.id, field: .title, messageId: searchMessageId)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(ChatColors.primaryText)
+                        .font(CodyTypography.sectionHeader.weight(.medium))
+                        .foregroundStyle(CodyColors.textPrimary)
                         .lineLimit(1)
                 }
                 secondLine(info)
@@ -527,40 +516,42 @@ struct HelperBlockView: View {
                 // Stop takes the slot back on its own.
                 Button { resume() } label: {
                     ZStack {
-                        Circle().fill(HelperAccent.color.opacity(resuming ? 0.25 : 1))
+                        Circle().fill(CodyColors.interactiveSecondaryBg)
                             .frame(width: 24, height: 24)
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(HelperAccent.color)
                     }
                     .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(resuming)
                 .accessibilityLabel(AppLocalized("Resume sub agent"))
             }
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(ChatColors.tertiaryText)
+                .foregroundStyle(CodyColors.iconDisclosure)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(HelperAccent.color.opacity(0.07))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(HelperAccent.color.opacity(0.35), lineWidth: 0.8)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, CodySpacing.mdPlus)
+        .padding(.vertical, CodySpacing.md)
+        .background(CodyColors.bgPrimary, in: shape)
+        .overlay {
+            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                .allowsHitTesting(false)
+        }
+        .contentShape(shape)
         .onTapGesture { detailBlock = block }
-        .onAppear { pulse = true }
         .accessibilityIdentifier("assistantDelegateBlock")
     }
 
     @ViewBuilder
     private func leadingIcon(_ info: HelperBlockInfo) -> some View {
         ZStack {
-            Circle().fill(HelperAccent.color.opacity(0.15)).frame(width: 34, height: 34)
+            let slot = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+            slot.fill(CodyColors.bgListIcon)
+                .overlay { slot.strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px) }
+                .frame(width: 34, height: 34)
             if info.isRunning {
                 ReattachingSpinner(size: 15, lineWidth: 2, color: HelperAccent.color)
             } else if case .finished(let status, _, _, _, _, _, _, _) = info.phase {
@@ -1255,37 +1246,40 @@ struct AgentDetailCard<Trailing: View, Content: View>: View {
         self.trailing = trailing; self.bodyPadding = bodyPadding; self.content = content
     }
 
-    private static var barBg: Color { Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.13, alpha: 1) : UIColor(white: 0.92, alpha: 1) }) }
-    private static var cardBg: Color { Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.10, alpha: 1) : UIColor(white: 0.94, alpha: 1) }) }
-    private static var stroke: Color { Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.25, alpha: 1) : UIColor(white: 0.82, alpha: 1) }) }
-
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.card, style: .continuous)
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
+            HStack(spacing: CodySpacing.sm) {
                 Image(systemName: icon)
-                    .font(.system(size: 12))
+                    .font(CodyTypography.labelMedium)
                     .foregroundStyle(iconTint)
+                    .frame(width: CodySpacing.xxl, height: CodySpacing.xxl)
+                    .background(CodyColors.bgListIcon, in: RoundedRectangle(cornerRadius: CodyRadius.md))
+                    .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(UIColor.label))
+                    .font(CodyTypography.sectionHeader.weight(.medium))
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 trailing()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Self.barBg)
+            .padding(.horizontal, CodySpacing.lg)
+            .padding(.vertical, CodySpacing.sm)
+            .background(CodyColors.bgSecondary)
 
             if bodyPadding > 0 {
-                Divider()
+                CodyColors.borderLight.frame(height: CodySpacing.px)
                 content()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(bodyPadding)
             }
         }
-        .background(Self.cardBg)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Self.stroke, lineWidth: 0.5))
+        .background(CodyColors.bgPrimary, in: shape)
+        .clipShape(shape)
+        .overlay {
+            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                .allowsHitTesting(false)
+        }
     }
 }
 
@@ -1302,17 +1296,26 @@ struct ReattachingSpinner: View {
     var size: CGFloat = 14
     var lineWidth: CGFloat = 2
     var color: Color = .accentColor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
-            let angle = t.truncatingRemainder(dividingBy: 1.0) * 360
-            Circle()
-                .trim(from: 0, to: 0.72)
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(angle))
-                .frame(width: size, height: size)
+        Group {
+            if reduceMotion {
+                ring
+            } else {
+                TimelineView(.animation) { ctx in
+                    let turn = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
+                    ring.rotationEffect(.degrees(turn * 360))
+                }
+            }
         }
         .accessibilityLabel(AppLocalized("running"))
+    }
+
+    private var ring: some View {
+        Circle()
+            .trim(from: 0, to: 0.72)
+            .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+            .frame(width: size, height: size)
     }
 }

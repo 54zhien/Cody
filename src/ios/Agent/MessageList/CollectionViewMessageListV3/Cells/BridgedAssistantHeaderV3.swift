@@ -38,7 +38,7 @@ struct BridgedAssistantHeaderV3: View {
     /// is threaded down the same way every other cell callback already is.
     var onOpenSoulSettings: (() -> Void)?
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: CodySpacing.xsPlus) {
             // [T-soul-custom-icon] Honours a user-chosen emoji or image;
             // falls back to the gradient sparkle when unset, so headers for
             // users who never customized are pixel-identical to before.
@@ -58,9 +58,10 @@ struct BridgedAssistantHeaderV3: View {
                 ),
                 cornerRadius: 5
             )
+            .accessibilityHidden(true)
             Text(soulMeta.name.isEmpty ? "Cody" : soulMeta.name)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(ChatColors.primaryText)
+                .font(CodyTypography.titleMedium)
+                .foregroundStyle(CodyColors.textPrimary)
         }
         // [T-ios-assistant-header-open-soul] Hit area and tap, applied to the
         // icon+name HStack only — NOT to the full-width row below it.
@@ -87,6 +88,7 @@ struct BridgedAssistantHeaderV3: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(AppLocalized("Open Soul settings"))
+        .accessibilityValue(soulMeta.name.isEmpty ? "Cody" : soulMeta.name)
         .accessibilityHint(AppLocalized("Change the assistant's name, icon and personality"))
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
             soulMeta = SoulStore.cachedMetadata
@@ -96,7 +98,7 @@ struct BridgedAssistantHeaderV3: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: maxWidth > 0 ? maxWidth : .infinity, alignment: .leading)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, CodyMetrics.Conversation.rowPaddingH)
         .opacity(message.isCompactedHistory ? 0.5 : 1.0)
         .accessibilityIdentifier("assistantHeader")
     }

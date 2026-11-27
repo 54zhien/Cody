@@ -62,6 +62,11 @@ final class CodeBlockAttachment: NSTextAttachment {
     static let topMargin: CGFloat = 6
     static let bottomMargin: CGFloat = 4
 
+    private static let headerHeight = CodyMetrics.Conversation.codeHeaderMinHeight
+    private static let bottomPadding = CodySpacing.sm
+    private static let maxCodeHeight = 400 - headerHeight - bottomPadding
+    private var languageTitle: String { language?.lowercased() ?? "text" }
+
     /// Associated-object key retaining the copy-tap gesture target
     /// for the button's lifetime (see makeView).
     static var copyTapHandlerKey: UInt8 = 0
@@ -109,12 +114,8 @@ final class CodeBlockAttachment: NSTextAttachment {
 
     override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect, glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
         let width = lineFrag.width
-        let topOffset: CGFloat = (language != nil && !language!.isEmpty) ? 28 : 12
-        let contentHeight = measureCodeHeight()
-        let bottomPadding: CGFloat = 12
-        let maxCodeHeight: CGFloat = 400 - topOffset - bottomPadding
-        let scrollHeight = min(contentHeight, maxCodeHeight)
-        let totalHeight = topOffset + scrollHeight + bottomPadding
+        let scrollHeight = min(measureCodeHeight(), Self.maxCodeHeight)
+        let totalHeight = Self.headerHeight + scrollHeight + Self.bottomPadding
         let height = totalHeight + Self.topMargin + Self.bottomMargin
         return CGRect(x: 0, y: 0, width: width, height: height)
     }
@@ -175,23 +176,26 @@ final class CodeBlockAttachment: NSTextAttachment {
         let inset = leftInset
         let contentWidth = width - inset
 
-        let container = UIView()
+        let container = CodeBlockSurface(frame: .zero)
         container.backgroundColor = theme.codeBlockBackground
         container.layer.cornerRadius = theme.codeBlockCornerRadius
         container.clipsToBounds = true
 
-        var topOffset: CGFloat = 12
+        let copyWidth = CodyControlHeight.standard
+        let langLabel = UILabel()
+        langLabel.text = languageTitle
+        langLabel.font = .systemFont(ofSize: CodySpacing.md, weight: .medium)
+        langLabel.textColor = CodyUIColors.textSecondary
+        langLabel.frame = CGRect(x: CodySpacing.md, y: 0,
+                                 width: max(0, contentWidth - copyWidth - CodySpacing.md),
+                                 height: Self.headerHeight)
+        container.addSubview(langLabel)
 
-        // Language label
-        if let language, !language.isEmpty {
-            let langLabel = UILabel()
-            langLabel.text = language.lowercased()
-            langLabel.font = .systemFont(ofSize: 11, weight: .medium)
-            langLabel.textColor = .white.withAlphaComponent(0.4)
-            langLabel.frame = CGRect(x: 12, y: 8, width: contentWidth - 60, height: 16)
-            container.addSubview(langLabel)
-            topOffset = 28
-        }
+        let divider = UIView(frame: CGRect(x: 0, y: Self.headerHeight - CodySpacing.px,
+                                           width: contentWidth, height: CodySpacing.px))
+        divider.backgroundColor = CodyUIColors.borderLight
+        divider.isUserInteractionEnabled = false
+        container.addSubview(divider)
 
         // Scrollable code area (own the pan gesture here for reliable horizontal scroll)
         let scrollView = UIScrollView()
@@ -242,11 +246,9 @@ final class CodeBlockAttachment: NSTextAttachment {
         let fittingWidth = fitting.width
         codeTextView.frame = CGRect(x: 0, y: 0, width: fittingWidth, height: contentHeight)
 
-        let maxCodeHeight: CGFloat = 400 - topOffset - 12
-        let scrollHeight = min(contentHeight, maxCodeHeight)
-        let bottomPadding: CGFloat = 12
-        scrollView.frame = CGRect(x: 0, y: topOffset, width: contentWidth, height: scrollHeight + bottomPadding)
-        scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: bottomPadding, right: 0)
+        let scrollHeight = min(contentHeight, Self.maxCodeHeight)
+        scrollView.frame = CGRect(x: 0, y: Self.headerHeight, width: contentWidth, height: scrollHeight + Self.bottomPadding)
+        scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: Self.bottomPadding, right: 0)
         scrollView.scrollIndicatorInsets = .zero
         scrollView.addSubview(codeTextView)
         scrollView.contentSize = CGSize(width: fittingWidth, height: contentHeight)
@@ -263,15 +265,17 @@ final class CodeBlockAttachment: NSTextAttachment {
 
         container.addSubview(scrollView)
 
-        let totalHeight = topOffset + scrollHeight + bottomPadding
+        let totalHeight = Self.headerHeight + scrollHeight + Self.bottomPadding
         container.frame = CGRect(x: inset, y: 0, width: contentWidth, height: totalHeight)
 
         // Copy button — 44x44 hit area per Apple HIG, icon stays small visually
-        let iconConfig = UIImage.SymbolConfiguration(pointSize: 9, weight: .medium)
+        let iconConfig = UIImage.SymbolConfiguration(pointSize: CodySpacing.md, weight: .medium)
         let copyButton = UIButton(type: .system)
         copyButton.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: iconConfig), for: .normal)
-        copyButton.tintColor = .white.withAlphaComponent(0.5)
-        copyButton.frame = CGRect(x: contentWidth - 44, y: 0, width: 44, height: 44)
+        copyButton.tintColor = CodyUIColors.iconSecondary
+        copyButton.frame = CGRect(x: contentWidth - copyWidth, y: 0, width: copyWidth, height: copyWidth)
+        copyButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: copyWidth - Self.headerHeight, right: 0)
+        copyButton.accessibilityLabel = AppLocalized("Copy")
         let debounce = CopyDebounce()
         let performCopy: () -> Void = { [weak codeTextView, weak copyButton] in
             // [T-ios17-codeblock-copy-dead] Double-fire guard: on versions
@@ -285,10 +289,10 @@ final class CodeBlockAttachment: NSTextAttachment {
             // content, even after updateExistingView replaced the attributed text.
             UIPasteboard.general.string = codeTextView?.text
             copyButton?.setImage(UIImage(systemName: "checkmark", withConfiguration: iconConfig), for: .normal)
-            copyButton?.tintColor = .systemGreen
+            copyButton?.tintColor = CodyCategoryTint.green.uiColor
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 copyButton?.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: iconConfig), for: .normal)
-                copyButton?.tintColor = .white.withAlphaComponent(0.5)
+                copyButton?.tintColor = CodyUIColors.iconSecondary
             }
         }
         copyButton.addAction(UIAction { _ in performCopy() }, for: .touchUpInside)
@@ -330,6 +334,7 @@ final class CodeBlockAttachment: NSTextAttachment {
         guard let container = wrapper.subviews.first else { return }
         guard let scrollView = container.subviews.first(where: { $0 is UIScrollView }) as? UIScrollView else { return }
         guard let codeTextView = scrollView.subviews.first(where: { $0 is UITextView }) as? UITextView else { return }
+        (container.subviews.first as? UILabel)?.text = languageTitle
 
         let codeStyle = NSMutableParagraphStyle()
         codeStyle.lineSpacing = 4
@@ -346,12 +351,10 @@ final class CodeBlockAttachment: NSTextAttachment {
         scrollView.contentSize = fitting
 
         // Recalculate heights to match attachmentBounds logic
-        let topOffset: CGFloat = (language != nil && !language!.isEmpty) ? 28 : 12
-        let maxCodeHeight: CGFloat = 400 - topOffset - 12
-        let scrollHeight = min(fitting.height, maxCodeHeight)
-        let bottomPadding: CGFloat = 12
-        let newScrollFrame = CGRect(x: 0, y: topOffset, width: container.frame.width, height: scrollHeight + bottomPadding)
-        let totalHeight = topOffset + scrollHeight + bottomPadding
+        let scrollHeight = min(fitting.height, Self.maxCodeHeight)
+        let newScrollFrame = CGRect(x: 0, y: Self.headerHeight, width: container.frame.width,
+                                    height: scrollHeight + Self.bottomPadding)
+        let totalHeight = Self.headerHeight + scrollHeight + Self.bottomPadding
 
         // [CodeBlockGrow] Animate the visible code-frame growing taller as more
         // lines stream in, instead of snapping. The wrapper's LOGICAL height is
@@ -389,5 +392,38 @@ final class CodeBlockAttachment: NSTextAttachment {
         if bottomY > 0 {
             scrollView.contentOffset = CGPoint(x: scrollView.contentOffset.x, y: bottomY)
         }
+    }
+}
+
+private final class CodeBlockSurface: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.borderWidth = CodySpacing.px
+        if #available(iOS 17.0, *) {
+            registerForTraitChanges(UITraitCollection.systemTraitsAffectingColorAppearance) {
+                (view: CodeBlockSurface, _: UITraitCollection) in view.updateBorderColor()
+            }
+        }
+        updateBorderColor()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateBorderColor()
+    }
+
+    @available(iOS, introduced: 8.0, deprecated: 17.0)
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if #unavailable(iOS 17.0), traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateBorderColor()
+        }
+    }
+
+    private func updateBorderColor() {
+        layer.borderColor = CodyUIColors.borderLight.resolvedColor(with: traitCollection).cgColor
     }
 }
