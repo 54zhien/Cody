@@ -91,12 +91,14 @@ struct SessionMCPsView: View {
                         SessionOverrideEmptyCard(systemImage: "square.stack.3d.up",
                                                  title: AppLocalized("No MCP servers"),
                                                  subtitle: AppLocalized("Add servers in Settings → MCP Integrations."))
+                            .codyGroupedRow()
                     }
                 } else if filteredServers.isEmpty {
                     Section {
                         Text(AppLocalized("No MCP servers match \"\(searchQuery)\"."))
-                            .foregroundStyle(.secondary)
-                            .font(.subheadline)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .font(CodyTypography.bodyMedium)
+                            .codyGroupedRow()
                     }
                 } else {
                     Section {
@@ -106,13 +108,19 @@ struct SessionMCPsView: View {
                             NavigationLink {
                                 SessionMCPDetailView(server: server)
                             } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(server.id).font(.body)
+                                HStack(spacing: CodySpacing.md) {
+                                    CodySettingsIconBadge(
+                                        systemImage: server.isSTDIO ? "terminal" : "globe",
+                                        tint: isEnabled(server) ? .blue : .neutral
+                                    )
+                                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                                        Text(server.id)
+                                            .font(CodyTypography.bodyLarge)
+                                            .foregroundStyle(CodyColors.textPrimary)
                                         if let note = server.note, !note.isEmpty {
                                             Text(note)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(CodyTypography.bodySmall)
+                                                .foregroundStyle(CodyColors.textSecondary)
                                                 .lineLimit(2)
                                         }
                                     }
@@ -123,7 +131,9 @@ struct SessionMCPsView: View {
                                     ))
                                     .labelsHidden()
                                 }
+                                .padding(.vertical, CodySpacing.xxs)
                             }
+                            .codyGroupedRow()
                         }
                     } header: {
                         let scope = filteredServers
@@ -134,9 +144,11 @@ struct SessionMCPsView: View {
                         SessionOverrideListFooter(
                             note: Text("Toggles override the server's default for this session only."),
                             searchQuery: searchQuery)
+                            .settingsSectionFooter()
                     }
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle("MCPs in Session")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always),
@@ -195,51 +207,73 @@ private struct SessionMCPDetailView: View {
             Section {
                 LabeledContent(AppLocalized("Transport"),
                                value: MCPServerDetailRules.transportLabel(isSTDIO: server.isSTDIO))
+                    .codyGroupedRow()
                 if server.isSTDIO {
                     detailRow(AppLocalized("Command"), server.command ?? "")
+                        .codyGroupedRow()
                     if let args = MCPServerDetailRules.argsLine(server.args) {
                         detailRow(AppLocalized("Arguments"), args)
+                            .codyGroupedRow()
                     }
                     LabeledContent(AppLocalized("Startup timeout (seconds)"),
                                    value: server.startupTimeoutSeconds.map(String.init) ?? AppLocalized("Default 60"))
+                        .codyGroupedRow()
                 } else {
                     let url = server.url ?? ""
                     // Long-press copies the URL, like a skill's source URL.
                     detailRow(AppLocalized("Server URL"), url, selectable: false)
                         .modifier(SkillSourceURLContextMenu(url: url.isEmpty ? nil : url,
                                                             title: AppLocalized("Copy URL")) {})
+                        .codyGroupedRow()
                     if server.oauth != nil {
-                        LabeledContent("OAuth",
-                                       value: authorized ? AppLocalized("Authorized") : AppLocalized("Not authorized"))
+                        LabeledContent("OAuth") {
+                            CodyStatusPill(
+                                localized: authorized ? AppLocalized("Authorized") : AppLocalized("Not authorized"),
+                                tone: authorized ? .success : .neutral,
+                                dotColor: authorized ? CodyColors.connectionReady : nil
+                            )
+                        }
+                        .codyGroupedRow()
                     }
                 }
             }
 
             if let note = MCPServerDetailRules.trimmedNote(server.note) {
-                Section(AppLocalized("Note")) {
+                Section {
                     Text(note).textSelection(.enabled)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .codyGroupedRow()
+                } header: {
+                    Text(AppLocalized("Note"))
+                        .settingsSectionHeading()
                 }
             }
 
             if !headerNames.isEmpty {
                 Section {
                     namesText(headerNames)
+                        .codyGroupedRow()
                 } header: {
                     Text(AppLocalized("Custom Headers"))
+                        .settingsSectionHeading()
                 } footer: {
-                    if envNames.isEmpty { valuesHiddenNote }
+                    if envNames.isEmpty { valuesHiddenNote.settingsSectionFooter() }
                 }
             }
             if !envNames.isEmpty {
                 Section {
                     namesText(envNames)
+                        .codyGroupedRow()
                 } header: {
                     Text(AppLocalized("Environment Variables"))
+                        .settingsSectionHeading()
                 } footer: {
-                    valuesHiddenNote
+                    valuesHiddenNote.settingsSectionFooter()
                 }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle(server.id)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: server.id) {
@@ -254,7 +288,8 @@ private struct SessionMCPDetailView: View {
 
     private func namesText(_ names: [String]) -> some View {
         Text(names.joined(separator: "\n"))
-            .font(.system(.subheadline, design: .monospaced))
+            .font(CodyTypography.code)
+            .foregroundStyle(CodyColors.textPrimary)
             .textSelection(.enabled)
     }
 
@@ -262,14 +297,19 @@ private struct SessionMCPDetailView: View {
     /// carries a long-press menu, which text selection would otherwise take.
     @ViewBuilder
     private func detailRow(_ label: String, _ value: String, selectable: Bool = true) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
             if selectable {
-                Text(value).font(.system(.subheadline, design: .monospaced)).textSelection(.enabled)
+                Text(value)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .textSelection(.enabled)
             } else {
-                Text(value).font(.system(.subheadline, design: .monospaced))
+                Text(value)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

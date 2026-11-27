@@ -4,6 +4,7 @@ import WebKit
 struct BrowserManagementView: View {
     @ObservedObject var pool: BrowserTabPool
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var cookieCount: Int = 0
     @State private var cookies: [HTTPCookie] = []
@@ -36,6 +37,7 @@ struct BrowserManagementView: View {
             cookiesSection
             domainListSection
         }
+        .codyGroupedListCanvas()
         .searchable(text: $searchText, prompt: "Filter by domain")
         .navigationTitle("Browser Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -65,9 +67,11 @@ struct BrowserManagementView: View {
             customUserAgentRow
         } header: {
             Text("User Agent")
+                .settingsSectionHeading()
         } footer: {
             let vp = pool.userAgentProfile.viewportSize
             Text("Viewport: \(vp.width)×\(vp.height)")
+                .settingsSectionFooter()
         }
         // cody-config writes these settings straight to UserDefaults; show
         // what is stored now, not what this pool read when it was created.
@@ -84,25 +88,33 @@ struct BrowserManagementView: View {
     }
 
     private func userAgentRow(_ profile: UserAgentProfile) -> some View {
-        Button {
+        let isSelected = pool.userAgentProfile == profile
+        return Button {
             pool.setUserAgentProfile(profile)
         } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(profile.displayName, systemImage: profile.icon)
-                        .foregroundStyle(Color(UIColor.label))
+            HStack(spacing: CodySpacing.md) {
+                CodySettingsIconBadge(systemImage: profile.icon, tint: isSelected ? .blue : .neutral)
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                    Text(profile.displayName)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Text(displayUA(for: profile))
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .lineLimit(2)
                 }
                 Spacer()
-                if pool.userAgentProfile == profile {
+                if isSelected {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(CodyColors.textAccent)
+                        .accessibilityHidden(true)
                 }
             }
+            .padding(.vertical, CodySpacing.xxs)
         }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .codyGroupedRow()
         .contextMenu {
             Button {
                 UIPasteboard.general.string = displayUA(for: profile)
@@ -114,32 +126,39 @@ struct BrowserManagementView: View {
 
     private var customUserAgentRow: some View {
         let isSelected = pool.userAgentProfile == .custom
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
             Button {
                 if !customUA.isEmpty {
                     pool.customUserAgentString = customUA
                     pool.setUserAgentProfile(.custom)
                 }
             } label: {
-                HStack {
-                    Label("Custom", systemImage: "pencil.line")
-                        .foregroundStyle(Color(UIColor.label))
+                HStack(spacing: CodySpacing.md) {
+                    CodySettingsIconBadge(systemImage: "pencil.line", tint: isSelected ? .blue : .neutral)
+                    Text("Custom")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(CodyColors.textAccent)
+                            .accessibilityHidden(true)
                     }
                 }
             }
+            .buttonStyle(.borderless)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             TextField("Enter custom user agent...", text: $customUA, axis: .vertical)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.code)
+                .foregroundStyle(CodyColors.textSecondary)
                 .lineLimit(2...4)
                 .onSubmit {
                     pool.customUserAgentString = customUA
                     pool.setUserAgentProfile(.custom)
                 }
         }
+        .padding(.vertical, CodySpacing.xxs)
+        .codyGroupedRow()
         .onAppear {
             customUA = pool.customUserAgentString
         }
@@ -165,13 +184,17 @@ struct BrowserManagementView: View {
             }
         } header: {
             Text("Web Viewport")
+                .settingsSectionHeading()
         } footer: {
             let vp = pool.resolvedViewportSize()
-            if pool.customViewportWidth > 0 && pool.customViewportHeight > 0 {
-                Text("Using custom viewport \(vp.width)×\(vp.height). Tap Default to revert to the UA default.")
-            } else {
-                Text("Using UA default \(vp.width)×\(vp.height). Set a custom size to override.")
+            Group {
+                if pool.customViewportWidth > 0 && pool.customViewportHeight > 0 {
+                    Text("Using custom viewport \(vp.width)×\(vp.height). Tap Default to revert to the UA default.")
+                } else {
+                    Text("Using UA default \(vp.width)×\(vp.height). Set a custom size to override.")
+                }
             }
+            .settingsSectionFooter()
         }
         .onAppear {
             pool.syncGlobalDefaultsFromStore()
@@ -194,35 +217,51 @@ struct BrowserManagementView: View {
             pool.setGlobalViewport(width: 0, height: 0)
             viewportWidthText = ""
             viewportHeightText = ""
-            withAnimation { showCustomViewportEditor = false }
+            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                showCustomViewportEditor = false
+            }
         } label: {
-            HStack {
-                Label("Default (auto by UA)", systemImage: "arrow.counterclockwise")
-                    .foregroundStyle(Color(UIColor.label))
+            HStack(spacing: CodySpacing.md) {
+                CodySettingsIconBadge(systemImage: "arrow.counterclockwise", tint: !isCustomViewportActive ? .blue : .neutral)
+                Text("Default (auto by UA)")
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 if !isCustomViewportActive {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(CodyColors.textAccent)
+                        .accessibilityHidden(true)
                 }
             }
         }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityAddTraits(!isCustomViewportActive ? .isSelected : [])
+        .codyGroupedRow()
     }
 
     private var customViewportRow: some View {
         Button {
-            withAnimation { showCustomViewportEditor = true }
+            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                showCustomViewportEditor = true
+            }
             commitCustomViewport()
         } label: {
-            HStack {
-                Label("Custom", systemImage: "aspectratio")
-                    .foregroundStyle(Color(UIColor.label))
+            HStack(spacing: CodySpacing.md) {
+                CodySettingsIconBadge(systemImage: "aspectratio", tint: isCustomViewportActive ? .blue : .neutral)
+                Text("Custom")
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 if isCustomViewportActive {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(CodyColors.textAccent)
+                        .accessibilityHidden(true)
                 }
             }
         }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityAddTraits(isCustomViewportActive ? .isSelected : [])
+        .codyGroupedRow()
     }
 
     /// Common viewport presets shown under the editor. Mix of mobile and
@@ -241,22 +280,13 @@ struct BrowserManagementView: View {
     /// viewport. Visually distinct from the selector row above so the sizes
     /// read as a single value rather than a separate choice.
     private var customViewportEditor: some View {
-        VStack(alignment: .center, spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(alignment: .center, spacing: CodySpacing.smPlus) {
+            HStack(spacing: CodySpacing.smPlus) {
                 Spacer()
-                TextField("Width", text: $viewportWidthText)
-                    .keyboardType(.numberPad)
-                    .font(.system(size: 13, design: .monospaced))
-                    .multilineTextAlignment(.center)
-                    .frame(width: 72)
-                    .onSubmit { commitCustomViewport() }
-                Text("×").foregroundStyle(.secondary)
-                TextField("Height", text: $viewportHeightText)
-                    .keyboardType(.numberPad)
-                    .font(.system(size: 13, design: .monospaced))
-                    .multilineTextAlignment(.center)
-                    .frame(width: 72)
-                    .onSubmit { commitCustomViewport() }
+                viewportField(placeholder: "Width", text: $viewportWidthText)
+                Text("×")
+                    .foregroundStyle(CodyColors.textSecondary)
+                viewportField(placeholder: "Height", text: $viewportHeightText)
                 Spacer()
             }
             if let warning = viewportUAMismatchWarning {
@@ -264,6 +294,25 @@ struct BrowserManagementView: View {
             }
             quickSetPresets
         }
+        .padding(.vertical, CodySpacing.xs)
+        .codyGroupedRow()
+    }
+
+    private func viewportField(placeholder: LocalizedStringKey, text: Binding<String>) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+        return TextField(placeholder, text: text)
+            .keyboardType(.numberPad)
+            .font(CodyTypography.code)
+            .monospacedDigit()
+            .foregroundStyle(CodyColors.textPrimary)
+            .multilineTextAlignment(.center)
+            .frame(width: 76, height: CodyControlHeight.sm)
+            .background(shape.fill(CodyColors.bgSecondary))
+            .overlay {
+                shape.strokeBorder(CodyColors.borderInput, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .onSubmit { commitCustomViewport() }
     }
 
     /// Returns a warning message when the active viewport width crosses the
@@ -296,53 +345,58 @@ struct BrowserManagementView: View {
     }
 
     private func uaMismatchBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+        return HStack(alignment: .top, spacing: CodySpacing.sm) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
+                .foregroundStyle(CodyColors.statusWarningText)
+                .accessibilityHidden(true)
             Text(message)
-                .font(.caption)
-                .foregroundStyle(Color(UIColor.label))
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, CodySpacing.md)
+        .padding(.vertical, CodySpacing.sm)
+        .background(shape.fill(CodyColors.statusWarningBg))
+        .overlay {
+            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                .allowsHitTesting(false)
+        }
     }
 
     private var quickSetPresets: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
             Text("Quick Set")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: CodySpacing.sm) {
                     ForEach(Self.viewportPresets, id: \.label) { preset in
+                        let active = isPresetActive(preset)
                         Button {
                             viewportWidthText = String(preset.width)
                             viewportHeightText = String(preset.height)
                             pool.setGlobalViewport(width: preset.width, height: preset.height)
                         } label: {
-                            VStack(spacing: 2) {
+                            VStack(spacing: CodySpacing.xxs) {
                                 Text(preset.label)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(CodyTypography.labelMedium)
                                 Text("\(preset.width)×\(preset.height)")
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.labelSmall)
+                                    .monospacedDigit()
+                                    .foregroundStyle(active ? CodyColors.textAccent : CodyColors.textSecondary)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, CodySpacing.smPlus)
+                            .padding(.vertical, CodySpacing.xsPlus)
                             .background(
-                                isPresetActive(preset)
-                                    ? Color.accentColor.opacity(0.18)
-                                    : Color(UIColor.tertiarySystemFill)
+                                active ? CodyColors.bgProgressTrack : CodyColors.bgSecondary,
+                                in: RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
                             )
-                            .foregroundStyle(
-                                isPresetActive(preset)
-                                    ? Color.accentColor
-                                    : Color(UIColor.label)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .foregroundStyle(active ? CodyColors.textAccent : CodyColors.textPrimary)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .accessibilityAddTraits(active ? .isSelected : [])
                     }
                 }
             }
@@ -368,21 +422,32 @@ struct BrowserManagementView: View {
         Section {
             HStack {
                 Text("Cookies")
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 Text("\(cookieCount)")
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .monospacedDigit()
+                    .foregroundStyle(CodyColors.textSecondary)
             }
+            .codyGroupedRow()
 
             Button(role: .destructive) {
                 showClearConfirm = true
             } label: {
                 Label("Clear All Cookies", systemImage: "trash")
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.statusErrorText)
             }
+            .buttonStyle(CodyPressableButtonStyle())
             .disabled(cookieCount == 0)
+            .codyGroupedRow()
         } header: {
             Text("Cookies & Data")
+                .settingsSectionHeading()
         } footer: {
             Text("Clearing cookies will sign you out of all websites in the Cody browser.")
+                .settingsSectionFooter()
         }
     }
 
@@ -394,15 +459,18 @@ struct BrowserManagementView: View {
             Section {
                 ForEach(domains) { group in
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                             Text(group.domain)
-                                .font(.system(size: 14, weight: .medium))
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text("\(group.cookies.count) cookie\(group.cookies.count == 1 ? "" : "s")")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                         Spacer()
                     }
+                    .codyGroupedRow()
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             clearCookies(for: group.domain)
@@ -412,11 +480,14 @@ struct BrowserManagementView: View {
                     }
                 }
             } header: {
-                if searchText.isEmpty {
-                    Text("Domains")
-                } else {
-                    Text("Results")
+                Group {
+                    if searchText.isEmpty {
+                        Text("Domains")
+                    } else {
+                        Text("Results")
+                    }
                 }
+                .settingsSectionHeading()
             }
         }
     }

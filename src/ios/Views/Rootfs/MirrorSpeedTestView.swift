@@ -459,64 +459,87 @@ struct MirrorsSectionView: View {
     @ObservedObject private var vm = MirrorSpeedTestViewModel.shared
 
     var body: some View {
-        Section(AppLocalized("Mirrors")) {
+        Section {
             Button {
                 vm.runAllTests()
             } label: {
                 Label {
                     Text(AppLocalized("Detect Fast Mirrors"))
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                 } icon: {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white)
-                        .frame(width: 21, height: 21)
-                        .background(.orange, in: Circle())
+                    CodySettingsIconBadge(systemImage: "bolt.fill", tint: .orange, outline: .circle)
                 }
             }
+            .buttonStyle(CodyPressableButtonStyle())
             .disabled(vm.isTesting)
+            .codyGroupedRow()
 
             if vm.isTesting {
-                ProgressView(value: vm.testProgress)
-                    .animation(.default, value: vm.testProgress)
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                    HStack {
+                        Text(AppLocalized("Testing…"))
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
+                        Spacer()
+                        Text(vm.testProgress, format: .percent.precision(.fractionLength(0)))
+                            .font(CodyTypography.labelMedium)
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
+                    }
+                    CodyProgressBar(progress: vm.testProgress)
+                }
+                .padding(.vertical, CodySpacing.xs)
+                .codyGroupedRow()
             }
 
             ForEach(MirrorCategory.allCases) { category in
                 NavigationLink {
                     MirrorCategoryDetailView(category: category)
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: category.systemImage)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.white)
-                            .frame(width: 21, height: 21)
-                            .background(category.iconColor, in: Circle())
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(
+                            systemImage: category.systemImage,
+                            tint: categoryTint(category),
+                            outline: .circle
+                        )
                         Text(category.displayName)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Spacer()
                         if vm.isActive(for: category),
                            let selected = vm.selectedMirror(for: category) {
                             Text(selected.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                         if let fastest = vm.fastestResult(for: category) {
                             latencyBadge(fastest.latencyMs)
                         }
                     }
                 }
+                .codyGroupedRow()
             }
+        } header: {
+            Text(AppLocalized("Mirrors"))
+                .settingsSectionHeading()
+        }
+    }
+
+    private func categoryTint(_ category: MirrorCategory) -> CodyCategoryTint {
+        switch category {
+        case .alpine: return .blue
+        case .pip: return .green
+        case .npm: return .red
         }
     }
 
     private func latencyBadge(_ ms: Int?) -> some View {
         Group {
             if let ms {
-                Text("\(ms)ms")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(ms < 200 ? .green : ms < 500 ? .orange : .red)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background((ms < 200 ? Color.green : ms < 500 ? Color.orange : Color.red).opacity(0.12))
-                    .clipShape(Capsule())
+                let tone: CodyStatusPill.Tone = ms < 200 ? .success : ms < 500 ? .warning : .error
+                CodyStatusPill(localized: "\(ms)ms", tone: tone)
+                    .monospacedDigit()
             }
         }
     }
@@ -533,28 +556,39 @@ struct MirrorCategoryDetailView: View {
 
     var body: some View {
         List {
-            Section(AppLocalized("Current")) {
+            Section {
                 Toggle(AppLocalized("Use Mirror"), isOn: Binding(
                     get: { vm.useCustomMirror[category] == true },
                     set: { vm.setUseCustom($0, for: category) }
                 ))
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(CodyColors.textPrimary)
                 .disabled(vm.selectedMirrorId[category] == nil)
+                .codyGroupedRow()
 
                 if vm.isActive(for: category), let mirror = vm.selectedMirror(for: category) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(mirror.name).font(.body.weight(.medium))
+                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                        Text(mirror.name)
+                            .font(CodyTypography.titleSmall)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Text(mirror.baseURL)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .lineLimit(1)
                     }
+                    .codyGroupedRow()
                 } else {
                     Text(AppLocalized("Official (default)"))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .codyGroupedRow()
                 }
+            } header: {
+                Text(AppLocalized("Current"))
+                    .settingsSectionHeading()
             }
 
-            Section(sortedResults.isEmpty ? AppLocalized("Mirrors") : AppLocalized("Speed Test Results")) {
+            Section {
                 if sortedResults.isEmpty {
                     // Show all mirrors for this category (no test results yet)
                     ForEach(MirrorEntry.mirrors(for: category), id: \.id) { mirror in
@@ -563,7 +597,9 @@ struct MirrorCategoryDetailView: View {
                         } label: {
                             mirrorRowStatic(mirror)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .accessibilityAddTraits(vm.selectedMirrorId[category] == mirror.id ? .isSelected : [])
+                        .codyGroupedRow()
                     }
                 } else {
                     ForEach(sortedResults) { result in
@@ -572,9 +608,14 @@ struct MirrorCategoryDetailView: View {
                         } label: {
                             mirrorRow(result)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .accessibilityAddTraits(vm.selectedMirrorId[category] == result.mirror.id ? .isSelected : [])
+                        .codyGroupedRow()
                     }
                 }
+            } header: {
+                Text(sortedResults.isEmpty ? AppLocalized("Mirrors") : AppLocalized("Speed Test Results"))
+                    .settingsSectionHeading()
             }
 
             Section {
@@ -583,85 +624,95 @@ struct MirrorCategoryDetailView: View {
                 } label: {
                     Label {
                         Text(AppLocalized("Test Speed"))
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                     } icon: {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.white)
-                            .frame(width: 21, height: 21)
-                            .background(.orange, in: Circle())
+                        CodySettingsIconBadge(systemImage: "bolt.fill", tint: .orange, outline: .circle)
                     }
                 }
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(vm.isTesting)
+                .codyGroupedRow()
 
                 if vm.isTesting {
-                    ProgressView(value: vm.testProgress)
+                    VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                        HStack {
+                            Text(AppLocalized("Testing…"))
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
+                            Spacer()
+                            Text(vm.testProgress, format: .percent.precision(.fractionLength(0)))
+                                .font(CodyTypography.labelMedium)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
+                        }
+                        CodyProgressBar(progress: vm.testProgress)
+                    }
+                    .padding(.vertical, CodySpacing.xs)
+                    .codyGroupedRow()
                 }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle(category.displayName)
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func mirrorRowStatic(_ mirror: MirrorEntry) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: vm.selectedMirrorId[category] == mirror.id ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(vm.selectedMirrorId[category] == mirror.id ? .blue : .secondary)
+        let selected = vm.selectedMirrorId[category] == mirror.id
+        return HStack(spacing: CodySpacing.smPlus) {
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(selected ? CodyColors.textAccent : CodyColors.iconTertiary)
                 .frame(width: 20)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Text(mirror.name)
-                        .font(.body)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     if mirror.isOfficial {
-                        Text(AppLocalized("Official"))
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.secondary.opacity(0.12))
-                            .clipShape(Capsule())
+                        CodyStatusPill(localized: AppLocalized("Official"), tone: .neutral)
                     }
                     Text(mirror.region)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
                 Text(mirror.baseURL)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
             }
 
             Spacer()
         }
+        .padding(.vertical, CodySpacing.xxs)
         .contentShape(Rectangle())
     }
 
     private func mirrorRow(_ result: MirrorTestResult) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: vm.selectedMirrorId[category] == result.mirror.id ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(vm.selectedMirrorId[category] == result.mirror.id ? .blue : .secondary)
+        let selected = vm.selectedMirrorId[category] == result.mirror.id
+        return HStack(spacing: CodySpacing.smPlus) {
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(selected ? CodyColors.textAccent : CodyColors.iconTertiary)
                 .frame(width: 20)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Text(result.mirror.name)
-                        .font(.body)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     if result.mirror.isOfficial {
-                        Text(AppLocalized("Official"))
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.secondary.opacity(0.12))
-                            .clipShape(Capsule())
+                        CodyStatusPill(localized: AppLocalized("Official"), tone: .neutral)
                     }
                     Text(result.mirror.region)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
                 Text(result.mirror.baseURL)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
             }
 
@@ -669,14 +720,16 @@ struct MirrorCategoryDetailView: View {
 
             if let ms = result.latencyMs {
                 Text("\(ms)ms")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(ms < 200 ? .green : ms < 500 ? .orange : .red)
+                    .font(CodyTypography.labelMedium)
+                    .monospacedDigit()
+                    .foregroundStyle(ms < 200 ? CodyColors.statusSuccessText : ms < 500 ? CodyColors.statusWarningText : CodyColors.statusErrorText)
             } else {
                 Text(AppLocalized("Timeout"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
+        .padding(.vertical, CodySpacing.xxs)
         .contentShape(Rectangle())
     }
 }

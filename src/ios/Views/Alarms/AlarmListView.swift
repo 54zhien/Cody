@@ -226,6 +226,7 @@ class AlarmListViewModel: ObservableObject {
 
 struct AlarmListView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var vm = AlarmListViewModel()
     @State private var showClearConfirm = false
 
@@ -233,22 +234,35 @@ struct AlarmListView: View {
         NavigationStack {
             Group {
                 if vm.alarms.isEmpty && !vm.isLoading {
-                    VStack(spacing: 12) {
+                    VStack(spacing: CodySpacing.md) {
                         Image(systemName: "alarm")
-                            .font(.system(size: 48, weight: .thin))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 32, weight: .medium))
+                            .foregroundStyle(CodyColors.iconTertiary)
+                            .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+                            .background(
+                                CodyColors.bgListIcon,
+                                in: RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                                    .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                    .allowsHitTesting(false)
+                            }
+                            .accessibilityHidden(true)
                         Text("No Alarms")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.titleLarge)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(CodyColors.bgGrouped)
                 } else {
                     List {
                         let sections = vm.groupedByWeek
                         ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
-                            Section(section.title) {
+                            Section {
                                 ForEach(section.alarms) { alarm in
                                     AlarmRowView(alarm: alarm)
+                                        .codyGroupedRow()
                                 }
                                 .onDelete { indexSet in
                                     for idx in indexSet {
@@ -256,10 +270,13 @@ struct AlarmListView: View {
                                         vm.delete(id: alarm.id)
                                     }
                                 }
+                            } header: {
+                                Text(LocalizedStringKey(section.title))
+                                    .settingsSectionHeading()
                             }
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .codyGroupedListCanvas()
                 }
             }
             .navigationTitle("Alarms")
@@ -295,35 +312,37 @@ struct AlarmListView: View {
 
 private struct AlarmRowView: View {
     let alarm: AlarmItem
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: CodySpacing.md) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(alarm.displayTime)
                     .font(.system(size: 34, weight: .thin, design: .default))
                     .monospacedDigit()
+                    .foregroundStyle(CodyColors.textPrimary)
                 if !alarm.label.isEmpty {
                     Text(alarm.label)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
                 if !alarm.subtitle.isEmpty {
                     Text(alarm.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: CodySpacing.xs) {
                 stateIndicator
                 if let day = alarm.weekdayLabel {
                     Text(day)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, CodySpacing.xs)
     }
 
     @ViewBuilder
@@ -332,15 +351,18 @@ private struct AlarmRowView: View {
         case "alerting":
             if #available(iOS 17.0, *) {
                 Image(systemName: "bell.fill")
-                    .foregroundStyle(.orange)
-                    .symbolEffect(.pulse)
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .symbolEffect(.pulse, isActive: !reduceMotion)
+                    .accessibilityHidden(true)
             } else {
                 Image(systemName: "bell.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .accessibilityHidden(true)
             }
         case "countdown":
             Image(systemName: "timer")
-                .foregroundStyle(.blue)
+                .foregroundStyle(CodyColors.textAccent)
+                .accessibilityHidden(true)
         default:
             EmptyView()
         }

@@ -217,30 +217,52 @@ struct UsageStatsView: View {
         List {
             if vm.isLoaded && vm.providers.isEmpty {
                 Section {
-                    Text("No usage data yet. Start a conversation to see token statistics here.")
-                        .foregroundStyle(.secondary)
+                    CodyEmptyStateCard(
+                        systemImage: "chart.bar",
+                        title: "Usage",
+                        subtitle: "No usage data yet. Start a conversation to see token statistics here."
+                    )
+                    .codyGroupedRow()
                 }
             } else if vm.isLoaded {
                 // Grand totals
-                Section("Total Usage") {
+                Section {
                     let grandTotalAllInput = vm.grandTotalInput + vm.grandTotalCacheRead + vm.grandTotalCacheCreation
-                    LabeledContent("Total Input (incl. Cache)", value: formatCount(grandTotalAllInput))
-                    LabeledContent("Output Tokens", value: formatCount(vm.grandTotalOutput))
+                    statRow("Total Input (incl. Cache)", value: formatCount(grandTotalAllInput))
+                    statRow("Output Tokens", value: formatCount(vm.grandTotalOutput))
                     if vm.grandTotalCacheRead > 0 {
-                        LabeledContent("Cache Read", value: formatCount(vm.grandTotalCacheRead))
+                        statRow("Cache Read", value: formatCount(vm.grandTotalCacheRead))
                     }
                     if vm.grandTotalCacheCreation > 0 {
-                        LabeledContent("Cache Creation", value: formatCount(vm.grandTotalCacheCreation))
+                        statRow("Cache Creation", value: formatCount(vm.grandTotalCacheCreation))
                     }
                     if grandTotalAllInput > 0 && vm.grandTotalCacheRead > 0 {
-                        let grandHitRate = Double(vm.grandTotalCacheRead) / Double(grandTotalAllInput) * 100
-                        LabeledContent("Cache Hit Rate", value: String(format: "%.1f%%", grandHitRate))
+                        let grandHitRate = Double(vm.grandTotalCacheRead) / Double(grandTotalAllInput)
+                        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                            HStack {
+                                Text("Cache Hit Rate")
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
+                                Spacer()
+                                Text(String(format: "%.1f%%", grandHitRate * 100))
+                                    .font(CodyTypography.bodyMedium)
+                                    .monospacedDigit()
+                                    .foregroundStyle(CodyColors.textSecondary)
+                            }
+                            CodyProgressBar(progress: grandHitRate)
+                        }
+                        .padding(.vertical, CodySpacing.xxs)
+                        .codyGroupedRow()
                     }
+                } header: {
+                    Text("Total Usage")
+                        .settingsSectionHeading()
                 }
 
                 // Per-provider sections
                 ForEach(vm.providers) { provider in
-                    Section(provider.id) {
+                    let maxModelTokens = max(provider.models.map(\.totalTokens).max() ?? 1, 1)
+                    Section {
                         // [T-token-attribution-snapshot] Keyed by id + state:
                         // the same model can appear once as measured and once
                         // as estimated, and a duplicate ForEach id would drop
@@ -249,57 +271,103 @@ struct UsageStatsView: View {
                             DisclosureGroup {
                                 modelDetailRows(model)
                             } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(model.displayName)
-                                        // Say why whenever the number is not a
-                                        // straight measurement. Silence is what
-                                        // let re-attributed totals pass as fact.
-                                        if let caveat = model.attributionCaveat {
-                                            Text(caveat)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                                            Text(model.displayName)
+                                                .font(CodyTypography.bodyLarge)
+                                                .foregroundStyle(CodyColors.textPrimary)
+                                            // Say why whenever the number is not a
+                                            // straight measurement. Silence is what
+                                            // let re-attributed totals pass as fact.
+                                            if let caveat = model.attributionCaveat {
+                                                Text(caveat)
+                                                    .font(CodyTypography.labelSmall)
+                                                    .foregroundStyle(CodyColors.textTertiary)
+                                            }
                                         }
+                                        Spacer()
+                                        let totalInputLabel = model.inputTokens + model.cacheReadTokens + model.cacheCreationTokens
+                                        Text("\(formatCount(totalInputLabel)) / \(formatCount(model.outputTokens))")
+                                            .font(CodyTypography.bodyMedium)
+                                            .monospacedDigit()
+                                            .foregroundStyle(CodyColors.textSecondary)
                                     }
-                                    Spacer()
-                                    let totalInputLabel = model.inputTokens + model.cacheReadTokens + model.cacheCreationTokens
-                                    Text("\(formatCount(totalInputLabel)) / \(formatCount(model.outputTokens))")
-                                        .foregroundStyle(.secondary)
+                                    CodyProgressBar(progress: Double(model.totalTokens) / Double(maxModelTokens))
                                 }
+                                .padding(.vertical, CodySpacing.xxs)
                             }
+                            .codyGroupedRow()
+                        }
+                    } header: {
+                        HStack {
+                            Text(provider.id)
+                                .settingsSectionHeading()
+                            Spacer()
+                            Text(formatCount(provider.totalTokens))
+                                .font(CodyTypography.labelMedium)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textTertiary)
                         }
                     }
                 }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle("Usage")
         .task {
             await vm.load()
         }
     }
 
+    private func statRow(_ label: LocalizedStringKey, value: String) -> some View {
+        LabeledContent {
+            Text(value)
+                .font(CodyTypography.bodyMedium)
+                .monospacedDigit()
+                .foregroundStyle(CodyColors.textSecondary)
+        } label: {
+            Text(label)
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(CodyColors.textPrimary)
+        }
+        .codyGroupedRow()
+    }
+
     @ViewBuilder
     private func modelDetailRows(_ model: UsageStatsViewModel.ModelStats) -> some View {
         Group {
-            LabeledContent("Input", value: formatCount(model.inputTokens))
-            LabeledContent("Output", value: formatCount(model.outputTokens))
+            detailStatRow("Input", value: formatCount(model.inputTokens))
+            detailStatRow("Output", value: formatCount(model.outputTokens))
             if model.cacheReadTokens > 0 {
-                LabeledContent("Cache Read", value: formatCount(model.cacheReadTokens))
+                detailStatRow("Cache Read", value: formatCount(model.cacheReadTokens))
             }
             if model.cacheCreationTokens > 0 {
-                LabeledContent("Cache Creation", value: formatCount(model.cacheCreationTokens))
+                detailStatRow("Cache Creation", value: formatCount(model.cacheCreationTokens))
             }
             let totalInputForRate = model.inputTokens + model.cacheReadTokens + model.cacheCreationTokens
             if totalInputForRate > 0 && model.cacheReadTokens > 0 {
                 let hitRate = Double(model.cacheReadTokens) / Double(totalInputForRate) * 100
-                LabeledContent("Cache Hit Rate", value: String(format: "%.1f%%", hitRate))
+                detailStatRow("Cache Hit Rate", value: String(format: "%.1f%%", hitRate))
             }
-            LabeledContent("Daily Avg", value: formatCount(model.dailyAvgTokens))
-            LabeledContent("Per-Session Avg", value: formatCount(model.sessionAvgTokens))
-            LabeledContent("Sessions", value: "\(model.distinctSessions.count)")
-            LabeledContent("Active Days", value: "\(model.distinctDays.count)")
+            detailStatRow("Daily Avg", value: formatCount(model.dailyAvgTokens))
+            detailStatRow("Per-Session Avg", value: formatCount(model.sessionAvgTokens))
+            detailStatRow("Sessions", value: "\(model.distinctSessions.count)")
+            detailStatRow("Active Days", value: "\(model.distinctDays.count)")
         }
-        .font(.subheadline)
+    }
+
+    private func detailStatRow(_ label: LocalizedStringKey, value: String) -> some View {
+        LabeledContent {
+            Text(value)
+                .font(CodyTypography.bodyMedium)
+                .monospacedDigit()
+                .foregroundStyle(CodyColors.textSecondary)
+        } label: {
+            Text(label)
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textPrimary)
+        }
     }
 
     private func formatCount(_ count: Int) -> String {

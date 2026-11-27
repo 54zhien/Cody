@@ -11,81 +11,77 @@ struct ICloudBackupView: View {
             // MARK: - Status & Backup Actions
             Section {
                 if !manager.isICloudAvailable {
-                    HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.icloud")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 30, height: 30)
-                            .background(Color.red)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: "exclamationmark.icloud", tint: .red)
                         Text("iCloud is not available")
-                            .foregroundColor(.primary)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
+                        Spacer()
+                        CodyStatusPill("Unavailable", tone: .error)
                     }
+                    .codyGroupedRow()
                 } else {
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.icloud.fill")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 30, height: 30)
-                            .background(Color.green)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: "checkmark.icloud.fill", tint: .green)
                         Text("iCloud connected")
-                            .foregroundColor(.green)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
+                        Spacer()
+                        CodyStatusPill("Connected", tone: .success, dotColor: CodyColors.connectionReady)
                     }
+                    .codyGroupedRow()
                 }
             }
 
             if manager.isICloudAvailable {
-                Section("Backup") {
+                Section {
                     ForEach(ICloudBackupManager.BackupCategory.allCases) { category in
                         Button {
                             performBackup(category: category)
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: category.systemImage)
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(width: 30, height: 30)
-                                    .background(category.iconColor)
-                                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                                VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(
+                                    systemImage: category.systemImage,
+                                    tint: categoryTint(for: category)
+                                )
+                                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                     Text(category.displayName)
-                                        .foregroundColor(.primary)
+                                        .font(CodyTypography.bodyLarge)
+                                        .foregroundStyle(CodyColors.textPrimary)
                                     Text(category.description)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                 }
                                 Spacer()
                                 if manager.isBackingUp {
                                     ProgressView()
-                                        .scaleEffect(0.8)
+                                        .controlSize(.small)
                                 }
                             }
+                            .padding(.vertical, CodySpacing.xxs)
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(manager.isBackingUp || manager.isRestoring)
+                        .codyGroupedRow()
                     }
 
                     if manager.isBackingUp {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ProgressView(value: manager.progress)
-                            Text(manager.statusMessage)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.vertical, 4)
+                        progressRow
+                            .codyGroupedRow()
                     }
+                } header: {
+                    Text("Backup")
+                        .settingsSectionHeading()
                 }
             }
 
             if manager.isRestoring {
-                Section("Restoring") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ProgressView(value: manager.progress)
-                        Text(manager.statusMessage)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 4)
+                Section {
+                    progressRow
+                        .codyGroupedRow()
+                } header: {
+                    Text("Restoring")
+                        .settingsSectionHeading()
                 }
             }
 
@@ -94,17 +90,23 @@ struct ICloudBackupView: View {
             let sortedDevices = grouped.keys.sorted()
 
             ForEach(sortedDevices, id: \.self) { device in
-                Section(device) {
+                Section {
                     ForEach(grouped[device] ?? []) { entry in
                         backupRow(entry)
+                            .codyGroupedRow()
                     }
+                } header: {
+                    Text(device)
+                        .settingsSectionHeading()
                 }
             }
 
             if manager.availableBackups.isEmpty && manager.isICloudAvailable {
                 Section {
                     Text("No backups found")
-                        .foregroundColor(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .codyGroupedRow()
                 }
             }
 
@@ -112,8 +114,10 @@ struct ICloudBackupView: View {
                 // empty section for footer
             } footer: {
                 Text("Backups are stored in iCloud Drive and sync across your devices. Restoring will replace your current local data.")
+                    .settingsSectionFooter()
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle("iCloud Backup")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -149,28 +153,57 @@ struct ICloudBackupView: View {
         }
     }
 
+    // MARK: - Progress & Category Visuals
+
+    private var progressRow: some View {
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            HStack {
+                Text(manager.statusMessage)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                Spacer()
+                Text(manager.progress, format: .percent.precision(.fractionLength(0)))
+                    .font(CodyTypography.labelMedium)
+                    .monospacedDigit()
+                    .foregroundStyle(CodyColors.textSecondary)
+            }
+            CodyProgressBar(progress: manager.progress)
+        }
+        .padding(.vertical, CodySpacing.xs)
+    }
+
+    private func categoryTint(for category: ICloudBackupManager.BackupCategory) -> CodyCategoryTint {
+        switch category {
+        case .sessions: return .blue
+        case .skillsAndMemories: return .purple
+        case .full: return .orange
+        }
+    }
+
     // MARK: - Backup Row
 
     private func backupRow(_ entry: ICloudBackupManager.BackupEntry) -> some View {
-        HStack {
-            Image(systemName: entry.category.systemImage)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
-                .frame(width: 30, height: 30)
-                .background(entry.category.iconColor)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(
+                systemImage: entry.category.systemImage,
+                tint: categoryTint(for: entry.category)
+            )
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(entry.category.displayName)
-                    .font(.body)
-                HStack(spacing: 8) {
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                HStack(spacing: CodySpacing.sm) {
                     Text(entry.date.formatted(date: .abbreviated, time: .shortened))
+                    Text("·")
                     Text(entry.fileSize.formattedFileSize)
+                        .monospacedDigit()
                 }
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
             }
         }
+        .padding(.vertical, CodySpacing.xxs)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 deleteBackup(entry)
@@ -184,7 +217,7 @@ struct ICloudBackupView: View {
             } label: {
                 Label("Restore", systemImage: "arrow.counterclockwise")
             }
-            .tint(.blue)
+            .tint(CodyColors.textAccent)
         }
         .contextMenu {
             Button {

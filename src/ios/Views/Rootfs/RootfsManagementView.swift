@@ -13,7 +13,7 @@ struct RootfsManagementView: View {
 
     var body: some View {
         List {
-            Section("Status") {
+            Section {
                 HStack {
                     // The label used to be a hardcoded Text("Installed"), which
                     // read as a claim rather than a field name: with no rootfs
@@ -21,51 +21,69 @@ struct RootfsManagementView: View {
                     // icon and the "Install Rootfs" action right below it. Use a
                     // neutral field name and put the state in the value.
                     Text("Status")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Spacer()
-                    Text(viewModel.isInstalled ? "Installed" : "Not Installed")
-                        .foregroundStyle(.secondary)
-                    Image(systemName: viewModel.isInstalled ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(viewModel.isInstalled ? .green : .red)
+                    CodyStatusPill(
+                        viewModel.isInstalled ? "Installed" : "Not Installed",
+                        tone: viewModel.isInstalled ? .success : .error,
+                        dotColor: viewModel.isInstalled ? CodyColors.connectionReady : nil
+                    )
                 }
+                .codyGroupedRow()
 
                 if viewModel.isInstalled {
                     HStack {
                         Text("Size")
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Spacer()
                         if viewModel.rootfsSize > 0 {
                             Text(viewModel.formattedSize)
-                                .foregroundColor(.secondary)
+                                .font(CodyTypography.bodyMedium)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
                         } else {
                             ProgressView()
                                 .controlSize(.small)
                         }
                     }
+                    .codyGroupedRow()
 
                     HStack {
                         Text("Path")
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Spacer()
                         Text(viewModel.rootfsPath)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
+                    .codyGroupedRow()
                 }
+            } header: {
+                Text("Status")
+                    .settingsSectionHeading()
             }
 
             if viewModel.isInstalled {
-                Section("Browse") {
+                Section {
                     Button(action: { showFileBrowser = true }) {
                         Label {
                             Text("Browse Files")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         } icon: {
-                            Image(systemName: "folder.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white)
-                                .frame(width: 21, height: 21)
-                                .background(.blue, in: Circle())
+                            CodySettingsIconBadge(systemImage: "folder.fill", tint: .blue, outline: .circle)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
+                } header: {
+                    Text("Browse")
+                        .settingsSectionHeading()
                 }
 
                 MirrorsSectionView()
@@ -79,97 +97,110 @@ struct RootfsManagementView: View {
             // [T-container-network-dns GH#396]
             ContainerNetworkSection()
 
-            Section("Actions") {
+            Section {
                 if !viewModel.isInstalled {
                     Button(action: { viewModel.install() }) {
                         Label {
                             Text("Install Rootfs")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         } icon: {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white)
-                                .frame(width: 21, height: 21)
-                                .background(.green, in: Circle())
+                            CodySettingsIconBadge(systemImage: "arrow.down.circle.fill", tint: .green, outline: .circle)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(viewModel.isProcessing)
+                    .codyGroupedRow()
                 } else {
                     Button(action: { viewModel.showResetConfirmation = true }) {
                         Label {
                             Text("Reset Rootfs")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         } icon: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white)
-                                .frame(width: 21, height: 21)
-                                .background(.orange, in: Circle())
+                            CodySettingsIconBadge(systemImage: "arrow.clockwise", tint: .orange, outline: .circle)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(viewModel.isProcessing)
+                    .codyGroupedRow()
 
                     Button(action: { viewModel.showResetWithBackupConfirmation = true }) {
                         Label {
                             Text("Reset & Backup User Data")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         } icon: {
-                            Image(systemName: "archivebox.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white)
-                                .frame(width: 21, height: 21)
-                                .background(.indigo, in: Circle())
+                            CodySettingsIconBadge(systemImage: "archivebox.fill", tint: .purple, outline: .circle)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(viewModel.isProcessing)
+                    .codyGroupedRow()
                 }
 
                 if viewModel.hasBackup {
                     Button(action: { viewModel.restoreBackup() }) {
                         Label {
                             Text("Restore User Data")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         } icon: {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white)
-                                .frame(width: 21, height: 21)
-                                .background(.teal, in: Circle())
+                            CodySettingsIconBadge(systemImage: "arrow.up.circle.fill", tint: .blue, outline: .circle)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(viewModel.isProcessing || !viewModel.isInstalled)
+                    .codyGroupedRow()
                 }
+            } header: {
+                Text("Actions")
+                    .settingsSectionHeading()
             }
 
             if viewModel.isProcessing {
                 Section {
-                    HStack {
+                    HStack(spacing: CodySpacing.smPlus) {
                         ProgressView()
                         Text(viewModel.statusMessage)
-                            .foregroundColor(.secondary)
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
+                    .codyGroupedRow()
                 }
             }
 
             if let message = viewModel.resultMessage {
                 Section {
                     Text(message)
-                        .font(.callout)
-                        .foregroundColor(viewModel.lastOperationSuccess ? .green : .red)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(viewModel.lastOperationSuccess ? CodyColors.statusSuccessText : CodyColors.statusErrorText)
+                        .codyGroupedRow()
                 }
             }
 
-            Section("Info") {
-                VStack(alignment: .leading, spacing: 8) {
+            Section {
+                VStack(alignment: .leading, spacing: CodySpacing.sm) {
                     Text("About Rootfs")
-                        .font(.headline)
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
 
                     Text("The rootfs contains the Alpine Linux filesystem. Resetting will delete all data and restore to factory state.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
 
                     Text("• Reset: Delete everything\n• Backup: Save /root directory\n• Restore: Recover saved data")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
+                .padding(.vertical, CodySpacing.xxs)
+                .codyGroupedRow()
+            } header: {
+                Text("Info")
+                    .settingsSectionHeading()
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle("Rootfs Management")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -354,35 +385,49 @@ struct ContainerNetworkSection: View {
                 Text("Auto").tag(ContainerDnsSettings.Mode.auto)
                 Text("Custom").tag(ContainerDnsSettings.Mode.custom)
             }
+            .font(CodyTypography.bodyLarge)
+            .foregroundStyle(CodyColors.textPrimary)
+            .codyGroupedRow()
             if mode == .custom {
                 TextField("One IPv4 or IPv6 address per line", text: $draft, axis: .vertical)
                     .lineLimit(2...6)
-                    .font(.system(.body, design: .monospaced))
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.numbersAndPunctuation)
+                    .codyGroupedRow()
                 if !parsed.invalid.isEmpty {
                     Text("Not a valid IPv4 or IPv6 address: \(parsed.invalid.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .codyGroupedRow()
                 } else if parsed.servers.isEmpty {
                     Text("Enter at least one DNS server. Until then the system DNS is used.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusWarningText)
+                        .codyGroupedRow()
                 }
                 Button("Save DNS Servers") { save() }
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textAccent)
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(!parsed.invalid.isEmpty || parsed.servers.isEmpty || !draftChanged)
+                    .codyGroupedRow()
             }
             if !inUse.isEmpty {
                 LabeledContent("In Use", value: inUse.joined(separator: "\n"))
-                    .font(.system(.footnote, design: .monospaced))
+                    .font(CodyTypography.code)
+                    .codyGroupedRow()
             }
         } header: {
             Text("Container Network")
+                .settingsSectionHeading()
         } footer: {
             Text(mode == .auto
                  ? "Auto follows the system DNS and updates on every network change. Keep Auto when a proxy app runs in Fake-IP or TUN mode, or a VPN provides DNS."
                  : "Custom writes only these servers to the container's /etc/resolv.conf and keeps them when the network changes. Separate addresses with new lines or commas; Linux uses the first 3.")
+                .settingsSectionFooter()
         }
         .onAppear {
             draft = ContainerDnsSettings.parse(savedServers).servers.joined(separator: "\n")

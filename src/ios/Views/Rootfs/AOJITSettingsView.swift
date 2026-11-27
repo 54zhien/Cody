@@ -602,23 +602,38 @@ struct AOJITSettingsSection: View {
     var body: some View {
         Section {
             Toggle(isOn: Binding(get: { model.enabled }, set: { model.setEnabled($0) })) {
-                Label("AOJIT Optimization", systemImage: "bolt.horizontal.circle")
+                Label {
+                    Text("AOJIT Optimization")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
+                } icon: {
+                    CodySettingsIconBadge(systemImage: "bolt.horizontal.circle", tint: .orange)
+                }
             }
+            .codyGroupedRow()
             if model.enabled {
                 ForEach(AOJITImage.catalog) { image in
                     row(image)
+                        .codyGroupedRow()
                 }
                 if let error = model.fixError {
-                    Text(error).font(.caption).foregroundStyle(.red)
+                    Text(error)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .codyGroupedRow()
                 }
                 if let notice = model.fixNotice {
-                    Text(notice).font(.caption).foregroundStyle(.green)
+                    Text(notice)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusSuccessText)
+                        .codyGroupedRow()
                 }
             }
         } header: {
             Text("AOJIT")
+                .settingsSectionHeading()
         } footer: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
                 Text("Runs JIT code recorded and compiled ahead of time for the libraries below, instead of emulating them instruction by instruction. Shell pipelines typically run 2–4× faster. Applies to commands started after switching.")
                 // [T-aojit-family]
                 Text("Each library has one image, recorded from the build listed: that build runs at full speed. Other versions of the same library still run the code that did not change from the image and emulate the rest, so they get part of the gain.")
@@ -626,6 +641,7 @@ struct AOJITSettingsSection: View {
                     Text("Covers: \(AOJITImage.catalog.map(\.name).joined(separator: ", "))")
                 }
             }
+            .settingsSectionFooter()
         }
         .onAppear { if model.enabled { model.refresh() } }
         // [T-aojit-fix-confirm] Fix runs `apk add <pkg>=<version>` in the
@@ -660,49 +676,75 @@ struct AOJITSettingsSection: View {
     @ViewBuilder
     private func row(_ image: AOJITImage) -> some View {
         let state = model.states[image.id] ?? .checking
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
             HStack(alignment: .firstTextBaseline) {
-                Text(verbatim: image.name).font(.subheadline.weight(.semibold))
+                Text(verbatim: image.name)
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 stateBadge(image)
             }
-            Text(image.binaries).font(.caption.monospaced()).foregroundStyle(.secondary)
-            Text(image.affects).font(.caption).foregroundStyle(.secondary)
-            Text("Image recorded from \(image.build.package)").font(.caption2).foregroundStyle(.tertiary)
+            Text(image.binaries)
+                .font(CodyTypography.code)
+                .foregroundStyle(CodyColors.textSecondary)
+            Text(image.affects)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
+            Text("Image recorded from \(image.build.package)")
+                .font(CodyTypography.labelSmall)
+                .foregroundStyle(CodyColors.textTertiary)
             // [T-aojit-family] What the installed file gets from the image.
             switch state {
             case .matched:
-                Text("Full speed: this is the recorded build.").font(.caption2).foregroundStyle(.secondary)
+                Text("Full speed: this is the recorded build.")
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             case .family(let file):
                 Text("Another version is installed (\(file)): code unchanged since \(image.build.package) runs from the image, the rest is emulated.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             case .mismatch:
                 Text("The installed file is not a version this image can serve, so it runs without AOJIT.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             default:
                 EmptyView()
             }
             if let c = model.runtime.coverage(for: image), c.blocks > 0 {
-                Text("AOT coverage: \(Self.percent(c.hits, of: c.blocks)) of \(c.blocks) blocks").font(.caption2).foregroundStyle(.tertiary)
-                if c.moved > 0 {
-                    Text("\(c.moved) of them reused from another version by content").font(.caption2).foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                    Text("AOT coverage: \(Self.percent(c.hits, of: c.blocks)) of \(c.blocks) blocks")
+                        .font(CodyTypography.labelSmall)
+                        .monospacedDigit()
+                        .foregroundStyle(CodyColors.textTertiary)
+                    CodyProgressBar(progress: Double(c.hits) / Double(c.blocks))
+                    if c.moved > 0 {
+                        Text("\(c.moved) of them reused from another version by content")
+                            .font(CodyTypography.labelSmall)
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textTertiary)
+                    }
                 }
             }
             // Plan B only when the installed file is not in the family at all.
             if !image.restorePackages.isEmpty, case .mismatch = state {
                 Text("You can put back the build bundled with Cody.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                 Button(role: .destructive) {
                     pendingRestore = image
                 } label: {
                     if model.fixing == image.id {
-                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Restoring…") }
+                        HStack(spacing: CodySpacing.xsPlus) { ProgressView().controlSize(.small); Text("Restoring…") }
                     } else {
                         Text("Restore bundled \(image.build.package)")
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .font(CodyTypography.labelMedium)
+                .foregroundStyle(CodyColors.statusErrorText)
+                .padding(.horizontal, CodySpacing.md)
+                .padding(.vertical, CodySpacing.xsPlus)
+                .background(CodyColors.statusErrorBg, in: Capsule())
+                .buttonStyle(.borderless)
                 .disabled(model.fixing != nil)
             }
             if image.apkSpec != nil, needsFix(image) {
@@ -710,19 +752,23 @@ struct AOJITSettingsSection: View {
                     pendingFix = image
                 } label: {
                     if model.fixing == image.id {
-                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Installing…") }
+                        HStack(spacing: CodySpacing.xsPlus) { ProgressView().controlSize(.small); Text("Installing…") }
                     } else if case .family = state {
                         Text("Install \(image.build.package) for full speed")
                     } else {
                         Text("Fix: install \(image.build.package)")
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .font(CodyTypography.labelMedium)
+                .foregroundStyle(CodyColors.textAccent)
+                .padding(.horizontal, CodySpacing.md)
+                .padding(.vertical, CodySpacing.xsPlus)
+                .background(CodyColors.bgSecondary, in: Capsule())
+                .buttonStyle(.borderless)
                 .disabled(model.fixing != nil)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, CodySpacing.xxs)
     }
 
     /// "87%", never "100%" unless every block hit, never "0%" if any did.
@@ -757,10 +803,24 @@ struct AOJITSettingsSection: View {
     }
 
     private func badge(_ text: LocalizedStringKey, color: Color) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.12)))
+        let tone: CodyStatusPill.Tone
+        let dotColor: Color?
+        if color == .green {
+            tone = .success
+            dotColor = CodyColors.connectionReady
+        } else if color == .blue {
+            tone = .accent
+            dotColor = nil
+        } else if color == .orange {
+            tone = .warning
+            dotColor = nil
+        } else if color == .red {
+            tone = .error
+            dotColor = nil
+        } else {
+            tone = .neutral
+            dotColor = nil
+        }
+        return CodyStatusPill(text, tone: tone, dotColor: dotColor)
     }
 }

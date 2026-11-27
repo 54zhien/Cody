@@ -20,9 +20,12 @@ struct MCPJSONImportSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(AppLocalized("Paste MCP JSON")) {
+                Section {
                     TextEditor(text: $text)
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .scrollContentBackground(.hidden)
+                        .background(CodyColors.bgGroupedSurface)
                         .frame(minHeight: 220)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -30,34 +33,51 @@ struct MCPJSONImportSheet: View {
                             parsed = []
                             errorMessage = nil
                         }
+                        .codyGroupedRow()
+                } header: {
+                    Text(AppLocalized("Paste MCP JSON"))
+                        .settingsSectionHeading()
                 }
 
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .codyGroupedRow()
                     }
                 }
 
                 if !parsed.isEmpty {
-                    Section(AppLocalized("Preview")) {
+                    Section {
                         Text(String(format: AppLocalized("Found %d server(s)"), parsed.count))
-                            .font(.subheadline.weight(.semibold))
+                            .font(CodyTypography.labelLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
+                            .codyGroupedRow()
                         ForEach(parsed) { server in
-                            HStack(spacing: 8) {
-                                Image(systemName: server.isSTDIO ? "terminal" : "globe")
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(
+                                    systemImage: server.isSTDIO ? "terminal" : "globe",
+                                    tint: server.isSTDIO ? .blue : .green
+                                )
                                 Text(server.id)
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                                 Spacer()
-                                Text(server.isSTDIO ? "STDIO" : "HTTP")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                CodyStatusPill(
+                                    localized: server.isSTDIO ? "STDIO" : "HTTP",
+                                    tone: .neutral
+                                )
                             }
+                            .codyGroupedRow()
                         }
+                    } header: {
+                        Text(AppLocalized("Preview"))
+                            .settingsSectionHeading()
                     }
                 }
             }
+            .codyGroupedFormCanvas()
             .navigationTitle(Text("Import JSON"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

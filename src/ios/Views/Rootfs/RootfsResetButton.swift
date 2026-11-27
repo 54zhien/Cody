@@ -71,8 +71,10 @@ struct RootfsResetButton: View {
         } label: {
             Image(systemName: "arrow.clockwise.circle")
                 .imageScale(.large)
-                .foregroundColor(.red)
+                .foregroundStyle(CodyColors.statusErrorText)
         }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(Text("Reset Rootfs"))
     }
 
     private var normalButton: some View {
@@ -88,40 +90,53 @@ struct RootfsResetButton: View {
             }
         } label: {
             Label("Reset Rootfs", systemImage: "arrow.clockwise")
-                .foregroundColor(.red)
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(CodyColors.statusErrorText)
         }
+        .buttonStyle(CodyPressableButtonStyle())
     }
 
     private var prominentButton: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CodySpacing.md) {
             Button(action: { showResetAlert = true }) {
+                let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
                 Label("Reset Rootfs", systemImage: "arrow.clockwise")
-                    .font(.headline)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.red)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+                    .font(CodyTypography.labelLarge)
+                    .padding(CodySpacing.lg)
+                    .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .background(shape.fill(CodyColors.statusErrorBg))
+                    .overlay {
+                        shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
             }
+            .buttonStyle(CodyPressableButtonStyle())
 
             if showBackupOption {
                 Button(action: { showBackupAlert = true }) {
+                    let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
                     Label("Reset & Backup", systemImage: "archivebox")
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.orange)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .font(CodyTypography.labelLarge)
+                        .padding(CodySpacing.lg)
+                        .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                        .foregroundStyle(CodyColors.statusWarningText)
+                        .background(shape.fill(CodyColors.statusWarningBg))
+                        .overlay {
+                            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
                 }
+                .buttonStyle(CodyPressableButtonStyle())
             }
 
             if isProcessing {
-                HStack {
+                HStack(spacing: CodySpacing.sm) {
                     ProgressView()
+                        .controlSize(.small)
                     Text(statusMessage ?? "Processing...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
         }

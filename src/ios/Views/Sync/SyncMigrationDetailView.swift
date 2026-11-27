@@ -122,40 +122,62 @@ struct SyncMigrationDetailView: View {
             }
             if vm == nil {
                 Section {
-                    HStack {
+                    HStack(spacing: CodySpacing.sm) {
                         ProgressView().controlSize(.small)
-                        Text("Loading…").foregroundStyle(.secondary)
+                        Text("Loading…")
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
+                    .codyGroupedRow()
                 }
             }
             let vm = vm ?? .empty
             // Top status — always visible while v2 is enabled.
-            Section("Status") {
+            Section {
                 LabeledContent("iCloud Sync") {
-                    Text(vm.v2Enabled ? "On" : "Off")
-                        .foregroundStyle(vm.v2Enabled ? .green : .secondary)
+                    CodyStatusPill(
+                        vm.v2Enabled ? "On" : "Off",
+                        tone: vm.v2Enabled ? .success : .neutral,
+                        dotColor: vm.v2Enabled ? CodyColors.connectionReady : nil
+                    )
                 }
+                .codyGroupedRow()
                 if vm.v2Enabled {
                     HStack {
                         Text("Engine")
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Spacer()
                         if let until = vm.pausedUntil {
-                            Text(pauseRemaining(until: until)).foregroundStyle(.secondary)
+                            Text(pauseRemaining(until: until))
+                                .font(CodyTypography.bodyMedium)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
                         } else if let until = vm.bootDelayUntil, until > Date() {
-                            Text(bootDelayRemaining(until: until)).foregroundStyle(.secondary)
+                            Text(bootDelayRemaining(until: until))
+                                .font(CodyTypography.bodyMedium)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
                         } else if !vm.isRunning {
                             // boot deadline passed but SyncCore.start() is still
                             // mid-flight (CKDatabase ensureZonesExist + initial
                             // sendChanges take a few seconds after the delay
                             // expires). Show 'Starting…' until isRunning flips.
-                            Text("Starting…").foregroundStyle(.secondary)
+                            Text("Starting…")
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
                         } else if let until = vm.throttledUntil, until > Date() {
-                            Text(throttleRemaining(until: until)).foregroundStyle(.orange)
+                            Text(throttleRemaining(until: until))
+                                .font(CodyTypography.bodyMedium)
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.statusWarningText)
                         } else {
-                            Text("Running").foregroundStyle(.primary)
+                            Text("Running")
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                         }
                         if vm.isRunning {
-                            Spacer().frame(width: 12)
+                            Spacer().frame(width: CodySpacing.md)
                             if vm.pausedUntil != nil {
                                 Button {
                                     if #available(iOS 17.0, *) { SyncCore.shared.resume() }
@@ -163,65 +185,111 @@ struct SyncMigrationDetailView: View {
                                 } label: {
                                     Image(systemName: "play.fill")
                                         .font(.caption2.weight(.semibold))
-                                        .frame(width: 16, height: 16)
+                                        .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                                        .frame(width: CodySpacing.xxxl, height: CodySpacing.xxxl)
+                                        .background(CodyColors.interactivePrimaryBg, in: Circle())
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .clipShape(Circle())
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(Text("Resume"))
                             } else {
                                 Button {
                                     showPauseDialog = true
                                 } label: {
                                     Image(systemName: "pause.fill")
                                         .font(.caption2.weight(.semibold))
-                                        .frame(width: 16, height: 16)
+                                        .foregroundStyle(CodyColors.iconPrimary)
+                                        .frame(width: CodySpacing.xxxl, height: CodySpacing.xxxl)
+                                        .background(CodyColors.bgSecondary, in: Circle())
                                 }
-                                .buttonStyle(.bordered)
-                                .clipShape(Circle())
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(Text("Pause"))
                             }
                         }
                     }
+                    .codyGroupedRow()
                     if !vm.transportName.isEmpty {
                         LabeledContent("Transport", value: vm.transportName)
+                            .codyGroupedRow()
                     }
                     if !vm.network.isEmpty {
                         LabeledContent(AppLocalized("Network"), value: vm.network)
+                            .codyGroupedRow()
                     }
                     if !vm.throttleLabel.isEmpty {
                         LabeledContent(AppLocalized("Throttle"), value: vm.throttleLabel)
+                            .codyGroupedRow()
                     }
-                    LabeledContent(AppLocalized("Rate (last 1 min)"), value: formatRate(vm.ratePerSecond))
+                    LabeledContent(AppLocalized("Rate (last 1 min)")) {
+                        Text(formatRate(vm.ratePerSecond))
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
+                    }
+                    .codyGroupedRow()
                 }
+            } header: {
+                Text("Status")
+                    .settingsSectionHeading()
             }
 
             if vm.v2Enabled {
                 Section {
                     if vm.pendingPush > 0 {
-                        LabeledContent(AppLocalized("Pending push"), value: "\(vm.pendingPush)")
+                        LabeledContent(AppLocalized("Pending push")) {
+                            Text("\(vm.pendingPush)")
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
+                        }
+                        .codyGroupedRow()
                         if vm.pendingPushNew > 0 {
                             LabeledContent {
-                                Text("\(vm.pendingPushNew)").foregroundStyle(.secondary)
+                                Text("\(vm.pendingPushNew)")
+                                    .monospacedDigit()
+                                    .foregroundStyle(CodyColors.textSecondary)
                             } label: {
-                                Text("· New writes").foregroundStyle(.secondary).font(.callout)
+                                Text("· New writes")
+                                    .foregroundStyle(CodyColors.textSecondary)
+                                    .font(CodyTypography.bodyMedium)
                             }
+                            .codyGroupedRow()
                         }
                         if vm.pendingPushMigration > 0 {
                             LabeledContent {
-                                Text("\(vm.pendingPushMigration)").foregroundStyle(.secondary)
+                                Text("\(vm.pendingPushMigration)")
+                                    .monospacedDigit()
+                                    .foregroundStyle(CodyColors.textSecondary)
                             } label: {
-                                Text("· Migration backlog").foregroundStyle(.secondary).font(.callout)
+                                Text("· Migration backlog")
+                                    .foregroundStyle(CodyColors.textSecondary)
+                                    .font(CodyTypography.bodyMedium)
                             }
+                            .codyGroupedRow()
                         }
                     } else {
                         LabeledContent(AppLocalized("Pending push")) {
-                            Text("Up to date").foregroundStyle(.secondary)
+                            Text("Up to date")
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
+                        .codyGroupedRow()
                     }
-                    LabeledContent(AppLocalized("Sent this session"), value: "\(vm.totalSent)")
-                    LabeledContent(AppLocalized("Received this session"), value: "\(vm.totalReceived)")
+                    LabeledContent(AppLocalized("Sent this session")) {
+                        Text("\(vm.totalSent)")
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
+                    }
+                    .codyGroupedRow()
+                    LabeledContent(AppLocalized("Received this session")) {
+                        Text("\(vm.totalReceived)")
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
+                    }
+                    .codyGroupedRow()
                     LabeledContent(AppLocalized("Last send"), value: relative(vm.lastSendAt))
+                        .codyGroupedRow()
                     LabeledContent(AppLocalized("Last fetch"), value: relative(vm.lastFetchAt))
+                        .codyGroupedRow()
                 } header: {
                     Text("Sync Activity")
+                        .settingsSectionHeading()
                 }
             }
 
@@ -242,21 +310,27 @@ struct SyncMigrationDetailView: View {
                 Section {
                     LabeledContent {
                         Text("\(vm.unmigratedHistoryCount)")
-                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
                     } label: {
                         Text("Eligible records")
                     }
+                    .codyGroupedRow()
                     Button {
                         showRequestMigrationConfirm = true
                     } label: {
                         Text("Migrate History to iCloud")
+                            .font(CodyTypography.labelLarge)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                    .codyGroupedRow()
                 } header: {
                     Text("Historical Data")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("Local chats and files created before this build are not pushed to iCloud automatically. Tap above to backfill them — this only needs to run once per device. Already-pushed records are skipped, so it's safe to re-run.")
-                        .font(.caption)
+                        .settingsSectionFooter()
                 }
             }
 
@@ -268,38 +342,47 @@ struct SyncMigrationDetailView: View {
                vm.lastFailureMessage != nil || vm.isCanceledByUser {
                 Section {
                     if let err = vm.lastFailureMessage {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: CodySpacing.xs) {
                             Text("Last attempt failed")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.red)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(CodyColors.statusErrorText)
                             Text(err)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.code)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
+                        .codyGroupedRow()
                     } else if vm.isCanceledByUser {
                         Text("Migration canceled. Tap to resume backfilling local history.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .codyGroupedRow()
                     }
                     Button {
                         showRequestMigrationConfirm = true
                     } label: {
                         Text(vm.lastFailureMessage != nil ? "Retry Migration" : "Resume Migration")
+                            .font(CodyTypography.labelLarge)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                    .codyGroupedRow()
                 } header: {
                     Text("Migration")
+                        .settingsSectionHeading()
                 }
             }
 
             if let m = vm.migration {
                 Section {
                     LabeledContent("Phase", value: m.phase)
+                        .codyGroupedRow()
                     LabeledContent("Status", value: m.status)
+                        .codyGroupedRow()
                     progressRow(
                         title: AppLocalized("Records pushed"),
                         done: m.pushDone, total: m.pushTotal
                     )
+                    .codyGroupedRow()
                     // [T-icloud-migration-suspended-ui] A deferred phase leaves
                     // `status` at "in_progress" even though nothing is running,
                     // so the sheet used to show an active status over a frozen
@@ -313,13 +396,15 @@ struct SyncMigrationDetailView: View {
                     // While it runs, say what it is actually doing instead of
                     // letting a throttled wait read as "stuck".
                     if m.isSuspended {
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: CodySpacing.sm) {
                             Image(systemName: "pause.circle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(CodyColors.statusWarningText)
+                                .accessibilityHidden(true)
                             Text("Paused — no progress for 30 minutes. Cody continues automatically when you come back to the app.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
+                        .codyGroupedRow()
                         Button {
                             Task { await MigrationEngine.shared.resumeIfSuspended(trigger: "continueButton", force: true) }
                             Task {
@@ -328,21 +413,33 @@ struct SyncMigrationDetailView: View {
                             }
                         } label: {
                             Text("Continue Migration")
+                                .font(CodyTypography.labelLarge)
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                        .codyGroupedRow()
                     } else {
                         if let line = migrationActivityLine(m.activity) {
                             LabeledContent(AppLocalized("Activity"), value: line)
+                                .codyGroupedRow()
                         }
-                        LabeledContent(AppLocalized("Estimated time"), value: estimateETA(remaining: max(0, m.pushTotal - m.pushDone), rps: vm.ratePerSecond))
+                        LabeledContent(AppLocalized("Estimated time")) {
+                            Text(estimateETA(remaining: max(0, m.pushTotal - m.pushDone), rps: vm.ratePerSecond))
+                                .monospacedDigit()
+                                .foregroundStyle(CodyColors.textSecondary)
+                        }
+                        .codyGroupedRow()
                     }
                     Button(role: .destructive) {
                         showCancelMigrationConfirm = true
                     } label: {
                         Text("Cancel Migration")
-                            .foregroundStyle(.red)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.statusErrorText)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
                     // [T-icloud-migration-reset] Escape hatch for a migration
                     // that no retry can un-stick (Cody#154). Distinct from
                     // "Force Delete V1 Zone" below: this only discards LOCAL
@@ -351,42 +448,60 @@ struct SyncMigrationDetailView: View {
                         showResetMigrationConfirm = true
                     } label: {
                         Text("Reset Migration Progress")
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textAccent)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
                 } header: {
                     Text("Migration")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("Backfilling pre-v2 history into v2's shared zone. Already-uploaded records stay on iCloud if you cancel.\n\nIf migration is stuck and retrying doesn't help, Reset Migration Progress clears the local progress so it can start over. Your iCloud data is not deleted.")
-                        .font(.caption)
+                        .settingsSectionFooter()
                 }
 
                 Section {
-                    LabeledContent(AppLocalized("Reclaimed (v1 records deleted)"), value: "\(m.v1Deleted)")
-                    LabeledContent(AppLocalized("Pending delete"), value: "\(m.v1DeletePending)")
+                    LabeledContent(AppLocalized("Reclaimed (v1 records deleted)")) {
+                        Text("\(m.v1Deleted)")
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
+                    }
+                    .codyGroupedRow()
+                    LabeledContent(AppLocalized("Pending delete")) {
+                        Text("\(m.v1DeletePending)")
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.textSecondary)
+                    }
+                    .codyGroupedRow()
                     if v1ZoneForceDeletedAtTs > 0 {
                         // Permanent confirmation row — once the user has
                         // force-deleted, the destructive action is no
                         // longer relevant on this device, so we hide
                         // the button and show a green confirmation
                         // instead. Survives relaunches via @AppStorage.
-                        HStack(spacing: 8) {
+                        HStack(spacing: CodySpacing.sm) {
                             Image(systemName: "checkmark.seal.fill")
-                                .foregroundStyle(.green)
-                            VStack(alignment: .leading, spacing: 2) {
+                                .foregroundStyle(CodyColors.connectionReady)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                 Text("V1 zone deleted")
-                                    .foregroundStyle(.primary)
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                                 Text(AppLocalized("Deleted \(deletedAtRelativeString())"))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.labelSmall)
+                                    .foregroundStyle(CodyColors.textSecondary)
                             }
                         }
+                        .codyGroupedRow()
                     } else {
                         Button(role: .destructive) {
                             showForceDeleteV1Confirm = true
                         } label: {
                             Group {
                                 if forceDeleteV1InProgress {
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: CodySpacing.sm) {
                                         ProgressView().controlSize(.small)
                                         Text("Deleting v1 zone…")
                                     }
@@ -394,25 +509,37 @@ struct SyncMigrationDetailView: View {
                                     Text("Force Delete V1 Zone of This Device")
                                 }
                             }
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.statusErrorText)
                             .frame(maxWidth: .infinity, alignment: .center)
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(forceDeleteV1InProgress)
+                        .codyGroupedRow()
                         if let status = forceDeleteV1Status {
                             Text(status)
-                                .font(.caption)
-                                .foregroundStyle(status.hasPrefix("⚠️") ? .red : .secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(status.hasPrefix("⚠️") ? CodyColors.statusErrorText : CodyColors.textSecondary)
+                                .codyGroupedRow()
                         }
                     }
                 } header: {
                     Text("Reclaim v1 space")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("v1 records are deleted in batches of 100 as their v2 counterparts are confirmed saved, so iCloud usage doesn't double-up during migration.\n\n⚠️ Force-deleting the v1 zone permanently removes ALL legacy records from iCloud and CANNOT be undone. The cloud copy is gone for good. Only proceed if you've confirmed v2 push is at 100% AND every other device of yours has also finished migrating — peers that haven't yet may lose access to legacy data they hadn't received locally.")
-                        .font(.caption)
+                        .settingsSectionFooter()
                 }
 
                 if let err = m.lastError {
-                    Section("Last error") {
-                        Text(err).font(.caption.monospaced()).foregroundStyle(.red)
+                    Section {
+                        Text(err)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .codyGroupedRow()
+                    } header: {
+                        Text("Last error")
+                            .settingsSectionHeading()
                     }
                 }
             }
@@ -423,6 +550,7 @@ struct SyncMigrationDetailView: View {
             // deleting whole zones they no longer need.
             iCloudZonesSection
         }
+        .codyGroupedFormCanvas()
         .confirmationDialog("Request Migration", isPresented: $showRequestMigrationConfirm, titleVisibility: .visible) {
             Button("Start Migration") {
                 if #available(iOS 17.0, *) {
@@ -602,17 +730,27 @@ struct SyncMigrationDetailView: View {
     private var iCloudZonesSection: some View {
         Section {
             if zonesLoading && zonesList.isEmpty {
-                HStack {
+                HStack(spacing: CodySpacing.sm) {
                     ProgressView().controlSize(.small)
-                    Text("Loading zones…").foregroundStyle(.secondary)
+                    Text("Loading zones…")
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
+                .codyGroupedRow()
             } else if let err = zonesLoadError {
-                Text(err).font(.caption).foregroundStyle(.red)
+                Text(err)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .codyGroupedRow()
             } else if zonesList.isEmpty {
-                Text("No zones found.").foregroundStyle(.secondary)
+                Text("No zones found.")
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .codyGroupedRow()
             } else {
                 ForEach(zonesList) { row in
                     zoneRowView(row)
+                        .codyGroupedRow()
                 }
             }
             // [T-icloud-zone-delete-resurrect] A delete that failed says so,
@@ -620,68 +758,71 @@ struct SyncMigrationDetailView: View {
             // was written into a slot the following refresh cleared, so the
             // row silently stayed and the user was left retrying forever.
             if let zoneDeleteError {
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .top, spacing: CodySpacing.xsPlus) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusWarningText)
+                        .accessibilityHidden(true)
                     Text(zoneDeleteError)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .codyGroupedRow()
             }
             Button {
                 Task { await refreshZones(force: true) }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     if zonesLoading {
                         ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: "arrow.clockwise")
+                            .accessibilityHidden(true)
                     }
                     Text("Refresh")
                 }
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(CodyColors.textAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
             }
+            .buttonStyle(CodyPressableButtonStyle())
             .disabled(zonesLoading)
+            .codyGroupedRow()
         } header: {
             Text("iCloud Zones")
+                .settingsSectionHeading()
         } footer: {
             Text("Every zone Cody has created in your iCloud private database. **V2** holds the current sync engine's data; **V1** holds legacy per-device backups from older builds. Deleting a zone is permanent and removes everything inside (records + assets). Use this to reclaim space after migration completes.")
-                .font(.caption)
+                .settingsSectionFooter()
         }
     }
 
     @ViewBuilder
     private func zoneRowView(_ row: ZoneRow) -> some View {
         let inFlight = zoneDeleteInProgress == row.name
-        HStack(spacing: 10) {
-            // Color-coded badge by kind.
-            Text(badgeText(for: row.kind))
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(badgeColor(for: row.kind).opacity(0.18))
-                .foregroundStyle(badgeColor(for: row.kind))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
+        HStack(spacing: CodySpacing.smPlus) {
+            CodyStatusPill(localized: badgeText(for: row.kind), tone: badgeTone(for: row.kind))
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xs) {
                     Text(row.name)
-                        .font(.system(.subheadline, design: .monospaced))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if row.isOwn {
                         Image(systemName: "person.crop.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.textAccent)
+                            .accessibilityLabel(Text("This device"))
                     }
                 }
                 Text(zoneDescription(for: row))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(2)
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: CodySpacing.sm)
             if inFlight {
                 ProgressView().controlSize(.small)
             } else {
@@ -689,13 +830,16 @@ struct SyncMigrationDetailView: View {
                     pendingZoneDelete = row
                 } label: {
                     Image(systemName: "trash")
+                        .foregroundStyle(row.kind == .system ? CodyColors.iconTertiary : CodyColors.statusErrorText)
                 }
                 .buttonStyle(.borderless)
                 // The default _defaultZone is system-managed and can't
                 // safely be deleted; gray it out.
                 .disabled(row.kind == .system)
+                .accessibilityLabel(Text("Delete"))
             }
         }
+        .padding(.vertical, CodySpacing.xxs)
     }
 
     /// Human-readable explanation of what each zone stores. Branches on
@@ -735,12 +879,12 @@ struct SyncMigrationDetailView: View {
         case .other:  return "?"
         }
     }
-    private func badgeColor(for kind: ZoneRow.Kind) -> Color {
+    private func badgeTone(for kind: ZoneRow.Kind) -> CodyStatusPill.Tone {
         switch kind {
-        case .v2:     return .green
-        case .v1:     return .orange
-        case .system: return .gray
-        case .other:  return .secondary
+        case .v2:     return .success
+        case .v1:     return .warning
+        case .system: return .neutral
+        case .other:  return .neutral
         }
     }
 
@@ -877,16 +1021,19 @@ struct SyncMigrationDetailView: View {
 
     @ViewBuilder
     private var upgradeTipsBanner: some View {
-        HStack(alignment: .top, spacing: 10) {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+        HStack(alignment: .top, spacing: CodySpacing.smPlus) {
             Image(systemName: "lightbulb.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
+                .foregroundStyle(CodyColors.statusWarningText)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 Text("iCloud Sync upgraded to v2")
-                    .font(.caption.weight(.semibold))
+                    .font(CodyTypography.labelMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Text("To improve sync experience and reduce iCloud storage, we've upgraded the sync engine. Historical data is being migrated automatically — this may consume some extra battery or cellular data. You can cancel migration any time below.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -895,18 +1042,20 @@ struct SyncMigrationDetailView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
+                    .foregroundStyle(CodyColors.iconSecondary)
+                    .frame(width: 24, height: 24)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
+            .accessibilityLabel(Text("Dismiss"))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, CodySpacing.lg)
+        .padding(.vertical, CodySpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.yellow.opacity(0.18))
-        )
+        .background(shape.fill(CodyColors.statusWarningBg))
+        .overlay {
+            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -916,35 +1065,40 @@ struct SyncMigrationDetailView: View {
         title: LocalizedStringKey,
         titleColor: Color? = nil
     ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(tint, in: Circle())
+        HStack(spacing: CodySpacing.smPlus) {
+            CodySettingsIconBadge(systemImage: systemImage, tint: .neutral, outline: .circle)
             Text(title)
-                .foregroundStyle(titleColor ?? Color.primary)
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(titleColor ?? CodyColors.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func progressRow(title: String, done: Int, total: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
             HStack {
                 Text(title)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 if total > 0 {
                     let pct = Int(Double(min(done, total)) * 100 / Double(total))
-                    Text("\(done) / \(total) (\(pct)%)").foregroundStyle(.secondary)
+                    Text("\(done) / \(total) (\(pct)%)")
+                        .font(CodyTypography.bodySmall)
+                        .monospacedDigit()
+                        .foregroundStyle(CodyColors.textSecondary)
                 } else {
-                    Text("\(done)").foregroundStyle(.secondary)
+                    Text("\(done)")
+                        .font(CodyTypography.bodySmall)
+                        .monospacedDigit()
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
             if total > 0 {
-                ProgressView(value: Double(min(done, total)), total: Double(total))
+                CodyProgressBar(progress: Double(min(done, total)) / Double(total))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, CodySpacing.xs)
     }
 
     private func pauseLabel(hours: Int) -> String {
@@ -1136,18 +1290,24 @@ private struct PauseSyncSheet: View {
                         } label: {
                             HStack {
                                 Text(pauseLabel(hours))
-                                    .foregroundStyle(.primary)
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
+                                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                                    .foregroundStyle(CodyColors.iconDisclosure)
+                                    .accessibilityHidden(true)
                             }
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .codyGroupedRow()
                     }
                 } footer: {
                     Text("Pending changes are preserved locally and pushed once the pause ends.")
+                        .settingsSectionFooter()
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle("Pause iCloud Sync")
 #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)

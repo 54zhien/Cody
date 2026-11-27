@@ -6,6 +6,8 @@ struct BrowserSheetView: View {
     var isAgentBusy: Bool = false
     var onTakeover: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var addressText: String = ""
     @State private var showHistory = false
     @State private var isFullscreen = false
@@ -22,11 +24,12 @@ struct BrowserSheetView: View {
                         .allowsHitTesting(!isAgentBusy)
 
                     // URL bar
-                    HStack(spacing: 8) {
+                    HStack(spacing: CodySpacing.sm) {
                         BrowserAddressBarIcon(isLoading: manager?.isLoading ?? false)
 
                         TextField("Search or enter URL", text: $addressText)
-                            .font(.system(size: 13, design: .monospaced))
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
@@ -44,14 +47,27 @@ struct BrowserSheetView: View {
                             Button { manager?.webView.stopLoading() } label: {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(CodyColors.iconSecondary)
                             }
+                            .buttonStyle(CodyPressableButtonStyle())
+                            .accessibilityLabel(Text("Stop"))
                             .transition(.identity)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .padding(.horizontal, CodySpacing.md)
+                    .padding(.vertical, CodySpacing.sm)
+                    .background(
+                        RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                            .fill(CodyColors.bgGroupedSurface)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                            .strokeBorder(CodyColors.borderInput, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .padding(.horizontal, CodySpacing.md)
+                    .padding(.vertical, CodySpacing.sm)
+                    .background(CodyColors.bgGrouped)
                     .allowsHitTesting(!isAgentBusy)
                 }
 
@@ -65,13 +81,13 @@ struct BrowserSheetView: View {
                         // agent/manual navigation failures (blank page otherwise).
                         BrowserLoadErrorOverlay(manager: manager)
                     } else {
-                        Color(UIColor.systemBackground)
+                        CodyColors.bgCanvas
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
 
                     if isAgentBusy {
                         AgentBrowsingOverlay(onTakeover: onTakeover)
-                            .transition(.opacity)
+                            .transition(reduceMotion ? .identity : .opacity)
                     }
 
                     // Fullscreen exit button
@@ -80,22 +96,32 @@ struct BrowserSheetView: View {
                             HStack {
                                 Spacer()
                                 Button {
-                                    withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = false }
+                                    withAnimation(CodyMotion.resolved(CodyMotion.layout, reduceMotion: reduceMotion)) {
+                                        isFullscreen = false
+                                    }
                                 } label: {
                                     Image(systemName: "arrow.down.right.and.arrow.up.left")
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(.white)
-                                        .padding(8)
-                                        .background(Circle().fill(Color.black.opacity(0.5)))
+                                        .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                                        .padding(CodySpacing.sm)
+                                        .background(
+                                            Circle().fill(
+                                                reduceTransparency
+                                                    ? CodyColors.interactivePrimaryBg
+                                                    : CodyColors.interactivePrimaryBg.opacity(0.85)
+                                            )
+                                        )
                                 }
-                                .padding(.trailing, 12)
-                                .padding(.top, 8)
+                                .buttonStyle(CodyPressableButtonStyle())
+                                .accessibilityLabel(Text("Exit Fullscreen"))
+                                .padding(.trailing, CodySpacing.md)
+                                .padding(.top, CodySpacing.sm)
                             }
                             Spacer()
                         }
                     }
                 }
-                .animation(.easeInOut(duration: 0.3), value: isAgentBusy)
+                .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isAgentBusy)
 
                 // Download progress banner — visible in both normal and
                 // fullscreen modes so an in-flight download is never silent.
@@ -106,65 +132,81 @@ struct BrowserSheetView: View {
                 if !isFullscreen {
                     // Separator
                     Divider()
+                        .overlay(CodyColors.separator)
 
                     // Bottom navigation toolbar
                     HStack(spacing: 0) {
                         Button { pool.touchActivity(); manager?.goBack() } label: {
                             Image(systemName: "chevron.left")
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.sm)
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(isAgentBusy || !(manager?.canGoBack ?? false))
+                        .accessibilityLabel(Text("Back"))
 
                         Button { pool.touchActivity(); manager?.goForward() } label: {
                             Image(systemName: "chevron.right")
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.sm)
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(isAgentBusy || !(manager?.canGoForward ?? false))
+                        .accessibilityLabel(Text("Forward"))
 
                         if manager?.isLoading ?? false {
                             Button { pool.touchActivity(); manager?.stopLoading() } label: {
                                 Image(systemName: "xmark")
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, minHeight: CodyControlHeight.sm)
                             }
+                            .buttonStyle(CodyPressableButtonStyle())
                             .disabled(isAgentBusy)
+                            .accessibilityLabel(Text("Stop"))
                             .transition(.identity)
                         } else {
                             Button { pool.touchActivity(); manager?.reload() } label: {
                                 Image(systemName: "arrow.clockwise")
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, minHeight: CodyControlHeight.sm)
                             }
+                            .buttonStyle(CodyPressableButtonStyle())
                             .transition(.identity)
                             .disabled(isAgentBusy)
+                            .accessibilityLabel(Text("Reload"))
                         }
 
                         Button {
-                            withAnimation(.easeInOut(duration: 0.25)) { isFullscreen = true }
+                            withAnimation(CodyMotion.resolved(CodyMotion.layout, reduceMotion: reduceMotion)) {
+                                isFullscreen = true
+                            }
                         } label: {
                             Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.sm)
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(isAgentBusy)
+                        .accessibilityLabel(Text("Fullscreen"))
                     }
                     .font(.system(size: 18))
-                    .padding(.vertical, 10)
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .foregroundStyle(CodyColors.iconPrimary)
+                    .padding(.vertical, CodySpacing.sm)
+                    .background(CodyColors.bgGrouped)
                     .allowsHitTesting(!isAgentBusy)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    HStack(spacing: 5) {
+                    HStack(spacing: CodySpacing.xsPlus) {
                         // The selected tab's own profile - what the page on
                         // screen was loaded with - not the global default,
                         // which only says what the NEXT tab will get.
                         Image(systemName: UserAgentProfile.panelProfile(
                             activeTab: pool.activeManager?.currentProfile,
                             globalDefault: pool.userAgentProfile).icon)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.iconSecondary)
+                            .accessibilityHidden(true)
                         Text(navigationTitle)
-                            .font(.headline)
+                            .font(CodyTypography.titleMedium)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .lineLimit(1)
                     }
                 }
@@ -172,13 +214,14 @@ struct BrowserSheetView: View {
             .toolbar(isFullscreen ? .hidden : .visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: CodySpacing.md) {
                         Button {
                             _ = pool.newTab()
                         } label: {
                             Image(systemName: "plus")
                         }
                         .disabled(isAgentBusy || pool.tabs.count >= BrowserTabPool.maxTabs)
+                        .accessibilityLabel(Text("New Tab"))
 
                         Button {
                             showHistory = true
@@ -186,6 +229,7 @@ struct BrowserSheetView: View {
                             Image(systemName: "clock.arrow.circlepath")
                         }
                         .disabled(isAgentBusy)
+                        .accessibilityLabel(Text("History"))
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -196,6 +240,7 @@ struct BrowserSheetView: View {
                     Button { addressFocused = false } label: {
                         Image(systemName: "keyboard.chevron.compact.down")
                     }
+                    .accessibilityLabel(Text("Dismiss keyboard"))
                 }
             }
             .sheet(isPresented: $showHistory) {
@@ -246,21 +291,25 @@ struct BrowserSheetView: View {
 
     private var tabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: CodySpacing.xsPlus) {
                 ForEach(pool.tabs) { tab in
                     tabButton(for: tab)
                 }
 
                 // Tab count badge
                 Text("\(pool.tabs.count)/\(BrowserTabPool.maxTabs)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 4)
+                    .font(CodyTypography.labelSmall)
+                    .monospacedDigit()
+                    .foregroundStyle(CodyColors.textTertiary)
+                    .padding(.leading, CodySpacing.xs)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, CodySpacing.md)
+            .padding(.vertical, CodySpacing.xsPlus)
         }
-        .background(Color(UIColor.tertiarySystemBackground))
+        .background(CodyColors.bgGrouped)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(CodyColors.separator)
+        }
     }
 
     private func tabButton(for tab: BrowserTabPool.Tab) -> some View {
@@ -268,9 +317,10 @@ struct BrowserSheetView: View {
         return Button {
             pool.selectedTabId = tab.id
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: CodySpacing.xs) {
                 Text(tabLabel(for: tab))
-                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .font(isSelected ? CodyTypography.labelMedium : CodyTypography.bodySmall)
+                    .foregroundStyle(isSelected ? CodyColors.textAccent : CodyColors.textSecondary)
                     .lineLimit(1)
                     .frame(maxWidth: 120)
 
@@ -280,20 +330,23 @@ struct BrowserSheetView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.iconSecondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .accessibilityLabel(Text("Close"))
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color(UIColor.systemGray5))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-            )
+            .padding(.horizontal, CodySpacing.smPlus)
+            .padding(.vertical, CodySpacing.xsPlus)
+            .background(isSelected ? CodyColors.bgProgressTrack : CodyColors.bgSecondary, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(isSelected ? CodyColors.textAccent.opacity(0.45) : CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func tabLabel(for tab: BrowserTabPool.Tab) -> String {
@@ -310,21 +363,26 @@ struct BrowserSheetView: View {
 /// Globe icon with a spinning arc border when loading.
 private struct BrowserAddressBarIcon: View {
     let isLoading: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var spinning = false
 
     var body: some View {
         ZStack {
             Image(systemName: "globe")
                 .font(.system(size: 14))
-                .foregroundStyle(isLoading ? Color.accentColor : .secondary)
+                .foregroundStyle(isLoading ? CodyColors.iconAccent : CodyColors.iconSecondary)
+                .accessibilityHidden(true)
 
             if isLoading {
                 Circle()
                     .trim(from: 0, to: 0.3)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                    .stroke(CodyColors.iconAccent, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .frame(width: 22, height: 22)
-                    .rotationEffect(.degrees(spinning ? 360 : 0))
-                    .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: spinning)
+                    .rotationEffect(.degrees(!reduceMotion && spinning ? 360 : 0))
+                    .animation(
+                        CodyMotion.resolved(.linear(duration: 1).repeatForever(autoreverses: false), reduceMotion: reduceMotion),
+                        value: spinning
+                    )
                     .onAppear { spinning = true }
                     .onDisappear { spinning = false }
                     .transition(.identity)
@@ -340,47 +398,64 @@ private struct BrowserAddressBarIcon: View {
 /// Blocks all user interaction on the webview while providing a visual cue.
 private struct AgentBrowsingOverlay: View {
     var onTakeover: (() -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var breathing = false
 
     var body: some View {
         ZStack {
             // Semi-transparent backdrop that blocks touches
-            Color.black.opacity(0.35)
+            CodyColors.bgScrim
 
             // Centered indicator with breathing glow
-            HStack(spacing: 12) {
+            HStack(spacing: CodySpacing.md) {
                 Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 8, height: 8)
-                    .opacity(breathing ? 1.0 : 0.3)
-                    .shadow(color: Color.accentColor.opacity(breathing ? 0.8 : 0), radius: breathing ? 8 : 0)
+                    .fill(CodyColors.streamingHighlight)
+                    .frame(width: CodySpacing.sm, height: CodySpacing.sm)
+                    .opacity(!reduceMotion && breathing ? 1.0 : 0.65)
+                    .shadow(
+                        color: CodyColors.streamingHighlight.opacity(!reduceMotion && breathing ? 0.8 : 0),
+                        radius: !reduceMotion && breathing ? 8 : 0
+                    )
+                    .accessibilityHidden(true)
 
                 Text("Cody is browsing")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
 
                 if let onTakeover {
                     Divider()
                         .frame(height: 14)
-                        .overlay(Color.white.opacity(0.3))
+                        .overlay(CodyColors.interactivePrimaryLabel.opacity(0.3))
 
                     Button("Takeover") {
                         onTakeover()
                     }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textAccent)
+                    .buttonStyle(CodyPressableButtonStyle())
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, CodySpacing.xl)
+            .padding(.vertical, CodySpacing.md)
             .background(
                 Capsule()
-                    .fill(Color.black.opacity(0.7))
+                    .fill(
+                        reduceTransparency
+                            ? CodyColors.interactivePrimaryBg
+                            : CodyColors.interactivePrimaryBg.opacity(0.88)
+                    )
             )
+            .overlay {
+                Capsule()
+                    .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle()) // capture all touches
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 breathing = true
             }
@@ -401,16 +476,16 @@ struct BrowserDownloadBanner: View {
     var body: some View {
         let items = center.downloads(for: manager.sessionIdProvider?() ?? "")
         if !items.isEmpty {
-            VStack(spacing: 6) {
+            VStack(spacing: CodySpacing.xsPlus) {
                 ForEach(items) { entry in
                     BrowserDownloadCardRow(entry: entry,
                                            onTap: nil,
                                            onDismiss: { center.dismiss(id: entry.id) })
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(UIColor.secondarySystemBackground))
+            .padding(.horizontal, CodySpacing.md)
+            .padding(.vertical, CodySpacing.sm)
+            .background(CodyColors.bgGrouped)
         }
     }
 }
@@ -425,6 +500,7 @@ struct BrowserDownloadBanner: View {
 /// [T-browser-download-ux-v2]
 struct BrowserDownloadFloatingButton: View {
     @ObservedObject private var center = BrowserDownloadCenter.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let sessionId: String
     let action: () -> Void
 
@@ -455,6 +531,7 @@ struct BrowserDownloadFloatingButton: View {
                         if badge > 0 {
                             Text("\(badge)")
                                 .font(.system(size: 10, weight: .bold))
+                                .monospacedDigit()
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, badge > 9 ? 4 : 0)
                                 .frame(minWidth: 16, minHeight: 16)
@@ -463,8 +540,9 @@ struct BrowserDownloadFloatingButton: View {
                         }
                     }
             }
-            .buttonStyle(.plain)
-            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            .buttonStyle(CodyPressableButtonStyle())
+            .accessibilityLabel(Text("Downloads", comment: "Downloads panel title"))
+            .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.8)))
         }
     }
 }
@@ -474,20 +552,23 @@ struct BrowserDownloadFloatingButton: View {
 private struct DownloadPulseModifier: ViewModifier {
     let active: Bool
     @Binding var legacyPulse: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         if #available(iOS 17, *) {
-            content.symbolEffect(.pulse, options: .repeating, isActive: active)
+            content.symbolEffect(.pulse, options: .repeating, isActive: active && !reduceMotion)
         } else {
             content
-                .opacity(active && legacyPulse ? 0.35 : 1.0)
-                .animation(active
-                           ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                           : .default,
-                           value: legacyPulse)
-                .onAppear { if active { legacyPulse = true } }
+                .opacity(active && !reduceMotion && legacyPulse ? 0.35 : 1.0)
+                .animation(
+                    active
+                        ? CodyMotion.resolved(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), reduceMotion: reduceMotion)
+                        : nil,
+                    value: legacyPulse
+                )
+                .onAppear { if active && !reduceMotion { legacyPulse = true } }
                 .onChange(of: active) { nowActive in
-                    legacyPulse = nowActive
+                    legacyPulse = nowActive && !reduceMotion
                 }
         }
     }
@@ -512,14 +593,27 @@ struct BrowserDownloadPanelSheet: View {
                 let items = center.downloads(for: sessionId)
                     .sorted { $0.startedAt > $1.startedAt }
                 if items.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: CodySpacing.md) {
                         Image(systemName: "arrow.down.circle")
-                            .font(.system(size: 42))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(CodyColors.iconTertiary)
+                            .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                            .background(
+                                CodyColors.bgListIcon,
+                                in: RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                                    .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                    .allowsHitTesting(false)
+                            }
+                            .accessibilityHidden(true)
                         Text("No downloads", comment: "Empty downloads panel")
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.titleSmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(CodyColors.bgGrouped)
                 } else {
                     List {
                         ForEach(items) { entry in
@@ -529,9 +623,10 @@ struct BrowserDownloadPanelSheet: View {
                                 onLocate: { onLocate(entry.filename) },
                                 onClear: { center.dismiss(id: entry.id) }
                             )
+                            .codyGroupedRow()
                         }
                     }
-                    .listStyle(.plain)
+                    .codyGroupedListCanvas()
                 }
             }
             .navigationTitle(Text("Downloads", comment: "Downloads panel title"))
@@ -585,14 +680,16 @@ private struct BrowserDownloadPanelRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: CodySpacing.md) {
             stateIcon
                 .font(.system(size: 24))
                 .frame(width: 28)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 Text(entry.filename)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 switch entry.state {
@@ -602,19 +699,19 @@ private struct BrowserDownloadPanelRow: View {
                     let totalText = progress.total > 0
                         ? " / \(ByteCountFormatter.string(fromByteCount: progress.total, countStyle: .file))" : ""
                     Text("\(pctText)\(done)\(totalText)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    ProgressView(value: progress.fraction)
-                        .progressViewStyle(.linear)
-                        .tint(Color.accentColor)
+                        .font(CodyTypography.bodySmall)
+                        .monospacedDigit()
+                        .foregroundStyle(CodyColors.textSecondary)
+                    CodyProgressBar(progress: progress.fraction)
                 case .completed(let sizeText):
                     Text("\(sizeText) · \(AppLocalized("Show in Files", comment: "Completed download row hint"))")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .monospacedDigit()
+                        .foregroundStyle(CodyColors.textSecondary)
                 case .failed(let reason):
                     Text(reason)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
                         .lineLimit(3)
                 }
             }
@@ -625,23 +722,26 @@ private struct BrowserDownloadPanelRow: View {
                 Button(action: onCancel) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.iconSecondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
+                .accessibilityLabel(Text("Cancel"))
             case .completed:
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .accessibilityHidden(true)
             case .failed:
                 Button(action: onClear) {
                     Image(systemName: "trash")
                         .font(.system(size: 15))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.iconSecondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
+                .accessibilityLabel(Text("Clear", comment: "Downloads panel action"))
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, CodySpacing.xsPlus)
         .contentShape(Rectangle())
         .onTapGesture {
             if case .completed = entry.state { onLocate() }
@@ -659,14 +759,14 @@ private struct BrowserDownloadPanelRow: View {
         switch entry.state {
         case .downloading:
             Image(systemName: "arrow.down.circle")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(CodyColors.iconAccent)
                 .symbolEffectPulseIfAvailable()
         case .completed:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(CodyColors.connectionReady)
         case .failed:
             Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(CodyColors.statusErrorText)
         }
     }
 }
@@ -678,6 +778,7 @@ struct BrowserDownloadCardRow: View {
     let entry: BrowserDownloadCenter.Entry
     let onTap: (() -> Void)?
     let onDismiss: (() -> Void)?
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @StateObject private var progress: DownloadProgressObserver
 
     init(entry: BrowserDownloadCenter.Entry,
@@ -690,21 +791,22 @@ struct BrowserDownloadCardRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+        HStack(spacing: CodySpacing.smPlus) {
             stateIcon
                 .font(.system(size: 22))
                 .frame(width: 26)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(entry.filename)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 subtitle
                 if case .downloading = entry.state {
-                    ProgressView(value: progress.fraction)
-                        .progressViewStyle(.linear)
-                        .tint(Color.accentColor)
+                    CodyProgressBar(progress: progress.fraction)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -713,15 +815,27 @@ struct BrowserDownloadCardRow: View {
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(6)
+                        .foregroundStyle(CodyColors.iconSecondary)
+                        .padding(CodySpacing.xsPlus)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
+                .accessibilityLabel(Text("Dismiss"))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, CodySpacing.md)
+        .padding(.vertical, CodySpacing.smPlus)
+        .background {
+            if reduceTransparency {
+                shape.fill(CodyColors.bgElevatedPrimary)
+            } else {
+                shape.fill(.regularMaterial)
+            }
+        }
+        .clipShape(shape)
+        .overlay {
+            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                .allowsHitTesting(false)
+        }
         .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
@@ -731,14 +845,14 @@ struct BrowserDownloadCardRow: View {
         switch entry.state {
         case .downloading:
             Image(systemName: "arrow.down.circle")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(CodyColors.iconAccent)
                 .symbolEffectPulseIfAvailable()
         case .completed:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(CodyColors.connectionReady)
         case .failed:
             Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(CodyColors.statusErrorText)
         }
     }
 
@@ -750,16 +864,18 @@ struct BrowserDownloadCardRow: View {
             let totalText = progress.total > 0
                 ? " / \(ByteCountFormatter.string(fromByteCount: progress.total, countStyle: .file))" : ""
             Text("\(pctText)\(done)\(totalText)")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .monospacedDigit()
+                .foregroundStyle(CodyColors.textSecondary)
         case .completed(let sizeText):
             Text("\(sizeText) · \(AppLocalized("Tap to view", comment: "Completed download card"))")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .monospacedDigit()
+                .foregroundStyle(CodyColors.textSecondary)
         case .failed(let reason):
             Text(reason)
-                .font(.system(size: 11))
-                .foregroundStyle(.red)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusErrorText)
                 .lineLimit(2)
         }
     }

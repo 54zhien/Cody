@@ -39,19 +39,27 @@ struct CloudSyncSettingsV2View: View {
                     }
                 )) {
                     Text("Enable iCloud Sync")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
+                .codyGroupedRow()
                 if !statusText.isEmpty {
                     NavigationLink {
                         SyncMigrationDetailView()
                     } label: {
                         LabeledContent("Status") {
-                            Text(statusText).foregroundStyle(.secondary)
+                            CodyStatusPill(
+                                localized: AppLocalized(statusText),
+                                tone: statusTone,
+                                dotColor: v2Enabled && statusText == "Running" ? CodyColors.connectionReady : nil
+                            )
                         }
                     }
+                    .codyGroupedRow()
                 }
             } footer: {
                 Text("Toggle takes effect on next app launch.")
-                    .font(.caption)
+                    .settingsSectionFooter()
             }
 
             if v2Enabled {
@@ -61,18 +69,25 @@ struct CloudSyncSettingsV2View: View {
                         showDeviceNameEditor = true
                     } label: {
                         LabeledContent("Name") {
-                            HStack(spacing: 6) {
-                                Text(deviceName).foregroundStyle(.secondary)
-                                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                            HStack(spacing: CodySpacing.xsPlus) {
+                                Text(deviceName)
+                                    .font(CodyTypography.bodyMedium)
+                                    .foregroundStyle(CodyColors.textSecondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                                    .foregroundStyle(CodyColors.iconDisclosure)
+                                    .accessibilityHidden(true)
                             }
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
                 } header: {
                     Text("Upload (This Device)")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("This device name is broadcast to your other devices in the iCloud Sync zone.")
-                        .font(.caption)
+                        .settingsSectionFooter()
                 }
 
                 Section {
@@ -85,15 +100,14 @@ struct CloudSyncSettingsV2View: View {
                                 Task { await markDeviceDirty() }
                             }
                         )) {
-                            HStack(spacing: 12) {
-                                Image(systemName: iconName(for: cat))
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 28, height: 28)
-                                    .background(iconColor(for: cat), in: RoundedRectangle(cornerRadius: 7))
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(systemImage: iconName(for: cat), tint: iconTint(for: cat))
                                 Text(LocalizedStringKey(cat.displayName))
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             }
                         }
+                        .codyGroupedRow()
                     }
                     if categoriesEnabled[.sessionFiles] ?? true {
                         Picker(selection: $maxFileSizeMB) {
@@ -103,56 +117,65 @@ struct CloudSyncSettingsV2View: View {
                             Text("16 MB").tag(16)
                             Text("64 MB").tag(64)
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "doc.zipper")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 28, height: 28)
-                                    .background(Color.gray, in: RoundedRectangle(cornerRadius: 7))
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(systemImage: "doc.zipper", tint: .neutral)
                                 Text("Max Per-File Size")
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             }
                         }
                         .pickerStyle(.menu)
+                        .codyGroupedRow()
                         .onChange(of: maxFileSizeMB) { newValue in
                             UploadPolicy.maxFileSizeBytes = newValue == 0 ? 256 * 1024 : newValue * 1024 * 1024
                         }
                     }
                 } footer: {
                     Text("Choose which data this device pushes to iCloud. API keys and secrets are synced securely via iCloud Keychain.")
-                        .font(.caption)
+                        .settingsSectionFooter()
                 }
 
                 Section {
                     if remoteDevices.isEmpty {
                         Text("No other devices found yet. Devices appear here once they enable iCloud Sync.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 4)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .padding(.vertical, CodySpacing.xs)
+                            .codyGroupedRow()
                     } else {
                         ForEach(remoteDevices, id: \.id) { d in
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                                 HStack {
-                                    Text(d.deviceName).font(.body)
+                                    Text(d.deviceName)
+                                        .font(CodyTypography.bodyLarge)
+                                        .foregroundStyle(CodyColors.textPrimary)
                                     Spacer()
-                                    Text(relativeDate(d.lastSeen)).font(.caption2).foregroundStyle(.secondary)
+                                    Text(relativeDate(d.lastSeen))
+                                        .font(CodyTypography.labelSmall)
+                                        .monospacedDigit()
+                                        .foregroundStyle(CodyColors.textTertiary)
                                 }
                                 if !d.uploadTypes.isEmpty {
                                     Text(uploadTypesSummary(d.uploadTypes))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                         .lineLimit(2)
                                 }
                             }
+                            .padding(.vertical, CodySpacing.xxs)
+                            .codyGroupedRow()
                         }
                     }
                 } header: {
                     Text("Other Devices")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("Devices that are signed in to the same iCloud account and have sync enabled. Last seen reflects the most recent push from that device.")
-                        .font(.caption)
+                        .settingsSectionFooter()
                 }
             }
         }
+        .codyGroupedFormCanvas()
         .navigationTitle("iCloud Sync")
 #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -254,14 +277,19 @@ struct CloudSyncSettingsV2View: View {
         }
     }
 
-    private func iconColor(for cat: UploadPolicy.Category) -> Color {
+    private var statusTone: CodyStatusPill.Tone {
+        if !v2Enabled || statusText == "Off" { return .neutral }
+        return statusText == "Running" ? .success : .warning
+    }
+
+    private func iconTint(for cat: UploadPolicy.Category) -> CodyCategoryTint {
         switch cat {
         case .chatSessions: return .blue
-        case .sessionFiles: return .indigo
+        case .sessionFiles: return .purple
         case .skills:       return .orange
-        case .providers:    return .teal
+        case .providers:    return .green
         case .envVars:      return .green
-        case .memory:       return .pink
+        case .memory:       return .red
         }
     }
 

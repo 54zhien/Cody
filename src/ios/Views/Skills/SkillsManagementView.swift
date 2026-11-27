@@ -27,6 +27,7 @@ enum SkillSortKey: String, CaseIterable, Identifiable {
 
 struct SkillsManagementView: View {
     @ObservedObject private var store = SkillStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showImportSheet = false
     @State private var showSkillsBrowser = false
     @State private var searchQuery = ""
@@ -61,15 +62,27 @@ struct SkillsManagementView: View {
         List {
             if store.skills.isEmpty {
                 Section {
-                    Text(AppLocalized("No skills installed. Tap + to import a SKILL.md from GitHub or paste one manually."))
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
+                    CodyEmptyStateCard(
+                        systemImage: "doc.text",
+                        title: "No skills installed",
+                        subtitle: "No skills installed. Tap + to import a SKILL.md from GitHub or paste one manually."
+                    ) {
+                        Button {
+                            showImportSheet = true
+                        } label: {
+                            Label(AppLocalized("Import Skill"), systemImage: "square.and.arrow.down")
+                                .font(CodyTypography.labelLarge)
+                        }
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                    }
+                    .codyGroupedRow()
                 }
             } else if filteredSkills.isEmpty {
                 Section {
                     Text(AppLocalized("No skills match \"\(searchQuery)\"."))
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .font(CodyTypography.bodyMedium)
+                        .codyGroupedRow()
                 }
             }
 
@@ -77,27 +90,32 @@ struct SkillsManagementView: View {
                 NavigationLink {
                     SkillDetailView(skillId: skill.id)
                 } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
-                                Text(skill.name).font(.body)
-                                importSourceBadge(skill.importSource)
-                            }
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(
+                            systemImage: importSourceIconName(skill.importSource),
+                            tint: importSourceTint(skill.importSource)
+                        )
+                        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                            Text(skill.name)
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                             if !skill.description.isEmpty {
                                 Text(skill.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.bodySmall)
+                                    .foregroundStyle(CodyColors.textSecondary)
                                     .lineLimit(2)
                             }
                         }
-                        Spacer()
+                        Spacer(minLength: CodySpacing.sm)
                         Toggle("", isOn: Binding(
                             get: { skill.isEnabled },
                             set: { store.setEnabled(skill.id, enabled: $0) }
                         ))
                         .labelsHidden()
                     }
+                    .padding(.vertical, CodySpacing.xxs)
                 }
+                .codyGroupedRow()
                 .modifier(SkillSourceURLContextMenu(url: skill.importSource.copyableURL) {
                     showToast(AppLocalized("Source URL copied"))
                 })
@@ -107,6 +125,7 @@ struct SkillsManagementView: View {
                 for id in ids { store.deleteSkill(id) }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle("Skills")
         .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always),
                     prompt: Text(AppLocalized("Search skills")))
@@ -134,6 +153,7 @@ struct SkillsManagementView: View {
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                 }
+                .accessibilityLabel(Text("Sort By"))
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -161,6 +181,7 @@ struct SkillsManagementView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel(AppLocalized("Import Skill"))
             }
         }
         .sheet(isPresented: $showImportSheet) {
@@ -174,16 +195,16 @@ struct SkillsManagementView: View {
         .overlay(alignment: .top) {
             if let msg = toastMessage {
                 Text(msg)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor, in: Capsule())
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .padding(.top, CodySpacing.sm)
+                    .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3), value: toastMessage)
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: toastMessage)
     }
 
     private func forceSyncAllSkills() {
@@ -202,25 +223,21 @@ struct SkillsManagementView: View {
         }
     }
 
-    @ViewBuilder
-    private func importSourceBadge(_ source: SkillImportSource) -> some View {
+    private func importSourceIconName(_ source: SkillImportSource) -> String {
         switch source {
-        case .url:
-            Image(systemName: "link")
-                .font(.caption2)
-                .foregroundStyle(.blue)
-        case .file:
-            Image(systemName: "doc")
-                .font(.caption2)
-                .foregroundStyle(.orange)
-        case .bundled:
-            Image(systemName: "shippingbox")
-                .font(.caption2)
-                .foregroundStyle(.green)
-        case .session:
-            Image(systemName: "bubble.left.and.text.bubble.right")
-                .font(.caption2)
-                .foregroundStyle(.purple)
+        case .url: return "link"
+        case .file: return "doc"
+        case .bundled: return "shippingbox"
+        case .session: return "bubble.left.and.text.bubble.right"
+        }
+    }
+
+    private func importSourceTint(_ source: SkillImportSource) -> CodyCategoryTint {
+        switch source {
+        case .url: return .blue
+        case .file: return .orange
+        case .bundled: return .green
+        case .session: return .purple
         }
     }
 }
@@ -257,6 +274,7 @@ struct SkillSourceURLContextMenu: ViewModifier {
 
 private struct ImportSkillSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var importMode: ImportMode = .url
     @State private var urlText = ""
     @State private var pastedContent = ""
@@ -281,41 +299,63 @@ private struct ImportSkillSheet: View {
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
-                .padding(.horizontal)
+                .padding(.horizontal, CodySpacing.lg)
 
                 switch importMode {
                 case .url:
-                    Section("GitHub URL") {
-                        TextField("", text: $urlText, prompt: Text("github.com/user/repo/blob/main/SKILL.md").foregroundColor(.secondary))
+                    Section {
+                        TextField("", text: $urlText, prompt: Text("github.com/user/repo/blob/main/SKILL.md").foregroundColor(CodyColors.textTertiary))
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
-                            .tint(.primary)
+                            .tint(CodyColors.textAccent)
+                            .codyGroupedRow()
+                    } header: {
+                        Text("GitHub URL")
+                            .settingsSectionHeading()
                     }
 
                 case .paste:
-                    Section("SKILL.md Content") {
+                    Section {
                         TextEditor(text: $pastedContent)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textPrimary)
+                            .scrollContentBackground(.hidden)
+                            .background(CodyColors.bgGroupedSurface)
                             .frame(minHeight: 200)
+                            .codyGroupedRow()
+                    } header: {
+                        Text("SKILL.md Content")
+                            .settingsSectionHeading()
                     }
 
                 case .file:
-                    Section(footer: Text(AppLocalized("Supports SKILL.md, .skill, and .zip files."))) {
+                    Section {
                         Button(AppLocalized("Choose File…")) {
                             showFilePicker = true
                         }
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textAccent)
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .codyGroupedRow()
+                    } footer: {
+                        Text(AppLocalized("Supports SKILL.md, .skill, and .zip files."))
+                            .settingsSectionFooter()
                     }
                 }
 
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .font(CodyTypography.bodySmall)
+                            .codyGroupedRow()
                     }
                 }
             }
+            .codyGroupedFormCanvas()
             .navigationTitle(AppLocalized("Import Skill"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -331,9 +371,23 @@ private struct ImportSkillSheet: View {
             }
             .overlay {
                 if isImporting {
+                    let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
                     ProgressView("Importing…")
-                        .padding()
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .padding(CodySpacing.lg)
+                        .background {
+                            if reduceTransparency {
+                                shape.fill(CodyColors.bgElevatedPrimary)
+                            } else {
+                                shape.fill(.ultraThinMaterial)
+                            }
+                        }
+                        .clipShape(shape)
+                        .overlay {
+                            shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
                 }
             }
             .sheet(isPresented: $showFilePicker) {
@@ -438,14 +492,10 @@ private struct SkillFileDocumentPicker: UIViewControllerRepresentable {
 /// keep the two surfaces identical; don't retune one without the other.
 private struct SettingsActionIcon: View {
     let systemImage: String
-    let color: Color
+    let tint: CodyCategoryTint
 
     var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 9))
-            .foregroundStyle(.white)
-            .frame(width: 21, height: 21)
-            .background(color, in: Circle())
+        CodySettingsIconBadge(systemImage: systemImage, tint: tint, outline: .circle)
     }
 }
 
@@ -454,6 +504,8 @@ private struct SettingsActionIcon: View {
 private struct SkillDetailView: View {
     let skillId: String
     @ObservedObject private var store = SkillStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var isUpdating = false
     @State private var showFilePicker = false
     @State private var updateError: String?
@@ -528,6 +580,8 @@ private struct SkillDetailView: View {
                 Section {
                     HStack {
                         Text(AppLocalized("Name"))
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Spacer()
                         if isEditingName {
                             TextField("Skill name", text: $editingName, onCommit: {
@@ -538,88 +592,111 @@ private struct SkillDetailView: View {
                             .submitLabel(.done)
                         } else {
                             Text(skill.name)
-                                .foregroundStyle(skill.name == SkillStore.defaultSkillName ? .red : .secondary)
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(skill.name == SkillStore.defaultSkillName ? CodyColors.statusErrorText : CodyColors.textSecondary)
                             Button {
                                 editingName = skill.name == SkillStore.defaultSkillName ? "" : skill.name
                                 isEditingName = true
                             } label: {
                                 Image(systemName: "pencil")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.bodySmall)
+                                    .foregroundStyle(CodyColors.iconSecondary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(Text("Edit"))
                         }
                     }
+                    .codyGroupedRow()
                     LabeledContent("Version", value: skill.version)
+                        .codyGroupedRow()
                     if let modDate = latestFileModDate {
                         LabeledContent("Last Modified") {
                             Text(Self.relativeTime(modDate))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
+                        .codyGroupedRow()
                     }
                     LabeledContent("Source") {
                         switch skill.importSource {
                         case .url(let url):
                             if showSourceURLCopied {
                                 Text(AppLocalized("Copied"))
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
+                                    .font(CodyTypography.bodySmall)
+                                    .foregroundStyle(CodyColors.statusSuccessText)
                             } else {
                                 Text(url)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.bodySmall)
+                                    .foregroundStyle(CodyColors.textSecondary)
                                     .lineLimit(1)
                             }
                         case .file:
-                            Text(AppLocalized("File import")).foregroundStyle(.secondary)
+                            Text(AppLocalized("File import")).foregroundStyle(CodyColors.textSecondary)
                         case .bundled:
-                            Text(AppLocalized("Built-in")).foregroundStyle(.secondary)
+                            Text(AppLocalized("Built-in")).foregroundStyle(CodyColors.textSecondary)
                         case .session:
-                            Text(AppLocalized("Session created")).foregroundStyle(.secondary)
+                            Text(AppLocalized("Session created")).foregroundStyle(CodyColors.textSecondary)
                         }
                     }
+                    .codyGroupedRow()
                     // [T-skill-copy-source-url] Long-press the Source row; the
                     // URL itself is truncated to one line, so copying is the
                     // only way to get all of it.
                     .modifier(SkillSourceURLContextMenu(url: skill.importSource.copyableURL) {
-                        withAnimation { showSourceURLCopied = true }
+                        withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                            showSourceURLCopied = true
+                        }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation { showSourceURLCopied = false }
+                            withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                                showSourceURLCopied = false
+                            }
                         }
                     })
                     LabeledContent(AppLocalized("Usage")) {
                         let freq = store.usageFrequency(for: skill.id)
-                        Text(usageFrequencyLabel(freq))
-                            .foregroundStyle(usageFrequencyColor(freq))
+                        CodyStatusPill(localized: usageFrequencyLabel(freq), tone: usageFrequencyTone(freq))
                     }
+                    .codyGroupedRow()
                 }
 
                 // ── Update actions ────────────────────────────────────
                 Section {
                     if case .url = skill.importSource {
                         Button { updateFromURL() } label: {
-                            HStack {
-                                Label("Update from URL", systemImage: "arrow.triangle.2.circlepath")
+                            HStack(spacing: CodySpacing.md) {
+                                Label {
+                                    Text("Update from URL")
+                                        .font(CodyTypography.bodyLarge)
+                                        .foregroundStyle(CodyColors.textPrimary)
+                                } icon: {
+                                    CodySettingsIconBadge(systemImage: "arrow.triangle.2.circlepath", tint: .green, outline: .circle)
+                                }
                                 Spacer()
                                 if isUpdating {
                                     ProgressView()
+                                        .controlSize(.small)
                                 } else {
                                     Text(updatedAgoText)
-                                        .foregroundStyle(.secondary)
-                                        .font(.caption)
+                                        .foregroundStyle(CodyColors.textSecondary)
+                                        .font(CodyTypography.bodySmall)
                                 }
                             }
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(isUpdating)
+                        .codyGroupedRow()
                     }
 
                     Button { showFilePicker = true } label: {
                         Label {
                             Text("Update from File…")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         } icon: {
-                            SettingsActionIcon(systemImage: "doc.badge.arrow.up", color: .blue)
+                            SettingsActionIcon(systemImage: "doc.badge.arrow.up", tint: .blue)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
 
                     Button {
                         store.rescanFromDisk(skillId)
@@ -629,15 +706,21 @@ private struct SkillDetailView: View {
                         HStack {
                             Label {
                                 Text("Rescan from Disk")
+                                    .font(CodyTypography.bodyLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             } icon: {
-                                SettingsActionIcon(systemImage: "arrow.clockwise", color: .orange)
+                                SettingsActionIcon(systemImage: "arrow.clockwise", tint: .orange)
                             }
                             Spacer()
                             if showRescanDone {
-                                Text(AppLocalized("Done")).foregroundStyle(.green).font(.caption)
+                                Text(AppLocalized("Done"))
+                                    .foregroundStyle(CodyColors.statusSuccessText)
+                                    .font(CodyTypography.bodySmall)
                             }
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
 
                     // Same iCloud-toggle gate the parent SkillsManagementView
                     // plus-menu uses (47fd61ef). Hide the button outright
@@ -653,48 +736,65 @@ private struct SkillDetailView: View {
                             HStack {
                                 Label {
                                     Text(AppLocalized("Force iCloud Sync"))
+                                        .font(CodyTypography.bodyLarge)
+                                        .foregroundStyle(CodyColors.textPrimary)
                                 } icon: {
-                                    SettingsActionIcon(systemImage: "icloud.and.arrow.up", color: .indigo)
+                                    SettingsActionIcon(systemImage: "icloud.and.arrow.up", tint: .purple)
                                 }
                                 Spacer()
                                 if showForceSyncDone {
-                                    Text(AppLocalized("Queued")).foregroundStyle(.green).font(.caption)
+                                    Text(AppLocalized("Queued"))
+                                        .foregroundStyle(CodyColors.statusSuccessText)
+                                        .font(CodyTypography.bodySmall)
                                 }
                             }
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .codyGroupedRow()
                     }
                 }
 
                 // ── Body preview ──────────────────────────────────────
                 if !bodyPreview.isEmpty {
-                    Section("Description") {
+                    Section {
                         Text(bodyPreview)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .lineLimit(nil)
+                            .codyGroupedRow()
+                    } header: {
+                        Text("Description")
+                            .settingsSectionHeading()
                     }
                 }
 
                 // ── File list ─────────────────────────────────────────
-                Section("Files") {
+                Section {
                     ForEach(skillFiles, id: \.self) { relativePath in
                         NavigationLink {
                             SkillFileDetailView(skillId: skillId, relativePath: relativePath)
                         } label: {
                             Label {
                                 Text(relativePath)
-                                    .font(.system(.subheadline, design: .monospaced))
+                                    .font(CodyTypography.code)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             } icon: {
-                                Image(systemName: fileIcon(for: relativePath))
-                                    .foregroundStyle(.secondary)
+                                CodySettingsIconBadge(systemImage: fileIcon(for: relativePath), tint: .neutral)
                             }
                         }
+                        .codyGroupedRow()
                     }
+                } header: {
+                    Text("Files")
+                        .settingsSectionHeading()
                 }
 
                 if let updateError {
                     Section {
-                        Text(updateError).foregroundStyle(.red).font(.caption)
+                        Text(updateError)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .font(CodyTypography.bodySmall)
+                            .codyGroupedRow()
                     }
                 }
 
@@ -706,14 +806,22 @@ private struct SkillDetailView: View {
                         HStack {
                             Spacer()
                             Label(AppLocalized("Delete Skill"), systemImage: "trash")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.statusErrorText)
                             Spacer()
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .codyGroupedRow()
                 }
             } else {
-                Text(AppLocalized("Skill not found.")).foregroundStyle(.secondary)
+                Text(AppLocalized("Skill not found."))
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .codyGroupedRow()
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle(skill?.name ?? "Skill")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -768,12 +876,12 @@ private struct SkillDetailView: View {
         }
     }
 
-    private func usageFrequencyColor(_ freq: SkillStore.UsageFrequency) -> Color {
+    private func usageFrequencyTone(_ freq: SkillStore.UsageFrequency) -> CodyStatusPill.Tone {
         switch freq {
-        case .never:  return .secondary
-        case .low:    return .blue
-        case .regular: return .orange
-        case .high:   return .green
+        case .never:   return .neutral
+        case .low:     return .accent
+        case .regular: return .warning
+        case .high:    return .success
         }
     }
 
@@ -913,6 +1021,7 @@ private struct SkillFileDetailView: View {
     let relativePath: String
 
     @ObservedObject private var store = SkillStore.shared
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var content: String = ""
     @State private var hasChanges = false
     @State private var saveError: String?
@@ -923,17 +1032,29 @@ private struct SkillFileDetailView: View {
 
     var body: some View {
         TextEditor(text: $content)
-            .font(.system(.caption, design: .monospaced))
-            .padding(.horizontal, 8)
+            .font(CodyTypography.code)
+            .foregroundStyle(CodyColors.textPrimary)
+            .scrollContentBackground(.hidden)
+            .background(CodyColors.bgGroupedSurface)
+            .padding(.horizontal, CodySpacing.sm)
+            .background(CodyColors.bgGrouped)
             .onChange(of: content) { _ in hasChanges = true }
             .overlay(alignment: .bottom) {
                 if let saveError {
+                    let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
                     Text(saveError)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                        .padding(8)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        .padding()
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .font(CodyTypography.bodySmall)
+                        .padding(CodySpacing.sm)
+                        .background {
+                            if reduceTransparency {
+                                shape.fill(CodyColors.statusErrorBg)
+                            } else {
+                                shape.fill(.ultraThinMaterial)
+                            }
+                        }
+                        .clipShape(shape)
+                        .padding(CodySpacing.lg)
                 }
             }
             .navigationTitle(fileName)
@@ -967,6 +1088,7 @@ import WebKit
 
 struct CodySkillsBrowserView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var coordinator = SkillBrowserCoordinator()
 
     var body: some View {
@@ -980,10 +1102,10 @@ struct CodySkillsBrowserView: View {
                     VStack {
                         Spacer()
                         hudView
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                         Spacer().frame(height: 60)
                     }
-                    .animation(.spring(response: 0.3), value: coordinator.hudState)
+                    .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: coordinator.hudState)
                 }
             }
             .navigationTitle("Cody Skills")
@@ -1012,39 +1134,42 @@ struct CodySkillsBrowserView: View {
 
     @ViewBuilder
     private var hudView: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             switch coordinator.hudState {
             case .importing:
                 ProgressView()
-                    .tint(.white)
+                    .tint(CodyColors.interactivePrimaryLabel)
                 Text(AppLocalized("Importing…"))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
             case .success(let name):
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(CodyColors.connectionReady)
+                    .accessibilityHidden(true)
                 Text(AppLocalized("\(name) imported"))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
                     .lineLimit(1)
             case .error(let msg):
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .accessibilityHidden(true)
                 Text(msg)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
                     .lineLimit(2)
             case .hint(let msg):
                 Image(systemName: "info.circle.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(CodyColors.textAccent)
+                    .accessibilityHidden(true)
                 Text(msg)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
                     .lineLimit(2)
             case .hidden:
                 EmptyView()
             }
         }
-        .font(.subheadline.weight(.medium))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.black.opacity(0.75), in: Capsule())
+        .font(CodyTypography.titleSmall)
+        .padding(.horizontal, CodySpacing.lg)
+        .padding(.vertical, CodySpacing.smPlus)
+        .background(CodyColors.interactivePrimaryBg, in: Capsule())
     }
 }
 

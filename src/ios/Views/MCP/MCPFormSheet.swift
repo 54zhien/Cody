@@ -11,6 +11,7 @@ import SwiftUI
 
 struct MCPFormSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var store = MCPStore.shared
     @ObservedObject private var envVarStore = EnvVarStore.shared
 
@@ -98,14 +99,20 @@ struct MCPFormSheet: View {
             Form {
                 Section {
                     TextField(AppLocalized("Server name"), text: $name)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .disabled(isEditing)   // id is the key; renaming = delete+add
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .codyGroupedRow()
                     Picker(AppLocalized("Transport"), selection: $transport) {
                         ForEach(Transport.allCases) { t in
                             Text(t.rawValue).tag(t)
                         }
                     }
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .codyGroupedRow()
                 }
 
                 if transport == .stdio {
@@ -114,11 +121,18 @@ struct MCPFormSheet: View {
                     httpSection
                 }
 
-                Section(AppLocalized("Note (shown to the agent)")) {
+                Section {
                     TextField(AppLocalized("Optional description"), text: $note, axis: .vertical)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .lineLimit(1...4)
+                        .codyGroupedRow()
+                } header: {
+                    Text(AppLocalized("Note (shown to the agent)"))
+                        .settingsSectionHeading()
                 }
             }
+            .codyGroupedFormCanvas()
             .navigationTitle(Text(isEditing ? "Edit Server" : "Add Server"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -145,36 +159,40 @@ struct MCPFormSheet: View {
                         Image(systemName: "ellipsis.circle")
                     }
                     .disabled(!canSave)   // need a name + a transport to export anything
+                    .accessibilityLabel(Text("More options"))
                 }
             }
             // Full-width primary Save pinned to the bottom, above the keyboard.
             .safeAreaInset(edge: .bottom) {
-                Button(action: save) {
-                    Text("Save")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: 0) {
+                    Divider()
+                        .overlay(CodyColors.separator)
+                    Button(action: save) {
+                        Text("Save")
+                            .font(CodyTypography.labelLarge)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                    .disabled(!canSave)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.md)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(!canSave)
-                .padding(.horizontal)
-                .padding(.vertical, 12)
-                .background(.bar)
+                .background(CodyColors.bgGrouped)
             }
             // Self-dismissing "Copied" capsule, mirroring FileBrowserView.
             .overlay(alignment: .bottom) {
                 if copiedToast {
                     Label(AppLocalized("Copied"), systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.black.opacity(0.8), in: Capsule())
-                        .padding(.bottom, 32)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                        .padding(.horizontal, CodySpacing.lg)
+                        .padding(.vertical, CodySpacing.smPlus)
+                        .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                        .padding(.bottom, CodySpacing.xxxl)
+                        .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.spring(response: 0.3), value: copiedToast)
+            .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: copiedToast)
             .sheet(item: $shareURL) { url in
                 MCPConfigShareSheet(url: url)
             }
@@ -184,9 +202,11 @@ struct MCPFormSheet: View {
 
     private var httpSection: some View {
         Group {
-            Section(AppLocalized("Server URL")) {
+            Section {
                 HStack {
                     TextField("https://…", text: $url)
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
@@ -194,6 +214,10 @@ struct MCPFormSheet: View {
                     // token segment); header/env values join with a space.
                     envReferenceMenu(into: $url, separator: "")
                 }
+                .codyGroupedRow()
+            } header: {
+                Text(AppLocalized("Server URL"))
+                    .settingsSectionHeading()
             }
             Section {
                 keyValueEditor($headers, keyPlaceholder: AppLocalized("Header"),
@@ -201,8 +225,10 @@ struct MCPFormSheet: View {
                                showEnvPicker: true)
             } header: {
                 Text(AppLocalized("Custom Headers"))
+                    .settingsSectionHeading()
             } footer: {
                 disabledReferenceWarning(in: [url] + headers.map(\.value))
+                    .settingsSectionFooter()
             }
             oauthSection
         }
@@ -220,15 +246,22 @@ struct MCPFormSheet: View {
                     Text(m.rawValue).tag(m)
                 }
             }
+            .font(CodyTypography.bodyLarge)
+            .foregroundStyle(CodyColors.textPrimary)
+            .codyGroupedRow()
             // [T-mcp-oauth-dcr] Browser path: nothing to fill in. Everything
             // below the button is discovered from the server.
             if authMode == .oauthBrowser {
                 browserAuthRows
+                    .codyGroupedRow()
             }
             if authMode == .oauthStatic {
                 TextField(AppLocalized("Client ID"), text: $oauthClientId)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .codyGroupedRow()
                 SecureField(AppLocalized("Client Secret (optional)"), text: $oauthClientSecret)
                     // [T-provider-label-keyboard] Same AutoFill opt-out as the
                     // provider form. This is the textbook trigger shape: a
@@ -239,36 +272,54 @@ struct MCPFormSheet: View {
                     .textContentType(.oneTimeCode)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .codyGroupedRow()
                 TextField(AppLocalized("Authorization Endpoint (https://…/authorize)"), text: $oauthAuthEndpoint)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
+                    .codyGroupedRow()
                 TextField(AppLocalized("Token Endpoint (https://…/token)"), text: $oauthTokenEndpoint)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
+                    .codyGroupedRow()
                 TextField(AppLocalized("Scopes (space-separated)"), text: $oauthScopes)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .codyGroupedRow()
                 // [T-mcp-oauth-loopback] Default is the standardized loopback
                 // address — shown as the placeholder; leave empty to use it.
                 // Editable for providers that need a different port/path or a
                 // custom-scheme redirect (auto-falls back to
                 // ASWebAuthenticationSession for non-localhost schemes).
                 TextField(MCPOAuthController.defaultRedirectURI, text: $oauthRedirectURI)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
+                    .codyGroupedRow()
 
-                HStack {
+                HStack(spacing: CodySpacing.sm) {
                     if isAuthorized {
-                        Label(AppLocalized("Authorized"), systemImage: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
-                            .font(.subheadline)
+                        CodyStatusPill(
+                            localized: AppLocalized("Authorized"),
+                            tone: .success,
+                            dotColor: CodyColors.connectionReady
+                        )
                     } else {
-                        Label(AppLocalized("Not authorized"), systemImage: "xmark.seal")
-                            .foregroundStyle(.secondary)
-                            .font(.subheadline)
+                        CodyStatusPill(
+                            localized: AppLocalized("Not authorized"),
+                            tone: .neutral
+                        )
                     }
                     Spacer()
                     if isAuthorized {
@@ -276,32 +327,46 @@ struct MCPFormSheet: View {
                             MCPOAuthController.signOut(server: name.trimmingCharacters(in: .whitespaces))
                             isAuthorized = false
                         }
-                        .font(.subheadline)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .buttonStyle(.borderless)
                     }
                     Button {
                         Task { await runAuthorize() }
                     } label: {
-                        if isAuthorizing {
-                            ProgressView()
-                        } else {
-                            Text(isAuthorized ? AppLocalized("Re-authorize") : AppLocalized("Authorize…"))
+                        Group {
+                            if isAuthorizing {
+                                ProgressView()
+                                    .tint(CodyColors.interactivePrimaryLabel)
+                            } else {
+                                Text(isAuthorized ? AppLocalized("Re-authorize") : AppLocalized("Authorize…"))
+                                    .font(CodyTypography.labelMedium)
+                            }
                         }
+                        .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                        .padding(.horizontal, CodySpacing.md)
+                        .padding(.vertical, CodySpacing.xsPlus)
+                        .background(CodyColors.interactivePrimaryBg, in: Capsule())
                     }
                     .disabled(isAuthorizing || !canSave || oauthClientId.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .opacity(isAuthorizing || !canSave || oauthClientId.trimmingCharacters(in: .whitespaces).isEmpty ? CodyMotion.disabledOpacity : 1)
+                    .buttonStyle(.borderless)
                 }
+                .codyGroupedRow()
                 if let oauthError {
                     Text(oauthError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .codyGroupedRow()
                 }
             }
         } header: {
             Text("Authentication")
+                .settingsSectionHeading()
         } footer: {
             if authMode == .oauthStatic {
                 Text("Standard OAuth Authorization Code + PKCE with your own app credentials. Register \(MCPOAuthController.defaultRedirectURI) as the Redirect URI in your OAuth client (Google: create a \"Web application\" or \"Desktop\" client — localhost redirects are accepted). Client Secret and tokens are stored in the device Keychain only — they never sync to iCloud, so other devices authorize separately.")
+                    .settingsSectionFooter()
             }
         }
     }
@@ -314,59 +379,68 @@ struct MCPFormSheet: View {
     @ViewBuilder
     private var browserAuthRows: some View {
         if let outcome = pendingDiscovery {
-            VStack(alignment: .leading, spacing: 8) {
-                Label(AppLocalized("Ready to sign in"), systemImage: "checkmark.shield")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                Label {
+                    Text(AppLocalized("Ready to sign in"))
+                } icon: {
+                    Image(systemName: "checkmark.shield")
+                        .accessibilityHidden(true)
+                }
+                .font(CodyTypography.labelLarge)
+                .foregroundStyle(CodyColors.statusSuccessText)
                 // Naming the issuer is the point of this card: the user should
                 // know WHICH service is about to ask for their password before
                 // the system sheet takes over the screen.
                 Text(outcome.issuer)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(2)
                     .truncationMode(.middle)
                 if outcome.reusedCachedClient {
                     Text(AppLocalized("Reusing this app's existing registration."))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
                 Button {
                     Task { await continueBrowserAuthorize(outcome) }
                 } label: {
                     if isAuthorizing {
                         ProgressView()
+                            .tint(CodyColors.interactivePrimaryLabel)
                     } else {
                         Text(AppLocalized("Continue"))
+                            .font(CodyTypography.labelLarge)
                     }
                 }
                 .disabled(isAuthorizing)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
             }
+            .padding(.vertical, CodySpacing.xs)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: CodySpacing.sm) {
                 Text(AppLocalized("Cody will find this service's sign-in page automatically. No Client ID needed."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                 Button {
                     Task { await runDiscovery() }
                 } label: {
                     if isAuthorizing {
                         ProgressView()
+                            .tint(CodyColors.interactivePrimaryLabel)
                     } else {
                         Text(AppLocalized("Connect…"))
+                            .font(CodyTypography.labelLarge)
                     }
                 }
                 .disabled(isAuthorizing || url.trimmingCharacters(in: .whitespaces).isEmpty)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
             }
+            .padding(.vertical, CodySpacing.xs)
         }
         if let discoveryNote {
             Text(discoveryNote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
         }
     }
 
@@ -448,13 +522,22 @@ struct MCPFormSheet: View {
 
     private var stdioSection: some View {
         Group {
-            Section(AppLocalized("Command")) {
+            Section {
                 TextField("npx", text: $command)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .codyGroupedRow()
                 TextField(AppLocalized("Arguments (space-separated)"), text: $argsText)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .codyGroupedRow()
+            } header: {
+                Text(AppLocalized("Command"))
+                    .settingsSectionHeading()
             }
             Section {
                 keyValueEditor($env, keyPlaceholder: AppLocalized("Name"),
@@ -462,19 +545,27 @@ struct MCPFormSheet: View {
                                showEnvPicker: true)
             } header: {
                 Text("Environment Variables")
+                    .settingsSectionHeading()
             } footer: {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
                     Text("Use the braces button to insert a reference to an App environment variable as $$NAME. Its value is filled in at runtime.")
                     disabledReferenceWarning(in: env.map(\.value))
                 }
+                .settingsSectionFooter()
             }
             Section {
                 TextField(AppLocalized("Default 60"), text: $startupTimeoutText)
+                    .font(CodyTypography.bodyLarge)
+                    .monospacedDigit()
+                    .foregroundStyle(CodyColors.textPrimary)
                     .keyboardType(.numberPad)
+                    .codyGroupedRow()
             } header: {
                 Text("Startup timeout (seconds)")
+                    .settingsSectionHeading()
             } footer: {
                 Text("How long to wait for this server's first initialize. Raise it for slow-starting servers (e.g. uvx). Leave blank for the default (60s). Cody setting, not part of the MCP protocol.")
+                    .settingsSectionFooter()
             }
         }
     }
@@ -493,7 +584,8 @@ struct MCPFormSheet: View {
         if !names.isEmpty {
             Label(AppLocalized("\(names.map { "$$" + $0 }.joined(separator: ", ")) refers to a disabled environment variable and resolves to an empty value."),
                   systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusWarningText)
         }
     }
 
@@ -537,12 +629,17 @@ struct MCPFormSheet: View {
             // a positional binding. See `rowBinding` above.
             ForEach(pairs.wrappedValue.map(\.id), id: \.self) { id in
                 let pair = rowBinding(pairs, id: id)
-                HStack {
+                HStack(spacing: CodySpacing.sm) {
                     TextField(keyPlaceholder, text: pair.key)
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     Divider()
+                        .overlay(CodyColors.separator)
                     TextField(valuePlaceholder, text: pair.value)
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     if showEnvPicker {
@@ -554,12 +651,13 @@ struct MCPFormSheet: View {
                         requestDelete(pair.wrappedValue, in: pairs)
                     } label: {
                         Image(systemName: "minus.circle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(CodyColors.statusErrorText)
                     }
-                    .buttonStyle(.plain)   // keep it tap-isolated inside the row
-                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                    .buttonStyle(.borderless)   // keep it tap-isolated inside the row
+                    .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard, alignment: .trailing)
                     .accessibilityLabel(Text("Delete row"))
                 }
+                .codyGroupedRow()
             }
             .onDelete { offsets in
                 pairs.wrappedValue.remove(atOffsets: offsets)
@@ -568,7 +666,11 @@ struct MCPFormSheet: View {
                 pairs.wrappedValue.append(KeyValue())
             } label: {
                 Label(AppLocalized("Add"), systemImage: "plus.circle")
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textAccent)
             }
+            .buttonStyle(CodyPressableButtonStyle())
+            .codyGroupedRow()
         }
         .confirmationDialog(
             Text("Delete this environment variable?"),
@@ -647,7 +749,7 @@ struct MCPFormSheet: View {
             }
         } label: {
             Image(systemName: "curlybraces")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CodyColors.iconSecondary)
         }
         .accessibilityLabel(Text("Insert App environment variable reference"))
     }

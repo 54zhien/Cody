@@ -20,13 +20,16 @@ struct SessionMemoryView: View {
                         NavigationLink {
                             MemoryContentView(title: item.name, content: item.content, fileURL: item.fileURL)
                         } label: {
-                            row(name: item.name, detail: item.detail, icon: item.icon)
+                            row(name: item.name, detail: item.detail, icon: item.icon, tint: .purple)
                         }
+                        .codyGroupedRow()
                     }
                 } header: {
                     Text("Auto-injected")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("Loaded into system prompt at the start of each agent turn.")
+                        .settingsSectionFooter()
                 }
 
                 // Section 2: Tool-recalled memories
@@ -40,16 +43,25 @@ struct SessionMemoryView: View {
                                     MemoryGetDetailView(item: item)
                                 }
                             } label: {
-                                row(name: item.title, detail: item.detail, icon: item.isWrite ? "square.and.pencil" : "magnifyingglass")
+                                row(
+                                    name: item.title,
+                                    detail: item.detail,
+                                    icon: item.isWrite ? "square.and.pencil" : "magnifyingglass",
+                                    tint: item.isWrite ? .orange : .blue
+                                )
                             }
+                            .codyGroupedRow()
                         }
                     } header: {
                         Text("Tool Activity")
+                            .settingsSectionHeading()
                     } footer: {
                         Text("Memory reads and writes performed by the agent during this session.")
+                            .settingsSectionFooter()
                     }
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle("Memories in Session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -62,22 +74,22 @@ struct SessionMemoryView: View {
 
     // MARK: - Row
 
-    private func row(name: String, detail: String, icon: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(.pink)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
+    private func row(name: String, detail: String, icon: String, tint: CodyCategoryTint = .red) -> some View {
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: icon, tint: tint)
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(name)
-                    .font(.body)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 if !detail.isEmpty {
                     Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .lineLimit(2)
                 }
             }
         }
+        .padding(.vertical, CodySpacing.xxs)
     }
 
     // MARK: - Auto-injected
@@ -251,6 +263,7 @@ private struct MemoryContentView: View {
     let content: String
     let fileURL: URL?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var editedContent: String = ""
     @State private var isEditing = false
     @State private var saved = false
@@ -259,18 +272,23 @@ private struct MemoryContentView: View {
         Group {
             if isEditing {
                 TextEditor(text: $editedContent)
-                    .font(.system(.caption, design: .monospaced))
-                    .padding(.horizontal, 8)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .scrollContentBackground(.hidden)
+                    .background(CodyColors.bgGroupedSurface)
+                    .padding(.horizontal, CodySpacing.sm)
             } else {
                 ScrollView {
                     Text(content)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
+                        .padding(CodySpacing.lg)
                         .textSelection(.enabled)
                 }
             }
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -287,6 +305,7 @@ private struct MemoryContentView: View {
                         } label: {
                             Image(systemName: "pencil")
                         }
+                        .accessibilityLabel(Text("Edit"))
                     }
                 }
             }
@@ -294,12 +313,13 @@ private struct MemoryContentView: View {
         .overlay(alignment: .bottom) {
             if saved {
                 Text("Saved")
-                    .font(.caption)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .padding(.bottom, CodySpacing.lg)
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
     }
@@ -319,9 +339,9 @@ private struct MemoryContentView: View {
                 Task { await ChatStore.shared.markDirty(recordType: "SoulV2", recordId: "soul") }
             }
             isEditing = false
-            withAnimation { saved = true }
+            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { saved = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation { saved = false }
+                withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { saved = false }
             }
         } catch {
             // stay in editing mode on failure
@@ -334,6 +354,7 @@ private struct MemoryContentView: View {
 private struct MemoryWriteDetailView: View {
     let item: SessionMemoryView.ToolMemoryItem
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isEditing = false
     @State private var editedContent: String = ""
     @State private var showRevokeAlert = false
@@ -345,32 +366,41 @@ private struct MemoryWriteDetailView: View {
         Group {
             if isEditing {
                 TextEditor(text: $editedContent)
-                    .font(.system(.caption, design: .monospaced))
-                    .padding(.horizontal, 8)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .scrollContentBackground(.hidden)
+                    .background(CodyColors.bgGroupedSurface)
+                    .padding(.horizontal, CodySpacing.sm)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: CodySpacing.md) {
                         if let written = item.writtenContent {
                             SectionHeader(title: "Written Content")
                             Text(written)
-                                .font(.system(.caption, design: .monospaced))
+                                .font(CodyTypography.code)
+                                .foregroundStyle(CodyColors.textPrimary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
+                                .padding(CodySpacing.md)
+                                .modifier(CodySurfaceModifier(radius: CodyRadius.surface))
+                                .padding(.horizontal, CodySpacing.lg)
                                 .textSelection(.enabled)
                         }
 
                         SectionHeader(title: "Tool Result")
                         Text(item.content)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
+                            .padding(CodySpacing.md)
+                            .modifier(CodySurfaceModifier(radius: CodyRadius.surface))
+                            .padding(.horizontal, CodySpacing.lg)
                             .textSelection(.enabled)
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, CodySpacing.md)
                 }
             }
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -385,6 +415,7 @@ private struct MemoryWriteDetailView: View {
                         } label: {
                             Image(systemName: "pencil")
                         }
+                        .accessibilityLabel(Text("Edit"))
                     }
                     Button {
                         showRevokeAlert = true
@@ -392,18 +423,20 @@ private struct MemoryWriteDetailView: View {
                         Image(systemName: "arrow.uturn.backward")
                     }
                     .disabled(item.writtenContent == nil)
+                    .accessibilityLabel(Text("Revoke"))
                 }
             }
         }
         .overlay(alignment: .bottom) {
             if saved {
                 Text("Saved")
-                    .font(.caption)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .padding(.bottom, CodySpacing.lg)
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
         .alert("Revoke Memory", isPresented: $showRevokeAlert) {
@@ -429,9 +462,9 @@ private struct MemoryWriteDetailView: View {
         let result = replaceEntryInLog(oldContent: written, newContent: editedContent)
         if result != nil {
             isEditing = false
-            withAnimation { saved = true }
+            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { saved = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation { saved = false }
+                withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { saved = false }
             }
         }
     }
@@ -505,26 +538,35 @@ private struct MemoryGetDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: CodySpacing.md) {
                 if let kw = item.keywords, !kw.isEmpty {
-                    HStack(spacing: 6) {
+                    HStack(spacing: CodySpacing.xsPlus) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.iconSecondary)
+                            .accessibilityHidden(true)
                         Text(kw)
-                            .font(.subheadline.bold())
+                            .font(CodyTypography.labelLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    .padding(.horizontal, CodySpacing.md)
+                    .padding(.vertical, CodySpacing.sm)
+                    .modifier(CodySurfaceModifier(radius: CodyRadius.control))
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.top, CodySpacing.sm)
                 }
 
                 Text(item.content)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
+                    .padding(CodySpacing.md)
+                    .modifier(CodySurfaceModifier(radius: CodyRadius.surface))
+                    .padding(.horizontal, CodySpacing.lg)
                     .textSelection(.enabled)
             }
-            .padding(.bottom)
+            .padding(.bottom, CodySpacing.lg)
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -536,9 +578,9 @@ private struct SectionHeader: View {
     let title: String
     var body: some View {
         Text(title)
-            .font(.caption.bold())
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .padding(.horizontal)
+            .font(CodyTypography.sectionHeader)
+            .foregroundStyle(CodyColors.textSecondary)
+            .padding(.horizontal, CodySpacing.lg)
+            .accessibilityAddTraits(.isHeader)
     }
 }

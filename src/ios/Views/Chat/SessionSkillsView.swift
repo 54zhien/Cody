@@ -96,12 +96,14 @@ struct SessionSkillsView: View {
                         SessionOverrideEmptyCard(systemImage: "doc.text",
                                                  title: AppLocalized("No skills installed"),
                                                  subtitle: AppLocalized("Import skills from Settings → Skills."))
+                            .codyGroupedRow()
                     }
                 } else if filteredSkills.isEmpty {
                     Section {
                         Text(AppLocalized("No skills match \"\(searchQuery)\"."))
-                            .foregroundStyle(.secondary)
-                            .font(.subheadline)
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .font(CodyTypography.bodyMedium)
+                            .codyGroupedRow()
                     }
                 } else {
                     Section {
@@ -109,13 +111,19 @@ struct SessionSkillsView: View {
                             NavigationLink {
                                 SessionSkillDetailView(skill: skill)
                             } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(skill.name).font(.body)
+                                HStack(spacing: CodySpacing.md) {
+                                    CodySettingsIconBadge(
+                                        systemImage: "doc.text",
+                                        tint: isEnabled(skill) ? .orange : .neutral
+                                    )
+                                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                                        Text(skill.name)
+                                            .font(CodyTypography.bodyLarge)
+                                            .foregroundStyle(CodyColors.textPrimary)
                                         if !skill.description.isEmpty {
                                             Text(skill.description)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(CodyTypography.bodySmall)
+                                                .foregroundStyle(CodyColors.textSecondary)
                                                 .lineLimit(2)
                                         }
                                     }
@@ -126,7 +134,9 @@ struct SessionSkillsView: View {
                                     ))
                                     .labelsHidden()
                                 }
+                                .padding(.vertical, CodySpacing.xxs)
                             }
+                            .codyGroupedRow()
                             // [T-skill-copy-source-url] Same long-press as the
                             // Settings list; the success haptic is the feedback.
                             .modifier(SkillSourceURLContextMenu(url: skill.importSource.copyableURL) {})
@@ -140,9 +150,11 @@ struct SessionSkillsView: View {
                         SessionOverrideListFooter(
                             note: Text("Toggles override the skill's default for this session only."),
                             searchQuery: searchQuery)
+                            .settingsSectionFooter()
                     }
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle("Skills in Session")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always),
@@ -167,31 +179,41 @@ private struct SessionSkillDetailView: View {
 
     var body: some View {
         List {
-            Section("SKILL.md") {
+            Section {
                 let content = store.readSkillContent(skill.id) ?? "(empty)"
                 Text(content)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .textSelection(.enabled)
+                    .codyGroupedRow()
+            } header: {
+                Text("SKILL.md")
+                    .settingsSectionHeading()
             }
 
             if !additionalFiles.isEmpty {
-                Section("Other Files") {
+                Section {
                     ForEach(additionalFiles, id: \.self) { relativePath in
                         NavigationLink {
                             SkillFilePreviewView(skillId: skill.id, relativePath: relativePath)
                         } label: {
                             Label {
                                 Text(relativePath)
-                                    .font(.system(.subheadline, design: .monospaced))
+                                    .font(CodyTypography.code)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             } icon: {
-                                Image(systemName: iconName(for: relativePath))
-                                    .foregroundStyle(.secondary)
+                                CodySettingsIconBadge(systemImage: iconName(for: relativePath), tint: .neutral)
                             }
                         }
+                        .codyGroupedRow()
                     }
+                } header: {
+                    Text("Other Files")
+                        .settingsSectionHeading()
                 }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle(skill.name)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -234,22 +256,25 @@ private struct SkillFilePreviewView: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFit()
-                            .padding()
+                            .padding(CodySpacing.lg)
                     }
                 } else {
                     Text("Could not load image.")
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             } else {
                 ScrollView {
                     Text(content)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
+                        .padding(CodySpacing.lg)
                 }
             }
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle(fileName)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

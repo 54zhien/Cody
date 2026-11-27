@@ -16,6 +16,7 @@ struct MCPIntegrationsView: View {
     var initialEditServerId: String? = nil
 
     @ObservedObject private var store = MCPStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var editingServer: MCPServerConfig?
     @State private var showAddForm = false
@@ -28,39 +29,58 @@ struct MCPIntegrationsView: View {
     var body: some View {
         List {
             if store.servers.isEmpty {
-                emptyState
-            } else {
-                ForEach(store.servers) { server in
-                    Button {
-                        editingServer = server
-                    } label: {
-                        row(for: server)
-                    }
-                    .buttonStyle(.plain)
-                    // [T-mcp-tools-refresh] Per-server tools entry: opens the
-                    // sheet, which force-reconnects + re-pulls tools/list.
-                    .contextMenu {
+                Section {
+                    CodyEmptyStateCard(
+                        systemImage: "puzzlepiece.extension",
+                        title: "No MCP Servers",
+                        subtitle: "Add an MCP server to give the agent extra tools. Tap + to add one manually or import a JSON config."
+                    ) {
                         Button {
-                            toolsServer = server
+                            showAddForm = true
                         } label: {
-                            Label(AppLocalized("Refresh Tools"), systemImage: "arrow.clockwise")
+                            Label(AppLocalized("Add Server"), systemImage: "plus")
+                                .font(CodyTypography.labelLarge)
                         }
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                     }
-                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                        Button {
-                            toolsServer = server
-                        } label: {
-                            Label(AppLocalized("Tools"), systemImage: "arrow.clockwise")
-                        }
-                        .tint(.blue)
-                    }
+                    .codyGroupedRow()
                 }
-                .onDelete { offsets in
-                    let ids = offsets.map { store.servers[$0].id }
-                    for id in ids { store.delete(id: id) }
+            } else {
+                Section {
+                    ForEach(store.servers) { server in
+                        Button {
+                            editingServer = server
+                        } label: {
+                            row(for: server)
+                        }
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .codyGroupedRow()
+                        // [T-mcp-tools-refresh] Per-server tools entry: opens the
+                        // sheet, which force-reconnects + re-pulls tools/list.
+                        .contextMenu {
+                            Button {
+                                toolsServer = server
+                            } label: {
+                                Label(AppLocalized("Refresh Tools"), systemImage: "arrow.clockwise")
+                            }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                toolsServer = server
+                            } label: {
+                                Label(AppLocalized("Tools"), systemImage: "arrow.clockwise")
+                            }
+                            .tint(CodyColors.textAccent)
+                        }
+                    }
+                    .onDelete { offsets in
+                        let ids = offsets.map { store.servers[$0].id }
+                        for id in ids { store.delete(id: id) }
+                    }
                 }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle(Text("MCP Integrations"))
         .navigationBarTitleDisplayMode(.inline)
         // [T-ios-mcp-list-reload-on-appear] Re-read servers.json on appear so a
@@ -98,6 +118,7 @@ struct MCPIntegrationsView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel(AppLocalized("Add Server"))
             }
         }
         .sheet(isPresented: $showAddForm) {
@@ -114,49 +135,42 @@ struct MCPIntegrationsView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "puzzlepiece.extension")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
-            Text("No MCP Servers")
-                .font(.headline)
-            Text("Add an MCP server to give the agent extra tools. Tap + to add one manually or import a JSON config.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .listRowBackground(Color.clear)
-    }
-
     private func row(for server: MCPServerConfig) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(server.enabled ? Color.green : Color.gray)
-                .frame(width: 9, height: 9)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(server.id)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                HStack(spacing: 4) {
-                    Text(server.isHTTP ? "HTTP" : (server.isSTDIO ? "STDIO" : "—"))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(server.transportSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(
+                systemImage: server.isSTDIO ? "terminal" : "globe",
+                tint: server.enabled ? .blue : .neutral
+            )
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xsPlus) {
+                    Circle()
+                        .fill(server.enabled ? CodyColors.connectionReady : CodyColors.iconTertiary)
+                        .frame(width: 7, height: 7)
+                        .accessibilityHidden(true)
+                    Text(server.id)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
+                    CodyStatusPill(
+                        localized: server.isHTTP ? "HTTP" : (server.isSTDIO ? "STDIO" : "—"),
+                        tone: server.enabled ? .accent : .neutral
+                    )
                 }
+                Text(server.transportSummary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            Spacer()
+            Spacer(minLength: CodySpacing.sm)
             Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                .foregroundStyle(CodyColors.iconDisclosure)
+                .accessibilityHidden(true)
         }
+        .padding(.vertical, CodySpacing.xxs)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(server.enabled ? Text(AppLocalized("Enabled")) : Text(AppLocalized("Disabled")))
     }
 }
 
@@ -177,41 +191,54 @@ struct MCPToolsSheet: View {
         NavigationStack {
             List {
                 if isLoading {
-                    HStack(spacing: 10) {
+                    HStack(spacing: CodySpacing.smPlus) {
                         ProgressView()
                         Text("Reconnecting and fetching tools…")
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
+                    .codyGroupedRow()
                 } else if let errorText {
                     Section {
-                        Label {
-                            Text(errorText)
-                        } icon: {
+                        HStack(alignment: .top, spacing: CodySpacing.sm) {
                             Image(systemName: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(CodyColors.statusWarningText)
+                                .accessibilityHidden(true)
+                            Text(errorText)
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                         }
-                        .font(.subheadline)
+                        .codyGroupedRow()
                     }
                 } else if tools.isEmpty {
                     Text("The server reported no tools.")
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .codyGroupedRow()
                 } else {
-                    Section(footer: Text("Fetched live from the server just now.")) {
+                    Section {
                         ForEach(tools) { tool in
-                            VStack(alignment: .leading, spacing: 3) {
+                            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                 Text(tool.name)
-                                    .font(.body.monospaced())
+                                    .font(CodyTypography.code)
+                                    .foregroundStyle(CodyColors.textPrimary)
                                 if !tool.description.isEmpty {
                                     Text(tool.description)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                         .lineLimit(3)
                                 }
                             }
+                            .padding(.vertical, CodySpacing.xxs)
+                            .codyGroupedRow()
                         }
+                    } footer: {
+                        Text("Fetched live from the server just now.")
+                            .settingsSectionFooter()
                     }
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle(Text(verbatim: serverName))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -31,6 +31,7 @@ enum FileSortKey: String, CaseIterable, Identifiable {
 
 struct FileBrowserView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var viewModel: FileBrowserViewModel
     @AppStorage("fileBrowser.sortKey") private var sortKeyRaw: String = FileSortKey.name.rawValue
     @AppStorage("fileBrowser.sortAscending") private var sortAscending: Bool = true
@@ -72,41 +73,68 @@ struct FileBrowserView: View {
         VStack(spacing: 0) {
             // Path breadcrumb
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     ForEach(viewModel.pathComponents.indices, id: \.self) { index in
+                        let isCurrent = index == viewModel.pathComponents.count - 1
                         Button(action: {
                             viewModel.navigateToPathComponent(at: index)
                         }) {
                             Text(viewModel.pathComponents[index])
-                                .font(.caption)
-                                .foregroundColor(.blue)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(isCurrent ? CodyColors.textPrimary : CodyColors.textAccent)
+                                .padding(.horizontal, CodySpacing.sm)
+                                .padding(.vertical, CodySpacing.xs)
+                                .background(
+                                    isCurrent ? CodyColors.bgGroupedSurface : CodyColors.bgSecondary,
+                                    in: RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                )
                         }
-                        if index < viewModel.pathComponents.count - 1 {
+                        .buttonStyle(CodyPressableButtonStyle())
+                        if !isCurrent {
                             Image(systemName: "chevron.right")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.horizontal, CodySpacing.lg)
+                .padding(.vertical, CodySpacing.sm)
             }
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(CodyColors.bgGrouped)
+            .overlay(alignment: .bottom) {
+                Divider().overlay(CodyColors.separator)
+            }
 
             // File list
             if viewModel.isLoading {
                 Spacer()
                 ProgressView("Loading...")
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                 Spacer()
             } else if viewModel.items.isEmpty {
                 Spacer()
-                VStack(spacing: 12) {
+                VStack(spacing: CodySpacing.md) {
                     Image(systemName: "folder")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(CodyColors.iconTertiary)
+                        .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                        .background(
+                            CodyColors.bgListIcon,
+                            in: RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                                .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                        .accessibilityHidden(true)
                     Text("Empty folder")
-                        .foregroundColor(.secondary)
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
+                .padding(.horizontal, CodySpacing.lg)
                 Spacer()
             } else {
                 ScrollViewReader { proxy in
@@ -135,12 +163,15 @@ struct FileBrowserView: View {
                             // highlight (downloads panel "Show in Files").
                             .listRowBackground(
                                 highlightActive && item.name == highlightFileName
-                                    ? Color.accentColor.opacity(0.18)
-                                    : nil
+                                    ? CodyColors.bgProgressTrack
+                                    : CodyColors.bgCanvas
                             )
+                            .listRowSeparatorTint(CodyColors.separator)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(CodyColors.bgCanvas)
                     .onAppear { locateHighlightTarget(proxy: proxy) }
                     .onChange(of: viewModel.items.map(\.name)) { _ in
                         locateHighlightTarget(proxy: proxy)
@@ -148,22 +179,23 @@ struct FileBrowserView: View {
                 }
             }
         }
+        .background(CodyColors.bgCanvas)
         .navigationTitle("Files")
         .navigationBarTitleDisplayMode(.inline)
         // [T-ios-copy-abs-path-copied-toast] Self-dismissing "Copied" capsule.
         .overlay(alignment: .bottom) {
             if copiedToast {
                 Label(AppLocalized("Copied"), systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.black.opacity(0.8), in: Capsule())
-                    .padding(.bottom, 32)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .padding(.bottom, CodySpacing.xxxl)
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3), value: copiedToast)
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: copiedToast)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button("Close") {
@@ -279,12 +311,12 @@ struct FileBrowserView: View {
               let item = viewModel.items.first(where: { $0.name == target }) else { return }
         didLocateHighlight = true
         DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(CodyMotion.resolved(.easeInOut(duration: 0.3), reduceMotion: reduceMotion)) {
                 proxy.scrollTo(item.id, anchor: .center)
                 highlightActive = true
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                withAnimation(.easeOut(duration: 0.6)) { highlightActive = false }
+                withAnimation(CodyMotion.resolved(.easeOut(duration: 0.6), reduceMotion: reduceMotion)) { highlightActive = false }
             }
         }
     }
@@ -348,6 +380,7 @@ struct FileBrowserView: View {
         } label: {
             Image(systemName: "ellipsis.circle")
         }
+        .accessibilityLabel(Text("More options"))
     }
 }
 
@@ -478,10 +511,11 @@ private struct MarkdownFilePreview: View {
                                 .padding(.vertical, 12)
                         } else {
                             Text(text)
-                                .font(.system(.footnote, design: .monospaced))
+                                .font(CodyTypography.code)
+                                .foregroundStyle(CodyColors.textPrimary)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(16)
+                                .padding(CodySpacing.lg)
                         }
                     }
                 }
@@ -583,12 +617,13 @@ private struct TextFilePreview: View {
             case .loaded(let text):
                 ScrollView(.vertical) {
                     Text(text.isEmpty ? " " : text)
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .textSelection(.enabled)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
+                        .padding(CodySpacing.lg)
                 }
             }
         }
@@ -620,19 +655,22 @@ private struct FileLoadErrorView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CodySpacing.md) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CodyColors.statusWarningText)
+                .accessibilityHidden(true)
             Text("Could not read file")
-                .font(.headline)
+                .font(CodyTypography.titleMedium)
+                .foregroundStyle(CodyColors.textPrimary)
             Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, CodySpacing.xxl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(CodyColors.bgCanvas)
     }
 }
 
@@ -700,30 +738,50 @@ private struct FileInfoView: View {
     var body: some View {
         List {
             Section {
-                VStack(spacing: 12) {
+                VStack(spacing: CodySpacing.md) {
                     Image(systemName: item.iconName)
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundStyle(CodyColors.iconTertiary)
+                        .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+                        .background(
+                            CodyColors.bgListIcon,
+                            in: RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                                .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                        .accessibilityHidden(true)
                     Text("Preview not available")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
+                .padding(.vertical, CodySpacing.xxl)
+                .codyGroupedRow()
             }
 
-            Section("File Info") {
+            Section {
                 ForEach(fileAttributes, id: \.0) { key, value in
-                    HStack(alignment: .top) {
+                    HStack(alignment: .top, spacing: CodySpacing.sm) {
                         Text(key)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .frame(width: 80, alignment: .leading)
                         Text(value)
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .textSelection(.enabled)
                     }
+                    .codyGroupedRow()
                 }
+            } header: {
+                Text("File Info")
+                    .settingsSectionHeading()
             }
         }
+        .codyGroupedListCanvas()
     }
 }
 
@@ -816,30 +874,33 @@ struct FileItemRow: View {
     let onExport: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: CodySpacing.md) {
             // Icon
             ZStack(alignment: .bottomLeading) {
-                Image(systemName: item.iconName)
-                    .font(.title2)
-                    .foregroundColor(item.isDirectory ? .blue : .secondary)
+                CodyListIconBadge(
+                    systemImage: item.iconName,
+                    tint: item.isDirectory ? .blue : .neutral
+                )
                 if item.isSymlink {
                     Image(systemName: "arrow.turn.right.down")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.orange)
-                        .offset(x: -4, y: 2)
+                        .foregroundStyle(CodyColors.statusWarningText)
+                        .offset(x: -3, y: 2)
+                        .accessibilityHidden(true)
                 }
             }
-            .frame(width: 32)
 
             // Name and info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(item.name)
-                    .font(.body)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .lineLimit(1)
 
-                HStack(spacing: 6) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     if !item.isDirectory {
                         Text(item.formattedSize)
+                            .monospacedDigit()
                     }
                     if item.modificationDate != nil {
                         if !item.isDirectory {
@@ -848,8 +909,8 @@ struct FileItemRow: View {
                         Text(item.formattedDate)
                     }
                 }
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
             }
 
             Spacer()
@@ -858,18 +919,21 @@ struct FileItemRow: View {
             if !item.isDirectory {
                 Button(action: onExport) {
                     Image(systemName: "square.and.arrow.up")
-                        .foregroundColor(.blue)
+                        .foregroundStyle(CodyColors.iconAccent)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(Text("Export"))
             }
 
             // Chevron for directories
             if item.isDirectory {
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .accessibilityHidden(true)
             }
         }
+        .padding(.vertical, CodySpacing.xxs)
         .contentShape(Rectangle())
         .onTapGesture {
             onTap()
@@ -1604,52 +1668,80 @@ private struct DirectoryPickerView: View {
         VStack(spacing: 0) {
             // Breadcrumb
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     ForEach(pathComponents.indices, id: \.self) { index in
+                        let isCurrent = index == pathComponents.count - 1
                         Button { navigateTo(index: index) } label: {
                             Text(pathComponents[index])
-                                .font(.caption)
-                                .foregroundColor(.blue)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(isCurrent ? CodyColors.textPrimary : CodyColors.textAccent)
+                                .padding(.horizontal, CodySpacing.sm)
+                                .padding(.vertical, CodySpacing.xs)
+                                .background(
+                                    isCurrent ? CodyColors.bgGroupedSurface : CodyColors.bgSecondary,
+                                    in: RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                )
                         }
-                        if index < pathComponents.count - 1 {
+                        .buttonStyle(CodyPressableButtonStyle())
+                        if !isCurrent {
                             Image(systemName: "chevron.right")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.horizontal, CodySpacing.lg)
+                .padding(.vertical, CodySpacing.sm)
             }
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(CodyColors.bgGrouped)
+            .overlay(alignment: .bottom) {
+                Divider().overlay(CodyColors.separator)
+            }
 
             // Directory list
             if items.isEmpty {
                 Spacer()
-                VStack(spacing: 12) {
+                VStack(spacing: CodySpacing.md) {
                     Image(systemName: "folder")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(CodyColors.iconTertiary)
+                        .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                        .background(
+                            CodyColors.bgListIcon,
+                            in: RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                                .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                        .accessibilityHidden(true)
                     Text("Empty folder")
-                        .foregroundColor(.secondary)
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
+                .padding(.horizontal, CodySpacing.lg)
                 Spacer()
             } else {
                 List {
                     ForEach(items) { item in
-                        HStack(spacing: 12) {
-                            Image(systemName: "folder.fill")
-                                .font(.title2)
-                                .foregroundColor(.blue)
+                        HStack(spacing: CodySpacing.md) {
+                            CodyListIconBadge(systemImage: "folder.fill", tint: .blue)
                             Text(item.name)
-                                .font(.body)
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                                 .lineLimit(1)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
                         }
+                        .padding(.vertical, CodySpacing.xxs)
                         .contentShape(Rectangle())
+                        .listRowBackground(CodyColors.bgCanvas)
+                        .listRowSeparatorTint(CodyColors.separator)
                         .onTapGesture {
                             currentDir = currentDir.appendingPathComponent(item.name)
                             loadDirectories()
@@ -1657,8 +1749,11 @@ private struct DirectoryPickerView: View {
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(CodyColors.bgCanvas)
             }
         }
+        .background(CodyColors.bgCanvas)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
