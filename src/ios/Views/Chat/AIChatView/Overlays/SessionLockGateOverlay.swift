@@ -8,17 +8,7 @@
 //  Map of the AIChatView files: AIChatView/AIChatView.swift.
 //
 
-import AVFoundation
-import AVKit
-import Combine
-import GameController
-import PhotosUI
-import QuickLook
-import QuickLook
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
-import WebKit
 
 // MARK: - Face ID Session Lock Overlay
 //
@@ -34,6 +24,8 @@ struct SessionLockGateOverlay: View {
 
     @ObservedObject private var store = SessionLockStore.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title2) private var iconSize = CodySpacing.s48
     /// True while an LAContext prompt is in flight — suppresses repeated
     /// auto-prompts when the system overlay itself transiently resigns
     /// the chat view.
@@ -83,28 +75,28 @@ struct SessionLockGateOverlay: View {
 
     private var gateView: some View {
         ZStack {
-            Rectangle()
-                .fill(.regularMaterial)
+            CodyColors.bgCanvas
                 .ignoresSafeArea()
-                .overlay {
-                    Color(UIColor.systemBackground).opacity(0.4)
-                        .ignoresSafeArea()
-                }
 
-            VStack(spacing: 18) {
+            VStack(spacing: CodySpacing.xxl) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: iconSize, weight: .regular))
+                    .foregroundStyle(CodyColors.iconPrimary)
+                    .accessibilityHidden(true)
 
-                Text("This session is locked")
-                    .font(.system(size: 18, weight: .semibold))
+                VStack(spacing: CodySpacing.sm) {
+                    Text("This session is locked")
+                        .font(CodyTypography.headlineSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
 
-                Text(attemptFailed
-                     ? "Authentication failed. Tap to try again."
-                     : "Tap to unlock with \(BiometricAuth.biometryDisplayName)")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                    Text(attemptFailed
+                         ? "Authentication failed. Tap to try again."
+                         : "Tap to unlock with \(BiometricAuth.biometryDisplayName)")
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
 
                 Button {
                     promptForBiometricUnlock()
@@ -112,18 +104,19 @@ struct SessionLockGateOverlay: View {
                     Label(attemptFailed
                           ? AppLocalized("Try again")
                           : AppLocalized("Unlock"),
-                          systemImage: "faceid")
-                        .font(.system(size: 16, weight: .semibold))
-                        .padding(.horizontal, 22).padding(.vertical, 10)
-                        .background(.tint, in: Capsule())
-                        .foregroundStyle(.white)
+                          systemImage: BiometricAuth.biometryIconName)
+                        .font(CodyTypography.titleMedium)
+                        .padding(.horizontal, CodySpacing.lg)
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                .disabled(promptInFlight)
             }
-            .padding(.horizontal, 32)
+            .padding(CodySpacing.xxxl)
+            .multilineTextAlignment(.center)
         }
         .contentShape(Rectangle())
         .onTapGesture { promptForBiometricUnlock() }
-        .transition(.opacity)
+        .transition(reduceMotion ? .identity : .opacity)
     }
 
     private func evaluate(reason: String) {

@@ -9,17 +9,8 @@
 //  Map of the AIChatView files: AIChatView/AIChatView.swift.
 //
 
-import AVFoundation
-import AVKit
-import Combine
-import GameController
-import PhotosUI
-import QuickLook
-import QuickLook
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
-import WebKit
 
 // MARK: - Compact Summary Sheet
 
@@ -30,40 +21,74 @@ struct CompactSummarySheet: View {
     /// AIChatViewModel.revertCompact()) and dismisses the sheet.
     var onRevert: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var copied = false
     @State private var showRevertConfirm = false
 
     var body: some View {
+        let cardShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
         NavigationStack {
             VStack(spacing: 0) {
                 SelectableTextView(text: summary)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                if onRevert != nil {
-                    Divider()
-                    Button(role: .destructive) {
-                        showRevertConfirm = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.uturn.backward")
-                            Text("Revert Compact")
-                        }
-                        .font(.system(size: 15, weight: .medium))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                    .padding(CodySpacing.lg)
+                    .background(cardShape.fill(CodyColors.bgGroupedSurface))
+                    .clipShape(cardShape)
+                    .overlay {
+                        cardShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.red)
+                    .padding(CodySpacing.lg)
+
+                if onRevert != nil {
+                    VStack(spacing: 0) {
+                        Button(role: .destructive) {
+                            showRevertConfirm = true
+                        } label: {
+                            HStack(spacing: CodySpacing.xsPlus) {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .accessibilityHidden(true)
+                                Text("Revert Compact")
+                            }
+                            .font(CodyTypography.labelLarge)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                            .background(
+                                RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+                                    .fill(CodyColors.statusErrorBg)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+                                    .strokeBorder(CodyColors.statusErrorText.opacity(0.25), lineWidth: CodySpacing.px)
+                                    .allowsHitTesting(false)
+                            }
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .padding(.horizontal, CodySpacing.lg)
+                        .padding(.vertical, CodySpacing.md)
+                    }
+                    .background {
+                        if reduceTransparency {
+                            CodyColors.bgGroupedSurface
+                        } else {
+                            Rectangle().fill(.bar)
+                        }
+                    }
+                    .overlay(alignment: .top) {
+                        CodyColors.separator.frame(height: CodySpacing.px)
+                    }
                 }
             }
+            .background(CodyColors.bgGrouped)
             .navigationTitle("Compact Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.iconSecondary)
                     }
+                    .accessibilityLabel(AppLocalized("Close"))
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -72,8 +97,9 @@ struct CompactSummarySheet: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                     } label: {
                         Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc.fill")
-                            .foregroundStyle(copied ? .green : .secondary)
+                            .foregroundStyle(copied ? CodyColors.statusSuccessText : CodyColors.iconSecondary)
                     }
+                    .accessibilityLabel(copied ? AppLocalized("Copied") : AppLocalized("Copy"))
                 }
             }
             .alert("Revert this compact?", isPresented: $showRevertConfirm) {
@@ -106,8 +132,9 @@ private struct SelectableTextView: UIViewRepresentable {
         // stall during edit-menu construction, no Cody frames). It states the
         // policy so a future SDK default cannot silently opt this view in.
         tv.dataDetectorTypes = []
-        tv.font = .systemFont(ofSize: 14)
-        tv.textColor = .label
+        tv.font = .preferredFont(forTextStyle: .subheadline)
+        tv.adjustsFontForContentSizeCategory = true
+        tv.textColor = CodyUIColors.textPrimary
         tv.backgroundColor = .clear
         tv.textContainerInset = UIEdgeInsets(top: 0, left: 0, bottom: 20, right: 0)
         tv.textContainer.lineFragmentPadding = 0

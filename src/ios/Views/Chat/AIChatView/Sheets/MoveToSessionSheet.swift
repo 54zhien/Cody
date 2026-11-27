@@ -8,17 +8,7 @@
 //  Map of the AIChatView files: AIChatView/AIChatView.swift.
 //
 
-import AVFoundation
-import AVKit
-import Combine
-import GameController
-import PhotosUI
-import QuickLook
-import QuickLook
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
-import WebKit
 
 // MARK: - Move To Session Sheet
 
@@ -75,45 +65,70 @@ struct MoveToSessionSheet: View {
         NavigationStack {
             List {
                 if !isSearching {
-                    Button {
-                        let newId = "\(Self.newSessionPrefix)\(UUID().uuidString)"
-                        dismiss()
-                        onSelect(newId)
-                    } label: {
-                        Label(AppLocalized("New Chat"), systemImage: "plus.bubble")
+                    Section {
+                        Button {
+                            let newId = "\(Self.newSessionPrefix)\(UUID().uuidString)"
+                            dismiss()
+                            onSelect(newId)
+                        } label: {
+                            HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
+                                CodyListIconBadge(systemImage: "plus.bubble", tint: .neutral)
+                                Text(AppLocalized("New Chat"))
+                                    .font(CodyTypography.titleSmall)
+                                    .foregroundStyle(CodyColors.textPrimary)
+                                Spacer()
+                            }
+                            .frame(minHeight: CodyControlHeight.standard)
+                            .contentShape(Rectangle())
+                        }
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
                     }
                 }
 
-                Section(isSearching ? AppLocalized("Results") : AppLocalized("Recent")) {
+                Section {
                     ForEach(displayedSessions) { session in
+                        let icon = sessionCategoryIcon(for: session.category)
                         Button {
                             dismiss()
                             onSelect(session.id)
                         } label: {
-                            HStack(spacing: 8) {
-                                VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
+                                categoryBadge(systemName: icon.systemName, color: icon.color)
+                                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                     highlightedText(
                                         session.title ?? AppLocalized("New Chat"),
-                                        font: .system(size: 16, weight: .semibold),
-                                        color: Color(UIColor.label)
+                                        font: CodyTypography.titleSmall,
+                                        color: CodyColors.textPrimary
                                     )
                                     .lineLimit(1)
                                     highlightedText(
                                         session.lastMessage ?? AppLocalized("No messages yet"),
-                                        font: .system(size: 14),
-                                        color: Color(UIColor.secondaryLabel)
+                                        font: CodyTypography.bodyMedium,
+                                        color: CodyColors.textSecondary
                                     )
                                     .lineLimit(1)
                                 }
-                                Spacer(minLength: 1)
+                                Spacer(minLength: CodySpacing.xs)
                                 Text(relativeDate(session.updatedAt))
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color(UIColor.tertiaryLabel))
+                                    .font(CodyTypography.bodySmall.monospacedDigit())
+                                    .foregroundStyle(CodyColors.textTertiary)
                             }
+                            .frame(minHeight: CodyControlHeight.standard)
+                            .contentShape(Rectangle())
                         }
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
                     }
+                } header: {
+                    Text(isSearching ? AppLocalized("Results") : AppLocalized("Recent"))
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(CodyColors.bgGrouped)
             .searchable(text: $searchText, prompt: AppLocalized("Search chats..."))
             .onChange(of: searchText) { _ in scheduleSearch() }
             .navigationTitle(AppLocalized("Move to…"))
@@ -121,6 +136,7 @@ struct MoveToSessionSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(AppLocalized("Cancel")) { dismiss() }
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
         }
@@ -182,7 +198,7 @@ struct MoveToSessionSheet: View {
                     .font(font).foregroundColor(color)
             }
             result = result + Text(text[range])
-                .font(font).foregroundColor(.accentColor).bold()
+                .font(font).foregroundColor(CodyColors.textAccent).bold()
             current = range.upperBound
         }
         if current < text.endIndex {
@@ -190,6 +206,21 @@ struct MoveToSessionSheet: View {
                 .font(font).foregroundColor(color)
         }
         return result
+    }
+
+    private func categoryBadge(systemName: String, color: Color) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+        return Image(systemName: systemName)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(width: CodyMetrics.Sidebar.iconSize, height: CodyMetrics.Sidebar.iconSize)
+            .background(shape.fill(CodyColors.bgListIcon))
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .accessibilityHidden(true)
     }
 
     // MARK: - Relative Date

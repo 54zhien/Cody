@@ -90,22 +90,30 @@ struct FolderPickerSheet: View {
         NavigationStack {
             List {
                 Section {
-                    HStack {
+                    HStack(spacing: CodySpacing.smPlus) {
                         Image(systemName: "folder.badge.plus")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(CodyColors.iconPrimary)
+                            .accessibilityHidden(true)
                         TextField("New Group Name", text: $newFolderName)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .focused($nameFieldFocused)
                             .submitLabel(.next)
                     }
+                    .listRowBackground(CodyColors.bgGroupedSurface)
+                    .listRowSeparatorTint(CodyColors.separator)
                     // One-sentence auto-grouping context (≤100 chars). Typed
                     // here or prefilled by AI Suggest; never shown in the
                     // list, editable later from Rename Group.
                     TextField("Description (optional, guides auto-grouping)", text: $newFolderDesc, axis: .vertical)
                         .lineLimit(1...2)
-                        .font(.subheadline)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .onChange(of: newFolderDesc) { v in
                             if v.count > 100 { newFolderDesc = String(v.prefix(100)) }
                         }
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
                     // ✨ AI suggest — nothing auto-applies. A merge suggestion
                     // renders as its own confirm row below; a create
                     // suggestion prefills the name field and waits for the
@@ -119,24 +127,46 @@ struct FolderPickerSheet: View {
                         Button {
                             runSuggest()
                         } label: {
-                            HStack {
+                            HStack(spacing: CodySpacing.xsPlus) {
                                 if suggesting {
                                     ProgressView().controlSize(.small)
                                 } else {
                                     Image(systemName: "sparkles")
-                                        .foregroundStyle(Color.accentColor)
+                                        .foregroundStyle(CodyCategoryTint.purple.color)
+                                        .accessibilityHidden(true)
                                 }
                                 Text(suggestFailed ? "AI Suggest (failed — try again)" : "AI Suggest")
+                                    .font(CodyTypography.labelLarge)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             }
+                            .frame(minHeight: CodyControlHeight.sm)
                         }
                         .buttonStyle(.borderless)
                         .disabled(suggesting)
                         Spacer()
-                        Button("Create", action: createIfNamed)
-                            .buttonStyle(.borderless)
-                            .fontWeight(.semibold)
-                            .disabled(trimmedName.isEmpty || duplicateFolder != nil)
+                        Button(action: createIfNamed) {
+                            Text("Create")
+                                .font(CodyTypography.labelLarge)
+                                .foregroundStyle(
+                                    (trimmedName.isEmpty || duplicateFolder != nil)
+                                        ? CodyColors.textTertiary
+                                        : CodyColors.interactivePrimaryLabel
+                                )
+                                .padding(.horizontal, CodySpacing.md)
+                                .frame(minHeight: CodyControlHeight.sm)
+                                .background(
+                                    Capsule().fill(
+                                        (trimmedName.isEmpty || duplicateFolder != nil)
+                                            ? CodyColors.bgSecondary
+                                            : CodyColors.interactivePrimaryBg
+                                    )
+                                )
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(trimmedName.isEmpty || duplicateFolder != nil)
                     }
+                    .listRowBackground(CodyColors.bgGroupedSurface)
+                    .listRowSeparatorTint(CodyColors.separator)
                     // [T-folder-duplicate-name] Name already taken. Says so, and
                     // offers the one-tap way out — filing into the existing group
                     // is almost always what was meant. Create is disabled above,
@@ -146,19 +176,23 @@ struct FolderPickerSheet: View {
                             onChoose(.existing(dup.id))
                         } label: {
                             Label {
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                     // Folder name is user data — interpolated, not a key.
                                     Text("“\(dup.name)” already exists")
-                                        .font(.subheadline)
+                                        .font(CodyTypography.bodyMedium)
+                                        .foregroundStyle(CodyColors.textPrimary)
                                     Text("Rename to something else, or tap to use it")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                 }
                             } icon: {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(CodyColors.statusWarningText)
+                                    .accessibilityHidden(true)
                             }
                         }
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
                     }
                     if let merge = suggestedMerge {
                         Button {
@@ -167,11 +201,16 @@ struct FolderPickerSheet: View {
                             Label {
                                 // Folder name is user data — interpolated, not a key.
                                 Text("Move into “\(merge.folderName)”?")
+                                    .font(CodyTypography.bodyMedium)
+                                    .foregroundStyle(CodyColors.textPrimary)
                             } icon: {
                                 Image(systemName: "sparkles")
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(CodyCategoryTint.purple.color)
+                                    .accessibilityHidden(true)
                             }
                         }
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
                     }
                 }
 
@@ -180,7 +219,7 @@ struct FolderPickerSheet: View {
                 // empty (no folders and the target is unfiled) means no section at
                 // all, rather than a bare "Groups" header over nothing.
                 if !items.isEmpty || anyFiled {
-                    Section("Groups") {
+                    Section {
                     // "No Group" — the explicit way to end up ungrouped.
                     //
                     // FIRST row of the Groups section, not a trailing section, for
@@ -199,33 +238,44 @@ struct FolderPickerSheet: View {
                         Button {
                             onChoose(.removeFromFolder)
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: CodySpacing.smPlus) {
                                 // Sized to match FolderComposedIcon below so the
                                 // row's text baseline lines up with the group rows.
                                 ZStack {
-                                    Circle()
-                                        .fill(Color(UIColor.tertiarySystemFill))
-                                        .frame(width: 40, height: 40)
+                                    RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                        .fill(CodyColors.bgListIcon)
+                                        .frame(width: CodyControlHeight.md, height: CodyControlHeight.md)
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                                .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                                .allowsHitTesting(false)
+                                        }
                                     Image(systemName: "folder.badge.minus")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(CodyColors.iconSecondary)
                                 }
-                                VStack(alignment: .leading, spacing: 2) {
+                                .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                     Text("No Group")
-                                        .foregroundStyle(Color(UIColor.label))
+                                        .font(CodyTypography.titleSmall)
+                                        .foregroundStyle(CodyColors.textPrimary)
                                         .lineLimit(1)
                                     Text("Remove from its current group")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                         .lineLimit(1)
                                 }
                                 Spacer()
                             }
+                            .frame(minHeight: CodyControlHeight.standard)
+                            .contentShape(Rectangle())
                         }
                         // VoiceOver reads label + hint as ONE action; without this
                         // the two stacked Texts are announced as unrelated elements.
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(Text("No Group"))
                         .accessibilityHint(Text("Remove from its current group"))
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
                     }
                     ForEach(items) { item in
                             Button {
@@ -235,12 +285,13 @@ struct FolderPickerSheet: View {
                                 // same composed circle icon, same
                                 // "N chats · context" subtitle (and thus the
                                 // same localization keys).
-                                HStack(spacing: 8) {
-                                    FolderComposedIcon(glyphs: item.glyphs, diameter: 40)
-                                    VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: CodySpacing.smPlus) {
+                                    FolderComposedIcon(glyphs: item.glyphs, diameter: CodyControlHeight.md)
+                                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                         // Folder names are user data — verbatim.
                                         Text(item.folder.name)
-                                            .foregroundStyle(Color(UIColor.label))
+                                            .font(CodyTypography.titleSmall)
+                                            .foregroundStyle(CodyColors.textPrimary)
                                             .lineLimit(1)
                                         Group {
                                             if let sub = item.subtitle {
@@ -252,17 +303,28 @@ struct FolderPickerSheet: View {
                                                 Text("Empty group")
                                             }
                                         }
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                         .lineLimit(1)
                                     }
                                     Spacer()
                                 }
+                                .frame(minHeight: CodyControlHeight.standard)
+                                .contentShape(Rectangle())
                             }
+                            .listRowBackground(CodyColors.bgGroupedSurface)
+                            .listRowSeparatorTint(CodyColors.separator)
                         }
+                    } header: {
+                        Text("Groups")
+                            .font(CodyTypography.sectionHeader)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(CodyColors.bgGrouped)
             // Explicitly typed: a bare ternary of two literals infers `String`,
             // which would pick the non-localizing navigationTitle overload and
             // ship the English source text to every locale. As
@@ -275,6 +337,7 @@ struct FolderPickerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
         }

@@ -278,17 +278,17 @@ struct SubAgentStatChips: View {
     let budgetMinutes: Int?
 
     var body: some View {
-        ChipFlow(spacing: 6) {
+        ChipFlow(spacing: CodySpacing.xsPlus) {
             if digest.total > 0 {
                 chip("wrench.and.screwdriver",
                      String(format: AppLocalized("%lld tool calls"), digest.total))
             }
             if digest.okCount > 0 {
-                chip("checkmark.circle.fill", "\(digest.okCount)", tint: .green,
+                chip("checkmark.circle.fill", "\(digest.okCount)", tint: CodyColors.statusSuccessText,
                      label: String(format: AppLocalized("%lld succeeded"), digest.okCount))
             }
             if digest.failedCount > 0 {
-                chip("xmark.circle.fill", "\(digest.failedCount)", tint: .red,
+                chip("xmark.circle.fill", "\(digest.failedCount)", tint: CodyColors.statusErrorText,
                      label: String(format: AppLocalized("%lld failed"), digest.failedCount))
             }
             if digest.turns > 0 {
@@ -306,7 +306,7 @@ struct SubAgentStatChips: View {
                 chip("timer", left.minutes > 0
                      ? String(format: AppLocalized("%lldm left"), left.minutes)
                      : String(format: AppLocalized("%llds left"), left.seconds),
-                     tint: remaining < 60 ? .orange : nil)
+                     tint: remaining < 60 ? CodyColors.statusWarningText : nil)
             } else if let budgetMinutes {
                 chip("timer", String(format: AppLocalized("%lldm budget"), budgetMinutes))
             }
@@ -314,18 +314,27 @@ struct SubAgentStatChips: View {
     }
 
     private func chip(_ symbol: String, _ text: String, tint: Color? = nil, label: String? = nil) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(tint ?? Color(UIColor.secondaryLabel))
+        HStack(spacing: CodySpacing.xs) {
+            Image(systemName: symbol)
+                .font(CodyTypography.labelSmall.weight(.semibold))
+                .foregroundStyle(tint ?? CodyColors.iconSecondary)
+                .accessibilityHidden(true)
             // Proportional with fixed-width digits: a monospaced face spread
             // "6 次工具调用" out with double-width gaps around the number.
-            Text(text).font(.system(size: 11, weight: .medium)).monospacedDigit()
-                .foregroundStyle(Color(UIColor.label))
+            Text(text)
+                .font(CodyTypography.labelSmall.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(CodyColors.textPrimary)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(Color(UIColor.secondarySystemFill)))
+        .padding(.horizontal, CodySpacing.sm)
+        .padding(.vertical, CodySpacing.xs)
+        .background(Capsule().fill(CodyColors.bgSecondary))
+        .overlay {
+            Capsule()
+                .strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                .allowsHitTesting(false)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label ?? text)
     }
@@ -372,26 +381,48 @@ private struct ChipFlow: Layout {
 struct SubAgentCollapsibleText: View {
     let text: String
     var monospaced = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
 
     var body: some View {
         let long = SubAgentTextPreview.isLong(text)
-        VStack(alignment: .leading, spacing: 6) {
-            Text(text)
-                .font(.system(size: 13, design: monospaced ? .monospaced : .default))
-                .foregroundStyle(Color(UIColor.label))
-                .lineLimit(long && !expanded ? 4 : nil)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
+            Group {
+                if monospaced {
+                    let blockShape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                    Text(text)
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .lineLimit(long && !expanded ? 4 : nil)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(CodySpacing.md)
+                        .background(blockShape.fill(CodyColors.bgCodeBlock))
+                        .overlay {
+                            blockShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                } else {
+                    Text(text)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .lineLimit(long && !expanded ? 4 : nil)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
             if long {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+                    withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                        expanded.toggle()
+                    }
                 } label: {
                     Text(expanded ? AppLocalized("Show less") : AppLocalized("Show more"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(HelperAccent.color)
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.textLink)
+                        .padding(.vertical, CodySpacing.xs)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
             }
         }
     }
@@ -406,13 +437,13 @@ struct SubAgentTaskCard: View {
 
     var body: some View {
         AgentDetailCard(title: AppLocalized("Task"), icon: "text.alignleft") {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
                 SubAgentCollapsibleText(text: args.task)
                 if !args.context.isEmpty {
-                    Divider()
+                    CodyColors.separator.frame(height: CodySpacing.px)
                     Text(AppLocalized("Context"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                     SubAgentCollapsibleText(text: args.context)
                 }
             }
@@ -431,25 +462,33 @@ struct SubAgentToolTimelineCard: View {
     var body: some View {
         AgentDetailCard(title: AppLocalized("Recent tool calls"), icon: "list.bullet.rectangle",
                         trailing: { trailing }) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
                 let split = digest.byTool
                 if split.count > 1 {
-                    ChipFlow(spacing: 6) {
+                    ChipFlow(spacing: CodySpacing.xsPlus) {
                         ForEach(Array(split.enumerated()), id: \.offset) { _, entry in
-                            HStack(spacing: 4) {
+                            HStack(spacing: CodySpacing.xs) {
                                 Image(systemName: HelperAccent.symbol(forTool: entry.tool))
                                     .font(.system(size: 9, weight: .semibold))
+                                    .accessibilityHidden(true)
                                 Text("\(HelperAccent.displayName(forTool: entry.tool)) ×\(entry.count)")
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(CodyTypography.labelSmall.weight(.medium))
+                                    .monospacedDigit()
                                     .lineLimit(1)
                             }
-                            .foregroundStyle(Color(UIColor.secondaryLabel))
-                            .padding(.horizontal, 7).padding(.vertical, 3)
-                            .background(Capsule().stroke(Color(UIColor.separator), lineWidth: 0.5))
+                            .foregroundStyle(CodyColors.textSecondary)
+                            .padding(.horizontal, CodySpacing.sm)
+                            .padding(.vertical, CodySpacing.xxs)
+                            .background(Capsule().fill(CodyColors.bgSecondary))
+                            .overlay {
+                                Capsule()
+                                    .strokeBorder(CodyColors.borderLight, lineWidth: CodyMetrics.AgentCard.borderWidth)
+                                    .allowsHitTesting(false)
+                            }
                         }
                     }
                 }
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: CodySpacing.sm) {
                     ForEach(digest.recent(limit)) { call in
                         row(call)
                     }
@@ -462,37 +501,45 @@ struct SubAgentToolTimelineCard: View {
     private var trailing: some View {
         if digest.total > limit {
             Text(String(format: AppLocalized("Latest %1$lld of %2$lld"), limit, digest.total))
-                .font(.system(size: 10))
-                .foregroundStyle(Color(UIColor.tertiaryLabel))
+                .font(CodyTypography.labelSmall.monospacedDigit())
+                .foregroundStyle(CodyColors.textTertiary)
         }
     }
 
     private func row(_ call: SubAgentRunDigest.Call) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: CodySpacing.sm) {
             stateGlyph(call.state)
-                .frame(width: 14, height: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
+                .frame(width: CodySpacing.mdPlus, height: CodySpacing.lg)
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xs) {
                     Image(systemName: HelperAccent.symbol(forTool: call.tool))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(CodyTypography.labelSmall.weight(.semibold))
+                        .accessibilityHidden(true)
                     Text(HelperAccent.displayName(forTool: call.tool))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(CodyTypography.labelMedium)
                         .lineLimit(1)
                 }
-                .foregroundStyle(call.state == .running ? HelperAccent.color : Color(UIColor.label))
+                .foregroundStyle(call.state == .running ? HelperAccent.color : CodyColors.textPrimary)
                 if !call.title.isEmpty {
                     Text(call.title)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .lineLimit(2)
                         .textSelection(.enabled)
+                        .padding(.horizontal, CodySpacing.sm)
+                        .padding(.vertical, CodySpacing.xs)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                .fill(CodyColors.bgCodeBlock)
+                        )
                 }
             }
-            Spacer(minLength: 6)
+            Spacer(minLength: CodySpacing.xsPlus)
             if let duration = call.duration {
                 Text(SubAgentRunDigest.durationLabel(duration))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(Color(UIColor.tertiaryLabel))
+                    .font(CodyTypography.code.monospacedDigit())
+                    .foregroundStyle(CodyColors.textTertiary)
             }
         }
         .accessibilityElement(children: .combine)
@@ -504,12 +551,17 @@ struct SubAgentToolTimelineCard: View {
         case .running:
             ReattachingSpinner(size: 11, lineWidth: 1.6, color: HelperAccent.color)
         case .ok:
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(.green)
+            Image(systemName: "checkmark.circle.fill")
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.connectionReady)
         case .failed:
-            Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(.red)
+            Image(systemName: "xmark.circle.fill")
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusErrorText)
         case .cancelled:
-            Image(systemName: "minus.circle.fill").font(.system(size: 12))
-                .foregroundStyle(Color(UIColor.tertiaryLabel))
+            Image(systemName: "minus.circle.fill")
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.iconTertiary)
         }
     }
 }
@@ -527,16 +579,24 @@ struct SubAgentActionsCard: View {
     @FocusState private var focused: Bool
 
     var body: some View {
+        let inputShape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+        let stopShape = RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
         AgentDetailCard(title: AppLocalized("Actions"), icon: "slider.horizontal.3") {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
                 if canSteer {
-                    HStack(alignment: .bottom, spacing: 8) {
+                    HStack(alignment: .bottom, spacing: CodySpacing.sm) {
                         TextField(AppLocalized("Send a course correction…"), text: $draft, axis: .vertical)
-                            .font(.system(size: 13))
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .lineLimit(1...4)
                             .focused($focused)
-                            .padding(.horizontal, 10).padding(.vertical, 7)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color(UIColor.tertiarySystemFill)))
+                            .padding(.horizontal, CodySpacing.smPlus)
+                            .padding(.vertical, CodySpacing.sm)
+                            .background(inputShape.fill(CodyColors.bgCodeBlock))
+                            .overlay {
+                                inputShape.strokeBorder(CodyColors.borderInput, lineWidth: CodySpacing.px)
+                                    .allowsHitTesting(false)
+                            }
                         Button {
                             if SubAgentUserSteer.send(draft, childSessionId: childSessionId) {
                                 draft = ""
@@ -545,32 +605,39 @@ struct SubAgentActionsCard: View {
                             }
                         } label: {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 26))
-                                .foregroundStyle(isBlank ? Color(UIColor.tertiaryLabel) : HelperAccent.color)
+                                .font(.system(size: 28))
+                                .foregroundStyle(isBlank ? CodyColors.interactiveControlDefault : CodyColors.interactivePrimaryBg)
+                                .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
+                                .contentShape(Circle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(isBlank)
                         .accessibilityLabel(AppLocalized("Send"))
                     }
                     Text(sentCount > 0
                          ? AppLocalized("Sent. The sub agent reads it at its next turn.")
                          : AppLocalized("Read at the sub agent's next turn; a tool call already running is not interrupted."))
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Button(role: .destructive) { confirmStop = true } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: CodySpacing.xsPlus) {
                         Image(systemName: "stop.circle.fill")
+                            .accessibilityHidden(true)
                         Text(AppLocalized("Stop agent"))
                     }
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.12)))
-                    .foregroundStyle(.red)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                    .background(stopShape.fill(CodyColors.statusErrorBg))
+                    .overlay {
+                        stopShape.strokeBorder(CodyColors.statusErrorText.opacity(0.25), lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .contentShape(stopShape)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
             }
         }
         .confirmationDialog(AppLocalized("Stop this sub agent?"), isPresented: $confirmStop, titleVisibility: .visible) {

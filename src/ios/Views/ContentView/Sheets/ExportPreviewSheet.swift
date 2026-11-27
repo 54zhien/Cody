@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Export Summary
 
@@ -39,6 +40,7 @@ struct ExportPreviewSheet: View {
     /// File to read for the on-screen text.
     private var textSourceURL: URL? { previewURL ?? fileURL }
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showShareSheet = false
     @State private var showFilePicker = false
     @State private var copied = false
@@ -49,69 +51,107 @@ struct ExportPreviewSheet: View {
     private let previewLimit = 10000
 
     var body: some View {
+        let blockShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
         NavigationStack {
             VStack(spacing: 0) {
                 // Preview — summary for multi-select, full content for single.
                 if let summary {
                     summaryView(summary)
                 } else if isLoadingPreview {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
+                    VStack {
+                        VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
+                            CodySkeletonView(height: CodySpacing.mdPlus, cornerRadius: CodyRadius.sm)
+                            CodySkeletonView(width: 240, height: CodySpacing.mdPlus, cornerRadius: CodyRadius.sm)
+                            CodySkeletonView(width: 280, height: CodySpacing.mdPlus, cornerRadius: CodyRadius.sm)
+                            CodySkeletonView(width: 190, height: CodySpacing.mdPlus, cornerRadius: CodyRadius.sm)
+                        }
+                        .padding(CodySpacing.lg)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(blockShape.fill(CodyColors.bgCodeBlock))
+                        .overlay {
+                            blockShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                        .padding(CodySpacing.lg)
+                        Spacer()
+                    }
                 } else {
                     ScrollView {
                         Text(previewText)
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(Color(UIColor.label))
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
+                            .padding(CodySpacing.lg)
                             .textSelection(.enabled)
                     }
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .background(blockShape.fill(CodyColors.bgCodeBlock))
+                    .clipShape(blockShape)
+                    .overlay {
+                        blockShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .padding(CodySpacing.lg)
                 }
 
-                Divider()
+                VStack(spacing: CodySpacing.xsPlus) {
+                    // File size info
+                    if !fileSize.isEmpty {
+                        Text(fileSize)
+                            .font(CodyTypography.labelSmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textTertiary)
+                    }
 
-                // File size info
-                if !fileSize.isEmpty {
-                    Text(fileSize)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 6)
-                }
-
-                // Action buttons
-                HStack(spacing: 0) {
-                    // [T-export-preview-blank] Copy needs a TEXT source. It used to
-                    // test `fileURL`, which is the zip, so Copy silently vanished
-                    // from every single-session export — the same zip-vs-payload
-                    // confusion that blanked the preview. Test the payload we
-                    // actually read instead, so Copy is offered exactly when there
-                    // is something readable to copy.
-                    if summary == nil, textSourceURL?.pathExtension.lowercased() != "zip" {
-                        actionButton(icon: "doc.on.doc", label: copied ? AppLocalized("Copied") : AppLocalized("Copy")) {
-                            if let url = textSourceURL, let content = try? String(contentsOf: url, encoding: .utf8) {
-                                UIPasteboard.general.string = content
+                    // Action buttons
+                    HStack(spacing: CodySpacing.sm) {
+                        // [T-export-preview-blank] Copy needs a TEXT source. It used to
+                        // test `fileURL`, which is the zip, so Copy silently vanished
+                        // from every single-session export — the same zip-vs-payload
+                        // confusion that blanked the preview. Test the payload we
+                        // actually read instead, so Copy is offered exactly when there
+                        // is something readable to copy.
+                        if summary == nil, textSourceURL?.pathExtension.lowercased() != "zip" {
+                            actionButton(
+                                icon: copied ? "checkmark" : "doc.on.doc",
+                                label: copied ? AppLocalized("Copied") : AppLocalized("Copy"),
+                                tint: copied ? CodyColors.statusSuccessText : CodyColors.textPrimary
+                            ) {
+                                if let url = textSourceURL, let content = try? String(contentsOf: url, encoding: .utf8) {
+                                    UIPasteboard.general.string = content
+                                }
+                                copied = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                             }
-                            copied = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+                        }
+                        actionButton(icon: "square.and.arrow.up", label: AppLocalized("Share")) {
+                            showShareSheet = true
+                        }
+                        actionButton(icon: "folder", label: AppLocalized("Save to Files")) {
+                            showFilePicker = true
                         }
                     }
-                    actionButton(icon: "square.and.arrow.up", label: AppLocalized("Share")) {
-                        showShareSheet = true
-                    }
-                    actionButton(icon: "folder", label: AppLocalized("Save to Files")) {
-                        showFilePicker = true
+                    .padding(.horizontal, CodySpacing.lg)
+                }
+                .padding(.top, CodySpacing.smPlus)
+                .padding(.bottom, CodySpacing.md)
+                .background {
+                    if reduceTransparency {
+                        CodyColors.bgGroupedSurface
+                    } else {
+                        Rectangle().fill(.bar)
                     }
                 }
-                .padding(.vertical, 12)
-                .background(Color(UIColor.systemBackground))
+                .overlay(alignment: .top) {
+                    CodyColors.separator.frame(height: CodySpacing.px)
+                }
             }
+            .background(CodyColors.bgGrouped)
             .navigationTitle(AppLocalized("Export Preview"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalized("Done")) { dismiss() }
+                        .font(CodyTypography.labelLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
             }
             .sheet(isPresented: $showShareSheet) {
@@ -160,32 +200,44 @@ struct ExportPreviewSheet: View {
             return "\(dateFmt.string(from: e)) ~ \(dateFmt.string(from: l))"
         }()
 
+        let cardShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 summaryRow(AppLocalized("Format"), s.format)
+                CodyColors.separator.frame(height: CodySpacing.px)
                 summaryRow(AppLocalized("Sessions"), "\(s.sessionCount)")
+                CodyColors.separator.frame(height: CodySpacing.px)
                 summaryRow(AppLocalized("Messages"), "\(s.totalMessages)")
+                CodyColors.separator.frame(height: CodySpacing.px)
                 summaryRow(AppLocalized("Time range"), timeRange)
+                CodyColors.separator.frame(height: CodySpacing.px)
                 summaryRow(AppLocalized("Attachments"), "\(s.attachmentCount)")
+                CodyColors.separator.frame(height: CodySpacing.px)
                 summaryRow(AppLocalized("Estimated size"), sizeStr)
             }
-            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardShape.fill(CodyColors.bgGroupedSurface))
+            .overlay {
+                cardShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .padding(CodySpacing.lg)
         }
-        .background(Color(UIColor.secondarySystemBackground))
     }
 
     private func summaryRow(_ key: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: CodySpacing.md) {
             Text(key)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 12)
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textSecondary)
+            Spacer(minLength: CodySpacing.md)
             Text(value)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
+                .font(CodyTypography.bodyMedium.monospacedDigit())
+                .foregroundStyle(CodyColors.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
+        .padding(.horizontal, CodySpacing.lg)
+        .padding(.vertical, CodySpacing.md)
     }
 
     private func loadPreview() async {
@@ -245,16 +297,28 @@ struct ExportPreviewSheet: View {
         }.value
     }
 
-    private func actionButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
+    private func actionButton(icon: String, label: String, tint: Color = CodyColors.textPrimary, action: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+        return Button(action: action) {
+            VStack(spacing: CodySpacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.system(size: 18, weight: .medium))
+                    .accessibilityHidden(true)
                 Text(label)
-                    .font(.caption2)
+                    .font(CodyTypography.labelSmall)
+                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity)
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, minHeight: CodyControlHeight.lg)
+            .padding(.horizontal, CodySpacing.sm)
+            .background(shape.fill(CodyColors.interactiveSecondaryBg))
+            .overlay {
+                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(shape)
         }
+        .buttonStyle(CodyPressableButtonStyle())
     }
 }
 

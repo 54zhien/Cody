@@ -33,26 +33,37 @@ extension ContentView {
     var emptyState: some View {
         let hasProviders = !providerStore.instances.isEmpty
         let hasGroups = !providerStore.modelGroups.isEmpty
+        let heroShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
 
-        return VStack(spacing: 32) {
+        return VStack(spacing: CodySpacing.xxxl) {
             Spacer()
             // App icon / hero
             Image(systemName: "sparkles")
-                .font(.system(size: 56))
-                .foregroundStyle(.tint)
-                .padding(.bottom, 4)
+                .font(.title2.weight(.medium))
+                .foregroundStyle(CodyColors.iconPrimary)
+                .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                .background(heroShape.fill(CodyColors.bgElevatedPrimary))
+                .clipShape(heroShape)
+                .overlay {
+                    heroShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
+                .accessibilityHidden(true)
 
-            VStack(spacing: 8) {
+            VStack(spacing: CodySpacing.sm) {
                 Text("Welcome to Cody")
-                    .font(.title2.bold())
+                    .font(CodyTypography.headlineSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
                 Text("Your first On-Device Agent is almost ready.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .multilineTextAlignment(.center)
             }
 
             // Setup steps
-            VStack(spacing: 16) {
+            VStack(spacing: CodySpacing.lg) {
                 // Step 1 – Add Provider
                 setupStep(
                     number: 1,
@@ -90,7 +101,7 @@ extension ContentView {
                     }
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, CodySpacing.sm)
             .frame(maxWidth: 400)
 
             Spacer()
@@ -113,16 +124,19 @@ extension ContentView {
                     showRestoreBackup = true
                 } label: {
                     Label("Have a backup? Restore from it", systemImage: "clock.arrow.circlepath")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .padding(.horizontal, CodySpacing.md)
+                        .frame(minHeight: CodyControlHeight.standard)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .padding(.bottom, 12)
+                .buttonStyle(CodyPressableButtonStyle())
+                .padding(.bottom, CodySpacing.sm)
                 .accessibilityIdentifier("onboarding.restoreBackup")
             }
         }
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, 32)
+        .padding(.horizontal, CodySpacing.xxxl)
         .sheet(isPresented: $showAddProvider) {
             NavigationStack {
                 AddProviderView()
@@ -163,48 +177,50 @@ extension ContentView {
         isDone: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
+        let cardShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+        return Button(action: action) {
+            HStack(spacing: CodySpacing.mdPlus) {
                 // Step indicator
                 ZStack {
                     Circle()
-                        .fill(isDone ? Color.green : Color.accentColor)
-                        .frame(width: 32, height: 32)
+                        .fill(isDone ? CodyColors.statusSuccessBg : CodyColors.interactivePrimaryBg)
+                        .frame(width: CodyControlHeight.sm, height: CodyControlHeight.sm)
                     if isDone {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(CodyTypography.labelLarge.weight(.bold))
+                            .foregroundStyle(CodyColors.statusSuccessText)
+                            .accessibilityHidden(true)
                     } else {
                         Text("\(number)")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(CodyColors.interactivePrimaryLabel)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                     Text(title)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(isDone ? .secondary : .primary)
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(isDone ? CodyColors.textSecondary : CodyColors.textPrimary)
                     Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
 
                 Spacer()
 
                 if !isDone {
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.iconDisclosure)
+                        .accessibilityHidden(true)
                 }
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(UIColor.secondarySystemGroupedBackground))
-            )
+            .padding(CodySpacing.mdPlus)
+            .modifier(CodySurfaceModifier(radius: CodyRadius.surface))
+            .contentShape(cardShape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CodyPressableButtonStyle())
         .disabled(isDone)
     }
 }

@@ -21,81 +21,117 @@ struct SessionEditSheet: View {
     @State private var editCategory: String = ""
     @State private var isRegenerating = false
 
-    private static let categories: [(key: String, label: String, icon: String, color: Color)] = [
+    private static let categories: [(key: String, label: String, icon: String, tint: CodyCategoryTint)] = [
         ("code",         "Code",         "terminal.fill",               .orange),
         ("writing",      "Writing",      "doc.text.fill",               .blue),
-        ("research",     "Research",     "globe.americas.fill",         .teal),
-        ("analysis",     "Analysis",     "chart.pie.fill",              .indigo),
-        ("creative",     "Creative",     "paintbrush.pointed.fill",     .pink),
+        ("research",     "Research",     "globe.americas.fill",         .green),
+        ("analysis",     "Analysis",     "chart.pie.fill",              .purple),
+        ("creative",     "Creative",     "paintbrush.pointed.fill",     .red),
         ("chat",         "Chat",         "bubble.left.fill",            .green),
         ("math",         "Math",         "number.circle.fill",          .purple),
-        ("translation",  "Translation",  "character.bubble",            .cyan),
+        ("translation",  "Translation",  "character.bubble",            .blue),
         ("health",       "Health",       "heart.fill",                  .red),
-        ("finance",      "Finance",      "banknote.fill",               .mint),
+        ("finance",      "Finance",      "banknote.fill",               .green),
         ("travel",       "Travel",       "map.fill",                    .orange),
         ("education",    "Education",    "book.closed.fill",            .blue),
-        ("design",       "Design",       "paintpalette.fill",           .pink),
-        ("productivity", "Productivity", "calendar.badge.checkmark",    .yellow),
-        ("support",      "Support",      "gearshape.fill",              .brown),
-        ("other",        "Other",        "square.grid.2x2.fill",       .gray),
+        ("design",       "Design",       "paintpalette.fill",           .red),
+        ("productivity", "Productivity", "calendar.badge.checkmark",    .orange),
+        ("support",      "Support",      "gearshape.fill",              .orange),
+        ("other",        "Other",        "square.grid.2x2.fill",        .neutral),
     ]
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Title") {
+                Section {
                     TextField("Session title", text: $editTitle)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .listRowBackground(CodyColors.bgGroupedSurface)
+                        .listRowSeparatorTint(CodyColors.separator)
+                } header: {
+                    Text("Title")
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
 
-                Section("Category") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 12)], spacing: 12) {
+                Section {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: CodySpacing.md)], spacing: CodySpacing.md) {
                         ForEach(Self.categories, id: \.key) { cat in
+                            let isSelected = editCategory == cat.key
                             Button {
                                 editCategory = cat.key
                             } label: {
-                                VStack(spacing: 6) {
+                                VStack(spacing: CodySpacing.xsPlus) {
                                     Image(systemName: cat.icon)
-                                        .font(.system(size: 20))
-                                        .foregroundStyle(editCategory == cat.key ? .white : cat.color)
-                                        .frame(width: 44, height: 44)
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(cat.tint.color)
+                                        .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
                                         .background(
                                             Circle()
-                                                .fill(editCategory == cat.key ? cat.color : cat.color.opacity(0.12))
+                                                .fill(isSelected ? cat.tint.color.opacity(0.16) : CodyColors.bgListIcon)
                                         )
+                                        .overlay {
+                                            Circle()
+                                                .strokeBorder(
+                                                    isSelected ? cat.tint.color : CodyColors.borderListIcon,
+                                                    lineWidth: isSelected ? 1.5 : CodySpacing.px
+                                                )
+                                                .allowsHitTesting(false)
+                                        }
+                                        .accessibilityHidden(true)
                                     Text(LocalizedStringKey(cat.label))
-                                        .font(.caption2)
-                                        .foregroundStyle(editCategory == cat.key ? cat.color : .secondary)
+                                        .font(isSelected ? CodyTypography.labelSmall.weight(.semibold) : CodyTypography.labelSmall)
+                                        .foregroundStyle(isSelected ? CodyColors.textPrimary : CodyColors.textSecondary)
+                                        .lineLimit(1)
                                 }
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(CodyPressableButtonStyle())
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, CodySpacing.sm)
+                    .listRowBackground(CodyColors.bgGroupedSurface)
+                    .listRowSeparatorTint(CodyColors.separator)
+                } header: {
+                    Text("Category")
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
 
                 Section {
                     Button {
                         regenerate()
                     } label: {
-                        HStack {
+                        HStack(spacing: CodySpacing.sm) {
                             if isRegenerating {
-                                SpinningRing(color: .accentColor)
+                                SpinningRing(color: CodyColors.iconPrimary)
                                     .frame(width: 18, height: 18)
                             } else {
                                 Image(systemName: "arrow.triangle.2.circlepath")
+                                    .accessibilityHidden(true)
                             }
                             Text("Regenerate Title")
                         }
-                        .frame(maxWidth: .infinity, alignment: .center)
+                        .font(CodyTypography.labelLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard, alignment: .center)
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(isRegenerating)
+                    .listRowBackground(CodyColors.bgGroupedSurface)
+                    .listRowSeparatorTint(CodyColors.separator)
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(CodyColors.bgGrouped)
             .navigationTitle("Edit Session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -104,6 +140,7 @@ struct SessionEditSheet: View {
                         onSave(title, editCategory.isEmpty ? nil : editCategory)
                     }
                     .bold()
+                    .foregroundStyle(CodyColors.textPrimary)
                     .disabled(editTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
@@ -138,14 +175,21 @@ struct SessionEditSheet: View {
 /// stacking animations on repeated onAppear calls.
 struct SpinningRing: View {
     let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let angle = timeline.date.timeIntervalSinceReferenceDate.remainder(dividingBy: 1.0) * 360
+        if reduceMotion {
             Circle()
-                .trim(from: 0, to: 0.3)
+                .trim(from: 0, to: 0.7)
                 .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-                .rotationEffect(.degrees(angle))
+        } else {
+            TimelineView(.animation) { timeline in
+                let angle = timeline.date.timeIntervalSinceReferenceDate.remainder(dividingBy: 1.0) * 360
+                Circle()
+                    .trim(from: 0, to: 0.3)
+                    .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                    .rotationEffect(.degrees(angle))
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ import SwiftUI
 struct OnboardingModelSelectionView: View {
     @ObservedObject private var store = ProviderConfigStore.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @State private var selectedModelEntryIds: [String] = []
     @State private var searchText: String = ""
@@ -41,47 +42,69 @@ struct OnboardingModelSelectionView: View {
                     // provider detail page uses, so a model added here lands in
                     // the store exactly as one added later would.
                     Section {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("Could not fetch the model list automatically.", systemImage: "exclamationmark.triangle")
-                                .font(.subheadline)
+                        VStack(alignment: .leading, spacing: CodySpacing.md) {
+                            HStack(alignment: .top, spacing: CodySpacing.sm) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(CodyTypography.titleSmall)
+                                    .foregroundStyle(CodyColors.statusWarningText)
+                                    .accessibilityHidden(true)
+                                Text("Could not fetch the model list automatically.")
+                                    .font(CodyTypography.bodyMedium)
+                                    .foregroundStyle(CodyColors.textPrimary)
+                            }
                             // The detail line is the provider's own error; skip it
                             // when all we have is the generic headline again.
                             if fetchError != AppLocalized("Could not fetch the model list automatically.") {
                                 Text(fetchError)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.bodySmall)
+                                    .foregroundStyle(CodyColors.textSecondary)
                             }
-                            HStack(spacing: 12) {
+                            HStack(spacing: CodySpacing.md) {
                                 Button {
                                     fetchMissingModels()
                                 } label: {
                                     Label("Retry", systemImage: "arrow.clockwise")
+                                        .font(CodyTypography.labelLarge)
+                                        .foregroundStyle(CodyColors.textPrimary)
+                                        .padding(.horizontal, CodySpacing.md)
+                                        .frame(minHeight: CodyControlHeight.compact)
+                                        .background(CodyColors.interactiveSecondaryBg, in: Capsule())
+                                        .overlay {
+                                            Capsule()
+                                                .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                                .allowsHitTesting(false)
+                                        }
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(.borderless)
                                 manualAddButton
                             }
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, CodySpacing.xs)
+                        .codyGroupedRow()
                     } header: {
                         Text("Models")
+                            .codySectionHeaderText()
                     }
                 } else {
                     Section {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                ProgressView()
-                                Text("Loading models...")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: CodySpacing.md) {
+                            CodyShimmeringText("Loading models...")
+                                .font(CodyTypography.bodyMedium)
+                            VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                                CodySkeletonView(height: CodySpacing.lg, cornerRadius: CodyRadius.sm)
+                                CodySkeletonView(width: 210, height: CodySpacing.lg, cornerRadius: CodyRadius.sm)
+                                CodySkeletonView(width: 160, height: CodySpacing.lg, cornerRadius: CodyRadius.sm)
                             }
-                            Spacer()
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, CodySpacing.xs)
+                        .codyGroupedRow()
                     } header: {
                         Text("Models")
+                            .codySectionHeaderText()
                     } footer: {
                         Text("Fetching model list from your provider…")
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textTertiary)
                     }
                 }
             } else {
@@ -95,25 +118,49 @@ struct OnboardingModelSelectionView: View {
                         Section {
                             ForEach(entries) { entry in
                                 modelRow(entry: entry)
+                                    .codyGroupedRow()
                             }
                         } header: {
                             Text(instance.label)
+                                .codySectionHeaderText()
                         }
                     }
                 }
-
             }
         }
+        .codyGroupedListCanvas()
         .searchable(text: $searchText, prompt: "Filter models")
         .navigationTitle("Select Models")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Skip") { dismiss() }
+                    .foregroundStyle(CodyColors.textSecondary)
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Next") { createGroupAndDismiss() }
-                    .disabled(selectedModelEntryIds.isEmpty)
+        }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 0) {
+                Button {
+                    createGroupAndDismiss()
+                } label: {
+                    Text("Next")
+                        .font(CodyTypography.titleMedium)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                .disabled(selectedModelEntryIds.isEmpty)
+                .padding(.horizontal, CodySpacing.lg)
+                .padding(.vertical, CodySpacing.md)
+            }
+            .background {
+                if reduceTransparency {
+                    CodyColors.bgGroupedSurface
+                } else {
+                    Rectangle().fill(.bar)
+                }
+            }
+            .overlay(alignment: .top) {
+                CodyColors.separator.frame(height: CodySpacing.px)
             }
         }
         .sheet(item: $manualAddTarget) { target in
@@ -131,19 +178,32 @@ struct OnboardingModelSelectionView: View {
             Button {
                 manualAddTarget = ManualAddTarget(instanceId: only.id)
             } label: {
-                Label("Add Model Manually", systemImage: "plus")
+                manualAddLabel
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderless)
         } else if !targets.isEmpty {
             Menu {
                 ForEach(targets) { inst in
                     Button(inst.label) { manualAddTarget = ManualAddTarget(instanceId: inst.id) }
                 }
             } label: {
-                Label("Add Model Manually", systemImage: "plus")
+                manualAddLabel
             }
-            .buttonStyle(.bordered)
         }
+    }
+
+    private var manualAddLabel: some View {
+        Label("Add Model Manually", systemImage: "plus")
+            .font(CodyTypography.labelLarge)
+            .foregroundStyle(CodyColors.textPrimary)
+            .padding(.horizontal, CodySpacing.md)
+            .frame(minHeight: CodyControlHeight.compact)
+            .background(CodyColors.interactiveSecondaryBg, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
     }
 
     // MARK: - Fetch
@@ -211,23 +271,34 @@ struct OnboardingModelSelectionView: View {
                 selectedModelEntryIds.append(entry.id)
             }
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: CodySpacing.md) {
+                Text(entry.model.displayName)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                Spacer(minLength: CodySpacing.sm)
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Color.accentColor : Color(UIColor.tertiarySystemFill))
-                        .frame(width: 26, height: 26)
-                    if isSelected, let idx = selectionIndex {
-                        Text("\(idx + 1)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white)
+                        .fill(isSelected ? CodyColors.interactivePrimaryBg : Color.clear)
+                        .frame(width: CodySpacing.xxl, height: CodySpacing.xxl)
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? CodyColors.interactivePrimaryBg : CodyColors.borderHeavy,
+                            lineWidth: 1.5
+                        )
+                        .frame(width: CodySpacing.xxl, height: CodySpacing.xxl)
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(CodyColors.interactivePrimaryLabel)
                     }
                 }
-                Text(entry.model.displayName)
-                    .font(.body)
-                    .foregroundStyle(Color(UIColor.label))
-                Spacer()
+                .accessibilityHidden(true)
             }
+            .frame(minHeight: CodyControlHeight.standard)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func createGroupAndDismiss() {

@@ -8,17 +8,7 @@
 //  Map of the AIChatView files: AIChatView/AIChatView.swift.
 //
 
-import AVFoundation
-import AVKit
-import Combine
-import GameController
-import PhotosUI
-import QuickLook
-import QuickLook
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
-import WebKit
 
 // MARK: - Session Loading Card
 
@@ -28,7 +18,8 @@ import WebKit
 /// old system spinner never appears after / alongside the new loading UI.
 struct LoadingDotsView: View {
     var dotSize: CGFloat = 10
-    var color: Color = .accentColor
+    var color: Color = CodyColors.iconSecondary
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animating = false
 
     var body: some View {
@@ -37,31 +28,47 @@ struct LoadingDotsView: View {
                 Circle()
                     .fill(color)
                     .frame(width: dotSize, height: dotSize)
-                    .scaleEffect(animating ? 1.0 : 0.55)
-                    .opacity(animating ? 0.95 : 0.3)
+                    .scaleEffect(reduceMotion ? 0.85 : (animating ? 1.0 : 0.55))
+                    .opacity(reduceMotion ? 0.65 : (animating ? 0.95 : 0.3))
                     .animation(
-                        .easeInOut(duration: 0.5)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(i) * 0.16),
+                        reduceMotion
+                            ? nil
+                            : .easeInOut(duration: 0.5)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(i) * 0.16),
                         value: animating
                     )
             }
         }
-        .onAppear { animating = true }
+        .onAppear {
+            if !reduceMotion {
+                animating = true
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
-/// Loading placeholder shown while ENTERING a session whose messages haven't
-/// loaded yet — replaces the bare system spinner for that first-open moment
-/// (black screen → lone spinner → content snap). Just the bare three-dot
-/// carousel, centered — no card container or label (visual-simplification
-/// feedback: the rounded material box + "Loading conversation…" text read as
-/// too heavy). The container's transition fades/scales it out when loading
-/// completes. Reload paths with content on screen never show this — see the
-/// isLoadingSession overlay in AIChatView.
+/// Calm skeleton + shimmering status card shown while ENTERING a session whose
+/// messages haven't loaded yet. Respects Reduce Motion via CodySkeletonView
+/// and CodyShimmeringText.
 struct SessionLoadingCard: View {
     var body: some View {
-        LoadingDotsView(dotSize: 8)
-            .frame(height: 24)
+        VStack(alignment: .leading, spacing: CodySpacing.md) {
+            HStack(spacing: CodySpacing.sm) {
+                LoadingDotsView(dotSize: CodySpacing.xsPlus, color: CodyColors.iconSecondary)
+                    .frame(height: CodySpacing.lg)
+                CodyShimmeringText("Loading…")
+                    .font(CodyTypography.labelLarge)
+            }
+            VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                CodySkeletonView(height: CodySpacing.md, cornerRadius: CodyRadius.sm)
+                CodySkeletonView(width: 180, height: CodySpacing.md, cornerRadius: CodyRadius.sm)
+            }
+        }
+        .padding(CodySpacing.lg)
+        .frame(maxWidth: 260, alignment: .leading)
+        .modifier(CodySurfaceModifier(radius: CodyRadius.surface))
+        .accessibilityElement(children: .combine)
     }
 }

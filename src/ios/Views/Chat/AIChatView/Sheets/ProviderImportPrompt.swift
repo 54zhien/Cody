@@ -9,17 +9,7 @@
 //  Map of the AIChatView files: AIChatView/AIChatView.swift.
 //
 
-import AVFoundation
-import AVKit
-import Combine
-import GameController
-import PhotosUI
-import QuickLook
-import QuickLook
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
-import WebKit
 
 // MARK: - Provider Import Prompt
 
@@ -94,46 +84,74 @@ private struct ProviderImportSheet: View {
     @State private var chose = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
+        let badgeShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+        VStack(spacing: CodySpacing.xl) {
+            VStack(spacing: CodySpacing.smPlus) {
                 Image(systemName: "doc.badge.gearshape")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.tint)
-                    .padding(.top, 8)
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(CodyColors.iconPrimary)
+                    .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                    .background(badgeShape.fill(CodyColors.bgElevatedPrimary))
+                    .clipShape(badgeShape)
+                    .overlay {
+                        badgeShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .accessibilityHidden(true)
+                    .padding(.top, CodySpacing.sm)
                 Text(AppLocalized("Provider Configuration Detected"))
-                    .font(.headline)
+                    .font(CodyTypography.titleLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
                 Text(AppLocalized("This JSON file looks like an exported provider configuration. Import it as a new provider, or add it to the chat as a file attachment?"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: CodySpacing.smPlus) {
                 Button(action: { chose = true; onImport() }) {
                     Text(AppLocalized("Import as Provider"))
+                        .font(CodyTypography.labelLarge)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
 
                 Button(action: { chose = true; onAttach() }) {
                     Text(AppLocalized("Add as Chat Attachment"))
-                        .frame(maxWidth: .infinity)
+                        .font(CodyTypography.labelLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                        .padding(.horizontal, CodySpacing.lg)
+                        .background(
+                            RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+                                .fill(CodyColors.interactiveSecondaryBg)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+                                .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                        .contentShape(Capsule())
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(CodyPressableButtonStyle())
 
                 Button(role: .cancel, action: { chose = true; onCancel() }) {
                     Text(AppLocalized("Cancel"))
-                        .frame(maxWidth: .infinity)
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
+                        .contentShape(Capsule())
                 }
-                .controlSize(.large)
+                .buttonStyle(CodyPressableButtonStyle())
             }
         }
-        .padding(24)
-        .presentationDetents([.height(360), .medium])
+        .padding(CodySpacing.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(CodyColors.bgGrouped)
+        .presentationDetents([.height(390), .medium])
         .presentationDragIndicator(.visible)
         // Swipe-to-dismiss without tapping a button still needs cleanup.
         .onDisappear { if !chose { onCancel() } }

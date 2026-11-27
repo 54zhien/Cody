@@ -7,17 +7,7 @@
 //  Map of the AIChatView files: AIChatView/AIChatView.swift.
 //
 
-import AVFoundation
-import AVKit
-import Combine
-import GameController
-import PhotosUI
-import QuickLook
-import QuickLook
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
-import WebKit
 
 // MARK: - Empty Chat Directory Timeline
 
@@ -33,57 +23,61 @@ struct EmptyChatDirectoryTimeline: View {
     var onBrowse: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: CodySpacing.md) {
+            HStack(spacing: CodySpacing.sm) {
                 Image(systemName: "lightbulb")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(ChatColors.secondaryText)
+                    .font(CodyTypography.labelMedium)
+                    .foregroundStyle(CodyColors.iconSecondary)
+                    .accessibilityHidden(true)
                 Text("Workspace layout")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(ChatColors.secondaryText)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
             }
-            Text("Each chat gets its own **workspace**, **attachments**, **offloads**, and **browser** folders — wiped when the session ends.")
-                .font(.system(size: 12))
-                .foregroundStyle(ChatColors.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("All chats share **shared**, **skills**, **memory**, and **mounts** — persistent across sessions.")
-                .font(.system(size: 12))
-                .foregroundStyle(ChatColors.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(alignment: .top, spacing: CodySpacing.smPlus) {
+                CodyListIconBadge(systemImage: "folder", tint: .neutral)
+                Text("Each chat gets its own **workspace**, **attachments**, **offloads**, and **browser** folders — wiped when the session ends.")
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(alignment: .top, spacing: CodySpacing.smPlus) {
+                CodyListIconBadge(systemImage: "folder.fill", tint: .blue)
+                Text("All chats share **shared**, **skills**, **memory**, and **mounts** — persistent across sessions.")
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack {
                 Spacer()
                 Button(action: onBrowse) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: CodySpacing.xsPlus) {
                         Image(systemName: "folder")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(CodyTypography.labelSmall.weight(.semibold))
+                            .accessibilityHidden(true)
                         Text("Browse Chat Files")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(CodyTypography.labelMedium)
                     }
-                    .foregroundStyle(ChatColors.primaryText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule().fill(ChatColors.secondaryBg)
-                    )
-                    .overlay(
-                        Capsule().stroke(ChatColors.toolBorder, lineWidth: 0.5)
-                    )
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .padding(.horizontal, CodySpacing.md)
+                    .frame(minHeight: CodyControlHeight.sm)
+                    .background(Capsule().fill(CodyColors.interactiveSecondaryBg))
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
             }
-            .padding(.top, 2)
+            .padding(.top, CodySpacing.xxs)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
         .frame(maxWidth: 460, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(ChatColors.secondaryBg.opacity(0.6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(ChatColors.toolBorder, lineWidth: 0.5)
-        )
+        .modifier(CodyAgentCardModifier())
         .fixedSize(horizontal: false, vertical: true)
     }
 }

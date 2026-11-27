@@ -21,19 +21,24 @@ struct ChatSearchBar: View {
     /// Called after Done: the page restores its composer.
     var onDone: () -> Void
     @FocusState private var fieldFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var hasQuery: Bool { !search.normalizedQuery.isEmpty }
     private var hasResults: Bool { search.matchCount > 0 }
 
     var body: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
+        let fieldShape = RoundedRectangle(cornerRadius: CodyRadius.pill, style: .continuous)
+        HStack(spacing: CodySpacing.xsPlus) {
+            HStack(spacing: CodySpacing.xsPlus) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(ChatColors.secondaryText)
+                    .font(CodyTypography.bodyMedium.weight(.medium))
+                    .foregroundStyle(CodyColors.iconSecondary)
+                    .accessibilityHidden(true)
                 TextField(AppLocalized("Search this chat"), text: $search.query)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 15))
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                     .submitLabel(.search)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
@@ -52,22 +57,30 @@ struct ChatSearchBar: View {
                         fieldFocused = true
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(ChatColors.tertiaryText)
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.iconTertiary)
+                            .frame(width: CodySpacing.xxl, height: CodyControlHeight.compact)
+                            .contentShape(Rectangle().inset(by: -CodySpacing.xs))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(CodyPressableButtonStyle())
                     .accessibilityLabel(AppLocalized("Clear"))
                 }
             }
-            .padding(.horizontal, 10)
-            .frame(height: 36)
-            .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal, CodySpacing.md)
+            .frame(height: CodyControlHeight.compact)
+            .background(fieldShape.fill(CodyColors.bgTertiary))
+            .overlay {
+                fieldShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
 
-            navButton(systemName: "chevron.up", label: AppLocalized("Previous Result")) { search.previous() }
-                .keyboardShortcut(.return, modifiers: .shift)
-                .accessibilityIdentifier("chatSearchPrevious")
-            navButton(systemName: "chevron.down", label: AppLocalized("Next Result")) { search.next() }
-                .accessibilityIdentifier("chatSearchNext")
+            HStack(spacing: 0) {
+                navButton(systemName: "chevron.up", label: AppLocalized("Previous Result")) { search.previous() }
+                    .keyboardShortcut(.return, modifiers: .shift)
+                    .accessibilityIdentifier("chatSearchPrevious")
+                navButton(systemName: "chevron.down", label: AppLocalized("Next Result")) { search.next() }
+                    .accessibilityIdentifier("chatSearchNext")
+            }
 
             Button {
                 fieldFocused = false
@@ -75,18 +88,30 @@ struct ChatSearchBar: View {
                 onDone()
             } label: {
                 Text(AppLocalized("Done"))
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .padding(.horizontal, CodySpacing.sm)
+                    .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
+                    .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.accentColor)
-            .padding(.leading, 2)
+            .buttonStyle(CodyPressableButtonStyle())
             .accessibilityIdentifier("chatSearchDone")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.bar)
-        .overlay(alignment: .bottom) { Divider() }
-        .overlay(alignment: .bottom) { noticeView.offset(y: 34) }
+        .padding(.horizontal, CodySpacing.md)
+        .padding(.vertical, CodySpacing.xsPlus)
+        .background {
+            if reduceTransparency {
+                CodyColors.bgCanvasSubtle
+            } else {
+                Rectangle().fill(.bar)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            CodyColors.separator.frame(height: CodySpacing.px)
+        }
+        .overlay(alignment: .bottom) { noticeView.offset(y: CodySpacing.s36) }
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: hasQuery)
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: search.notice != nil)
         .onAppear { fieldFocused = true }
         .onChange(of: search.focusRequest) { _ in fieldFocused = true }
         .accessibilityElement(children: .contain)
@@ -96,20 +121,22 @@ struct ChatSearchBar: View {
     @ViewBuilder
     private var counter: some View {
         if search.isSearching && !hasResults {
-            ProgressView().scaleEffect(0.7).frame(width: 20)
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: CodySpacing.xl)
         } else if hasResults {
             Text(verbatim: ChatSearchNavigation.counterText(index: search.currentIndex, count: search.matchCount,
                                                             truncated: search.isTruncated))
-                .font(.system(size: 13).monospacedDigit())
-                .foregroundStyle(ChatColors.secondaryText)
+                .font(CodyTypography.bodySmall.monospacedDigit())
+                .foregroundStyle(CodyColors.textSecondary)
                 .lineLimit(1)
                 .fixedSize()
                 .accessibilityLabel(search.currentIndex.map { AppLocalized("Result \($0 + 1) of \(search.matchCount)") } ?? "")
                 .accessibilityIdentifier("chatSearchCounter")
         } else {
             Text(AppLocalized("No results"))
-                .font(.system(size: 13))
-                .foregroundStyle(ChatColors.secondaryText)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
                 .lineLimit(1)
                 .fixedSize()
                 .accessibilityIdentifier("chatSearchCounter")
@@ -119,12 +146,12 @@ struct ChatSearchBar: View {
     private func navButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 30, height: 36)
-                .contentShape(Rectangle())
+                .font(CodyTypography.labelLarge)
+                .foregroundStyle(hasResults ? CodyColors.iconPrimary : CodyColors.iconTertiary)
+                .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
+                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(hasResults ? Color.accentColor : ChatColors.tertiaryText)
+        .buttonStyle(CodyPressableButtonStyle())
         .disabled(!hasResults)
         .accessibilityLabel(label)
     }
@@ -133,12 +160,12 @@ struct ChatSearchBar: View {
     private var noticeView: some View {
         if let notice = search.notice {
             Text(ChatSearchController.noticeText(notice))
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.black.opacity(0.75), in: Capsule())
-                .transition(.opacity)
+                .font(CodyTypography.labelMedium)
+                .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                .padding(.horizontal, CodySpacing.md)
+                .padding(.vertical, CodySpacing.xsPlus)
+                .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                .transition(reduceMotion ? .identity : .opacity)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
