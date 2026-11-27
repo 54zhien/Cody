@@ -25,6 +25,7 @@ struct SoulSettingsView: View {
     @State private var didJustSave: Bool = false
     @State private var showRestoreConfirm: Bool = false
     @State private var showForceSyncDone: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var loadedRef = LoadedFileRef()
     /// Mirrors `SyncV2Bootstrap.isEnabled` so the Force iCloud Sync row
     /// shows / hides reactively when the user toggles iCloud sync in
@@ -43,40 +44,51 @@ struct SoulSettingsView: View {
         Form {
             Section {
                 previewCard
+                    .settingsRowSurface()
             }
 
-            Section(AppLocalized("Identity")) {
+            Section {
                 LabeledContent(AppLocalized("Name")) {
                     TextField("Cody", text: $name)
                         .multilineTextAlignment(.trailing)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                 }
+                    .settingsRowSurface()
                 LabeledContent(AppLocalized("Style")) {
                     TextField(AppLocalized("e.g. Warm, direct, opinionated"), text: $style)
                         .multilineTextAlignment(.trailing)
                 }
+                    .settingsRowSurface()
                 Picker(AppLocalized("Language"), selection: $lang) {
                     ForEach(Self.langOptions, id: \.value) { opt in
                         Text(opt.label).tag(opt.value)
                     }
                 }
+                    .settingsRowSurface()
+            } header: {
+                Text(AppLocalized("Identity"))
+                    .settingsSectionHeading()
             }
 
             Section {
                 personalityEditor
+                    .settingsRowSurface()
             } header: {
                 Text(AppLocalized("Personality Prompt"))
+                    .settingsSectionHeading()
             } footer: {
                 bodyLengthFooter
+                    .settingsSectionFooter()
             }
 
             Section {
                 Button(role: .destructive) {
                     showRestoreConfirm = true
                 } label: {
-                    Label(AppLocalized("Restore Default"), systemImage: "arrow.uturn.backward")
+                    SettingsIconLabel(title: Text(AppLocalized("Restore Default")), systemImage: "arrow.uturn.backward", tint: .red)
                 }
+                    .settingsRowSurface()
 
                 // Force iCloud Sync — re-marks SOUL.md dirty and asks
                 // SyncCore to send immediately. Same gating predicate
@@ -88,26 +100,29 @@ struct SoulSettingsView: View {
                         Task { await forceSyncSoul() }
                     } label: {
                         HStack {
-                            Label(AppLocalized("Force iCloud Sync"), systemImage: "icloud.and.arrow.up")
+                            SettingsIconLabel(title: Text(AppLocalized("Force iCloud Sync")), systemImage: "icloud.and.arrow.up", tint: .blue)
                             Spacer()
                             if showForceSyncDone {
                                 Text(AppLocalized("Queued"))
-                                    .foregroundStyle(.green)
-                                    .font(.caption)
+                                    .foregroundStyle(CodyColors.statusSuccessText)
+                                    .font(CodyTypography.bodySmall)
                             }
                         }
                     }
+                        .settingsRowSurface()
                 }
             }
 
             if let saveError {
                 Section {
                     Text(saveError)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .settingsRowSurface()
                 }
             }
         }
+        .settingsGroupedCanvas()
         .navigationTitle(AppLocalized("Soul"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -141,12 +156,13 @@ struct SoulSettingsView: View {
         .overlay(alignment: .bottom) {
             if didJustSave {
                 Text(AppLocalized("Saved"))
-                    .font(.footnote.weight(.medium))
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color.green.opacity(0.85), in: Capsule())
-                    .foregroundStyle(.white)
-                    .padding(.bottom, 24)
-                    .transition(.opacity)
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .padding(.bottom, CodySpacing.xxl)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
         }
     }
@@ -174,9 +190,9 @@ struct SoulSettingsView: View {
                 SoulIconView(icon: icon, size: SoulIconImage.renderPoints)
                     .frame(width: 44, height: 44)
                     .frame(width: 52, height: 52)
-                    .background(Circle().fill(Color.secondary.opacity(0.12)))
+                    .background(Circle().fill(CodyColors.bgListIcon))
                     .overlay(
-                        Circle().strokeBorder(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                        Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
                     )
                     // The badge sits INSIDE the circle's bounds rather than
                     // straddling its edge. Overhanging it (even with padding)
@@ -192,14 +208,14 @@ struct SoulSettingsView: View {
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "pencil")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(CodyColors.interactivePrimaryLabel)
                             .frame(width: 18, height: 18)
-                            .background(Circle().fill(Color.accentColor))
-                            .overlay(Circle().strokeBorder(Color(.systemBackground), lineWidth: 1.5))
-                            .offset(x: 1, y: 1)
+                            .background(CodyColors.interactivePrimaryBg, in: Circle())
+                            .overlay(Circle().strokeBorder(CodyColors.bgGroupedSurface, lineWidth: CodySpacing.px))
+                            .accessibilityHidden(true)
                     }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
             .accessibilityLabel(AppLocalized("Change icon"))
             // [T-soul-custom-icon] Attached to the BUTTON, not to the whole
             // page. A confirmationDialog anchors its popover to the view it
@@ -229,7 +245,7 @@ struct SoulSettingsView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(name.isEmpty ? "Cody" : name)
-                    .font(.title3.weight(.semibold))
+                    .font(CodyTypography.titleLarge)
                 if !style.trimmingCharacters(in: .whitespaces).isEmpty {
                     Text(style)
                         .font(.footnote)
@@ -247,6 +263,7 @@ struct SoulSettingsView: View {
                 .frame(minHeight: 220)
                 .font(.system(.body, design: .monospaced))
                 .scrollContentBackground(.hidden)
+                .accessibilityLabel(Text(AppLocalized("Personality Prompt")))
             // SwiftUI's TextEditor has no native placeholder. We render
             // a greyed hint on top when the body is empty + not being
             // typed into. allowsHitTesting(false) so taps fall through
@@ -258,6 +275,7 @@ struct SoulSettingsView: View {
                     .padding(.top, 8)
                     .padding(.leading, 5)
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -270,7 +288,8 @@ struct SoulSettingsView: View {
         return HStack(spacing: 6) {
             if check.isOverLimit {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .accessibilityHidden(true)
             }
             switch check {
             case .ok:
@@ -278,7 +297,7 @@ struct SoulSettingsView: View {
                     .foregroundStyle(.secondary)
             case .overLimit(let count, let cap):
                 Text(AppLocalized("Over limit: \(count) / \(cap) tokens. Each CJK character and each Latin word counts as one."))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(CodyColors.statusErrorText)
             }
         }
         .font(.footnote)
@@ -335,9 +354,9 @@ struct SoulSettingsView: View {
             try SoulStore.save(f)
             loadedRef.value = f
             saveError = nil
-            withAnimation { didJustSave = true }
+            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { didJustSave = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation { didJustSave = false }
+                withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { didJustSave = false }
             }
         } catch {
             saveError = "Save failed: \(error.localizedDescription)"
@@ -432,7 +451,7 @@ private struct SoulEmojiPickerSheet: View {
                 // shows what the icon will actually look like in place.
                 SoulIconView(icon: draft, size: SoulIconImage.renderPoints)
                     .frame(width: 52, height: 52)
-                    .background(Circle().fill(Color.secondary.opacity(0.12)))
+                    .background(Circle().fill(CodyColors.bgListIcon))
                     .padding(.top, 8)
 
                 ForEach(Array(Self.suggestions.enumerated()), id: \.offset) { _, row in
@@ -448,11 +467,12 @@ private struct SoulEmojiPickerSheet: View {
                                     .frame(width: 38, height: 38)
                                     .background(
                                         Circle().fill(draft == emoji
-                                                      ? Color.accentColor.opacity(0.22)
-                                                      : Color.secondary.opacity(0.10))
+                                                      ? CodyColors.textAccent.opacity(0.18)
+                                                      : CodyColors.interactiveSecondaryBg)
                                     )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(CodyPressableButtonStyle())
+                            .accessibilityAddTraits(draft == emoji ? .isSelected : [])
                         }
                     }
                 }
@@ -461,7 +481,7 @@ private struct SoulEmojiPickerSheet: View {
                     .font(.system(size: 28))
                     .multilineTextAlignment(.center)
                     .frame(height: 52)
-                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                    .background(CodyColors.interactiveSecondaryBg, in: RoundedRectangle(cornerRadius: CodyRadius.control))
                     // Every keystroke is normalized to a single emoji: typing
                     // a second one REPLACES the first, and non-emoji input is
                     // dropped outright rather than rejected later with an

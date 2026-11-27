@@ -24,41 +24,60 @@ struct ConfigAuditDetailView: View {
         List {
             Section {
                 LabeledContent("Status") { ConfigAuditStatusBadge(status: status) }
+                    .settingsRowSurface()
                 LabeledContent("Changed by") { Text(Self.actorLabel(entry.actor)) }
+                    .settingsRowSurface()
                 LabeledContent("Requested") {
                     Text(entry.at.formatted(date: .abbreviated, time: .standard))
                 }
+                    .settingsRowSurface()
                 if let confirmed = entry.confirmedAt {
                     LabeledContent("Resolved") {
                         Text(confirmed.formatted(date: .abbreviated, time: .standard))
                     }
+                        .settingsRowSurface()
                 }
             }
 
             if let caption = entry.caption, !caption.isEmpty {
-                Section("Note from the assistant") {
+                Section {
                     Text(verbatim: caption)
                         .textSelection(.enabled)
+                        .settingsRowSurface()
+                } header: {
+                    Text("Note from the assistant")
+                        .settingsSectionHeading()
                 }
             }
 
-            Section("What changed") {
+            Section {
                 if let readable = entry.readable {
                     Text(verbatim: readable.displayText)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
+                        .settingsRowSurface()
                 } else {
                     Label("This record predates readable descriptions, so only the raw change is shown.",
                           systemImage: "clock.arrow.circlepath")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .settingsRowSurface()
                 }
+            } header: {
+                Text("What changed")
+                    .settingsSectionHeading()
             }
 
-            Section("Raw change") {
+            Section {
                 rawBlock("Setting", entry.key)
+                    .settingsRowSurface()
                 rawBlock("Before", Self.prettyJSON(entry.oldValueJSON))
+                    .settingsRowSurface()
                 rawBlock("After", Self.prettyJSON(entry.newValueJSON))
+                    .settingsRowSurface()
+            } header: {
+                Text("Raw change")
+                    .settingsSectionHeading()
             }
 
             if status == .applied {
@@ -66,17 +85,20 @@ struct ConfigAuditDetailView: View {
                     Button(role: .destructive) {
                         confirmRevert = true
                     } label: {
-                        Label("Revert This Change", systemImage: "arrow.uturn.backward")
+                        SettingsIconLabel(title: Text("Revert This Change"), systemImage: "arrow.uturn.backward", tint: .red)
                     }
                     .disabled(reverting)
+                        .settingsRowSurface()
                 }
             } else if status == .reverted {
                 Section {
                     Label("Reverted", systemImage: "arrow.uturn.backward.circle.fill")
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(CodyCategoryTint.purple.color)
+                        .settingsRowSurface()
                 }
             }
         }
+        .settingsGroupedCanvas()
         .listStyle(.insetGrouped)
         .navigationTitle("Change Details")
         .navigationBarTitleDisplayMode(.inline)

@@ -72,19 +72,21 @@ struct AboutView: View {
         List {
             // MARK: - Project Info
             Section {
-                VStack(spacing: 8) {
+                VStack(spacing: CodySpacing.sm) {
                     if let icon = UIImage(named: "AppIcon60x60") ?? UIImage(named: "AppIcon") {
                         Image(uiImage: icon)
                             .resizable()
                             .frame(width: 80, height: 80)
-                            .clipShape(RoundedRectangle(cornerRadius: 18))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 18)
-                                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
-                            )
+                            .clipShape(RoundedRectangle(cornerRadius: CodyRadius.surface))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: CodyRadius.surface)
+                                    .strokeBorder(CodyColors.borderDefault, lineWidth: CodySpacing.px)
+                            }
+                            .accessibilityHidden(true)
                     }
                     Text("Cody")
-                        .font(.title2.bold())
+                        .font(CodyTypography.headlineSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Text("Version \(appVersion)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -105,42 +107,56 @@ struct AboutView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .listRowBackground(Color.clear)
+                .padding(.vertical, CodySpacing.lg)
+                .multilineTextAlignment(.center)
+                .settingsRowSurface()
             }
 
             // MARK: - Links
-            Section("Links") {
+            Section {
                 Link(destination: URL(string: "https://github.com/54zhien/Cody")!) {
                     Label {
                         HStack {
                             Text("GitHub Repository")
-                                .foregroundStyle(Color(UIColor.label))
+                                .foregroundStyle(CodyColors.textPrimary)
                             Spacer()
                             Image(systemName: "arrow.up.right.square")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
                         }
                     } icon: {
-                        Image(systemName: "link.circle.fill")
+                        CodySettingsIconBadge(systemImage: "link", tint: .blue)
                     }
+                    .settingsRowActionLabel()
                 }
+                .buttonStyle(CodyPressableButtonStyle())
+                .settingsRowSurface()
                 Link(destination: URL(string: "https://github.com/54zhien/Cody/issues")!) {
                     Label {
                         HStack {
                             Text("Report an Issue")
-                                .foregroundStyle(Color(UIColor.label))
+                                .foregroundStyle(CodyColors.textPrimary)
                             Spacer()
                             Image(systemName: "arrow.up.right.square")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
                         }
                     } icon: {
-                        Image(systemName: "exclamationmark.circle.fill")
+                        CodySettingsIconBadge(systemImage: "exclamationmark.bubble", tint: .orange)
                     }
+                    .settingsRowActionLabel()
                 }
+                .buttonStyle(CodyPressableButtonStyle())
+                .settingsRowSurface()
+            } header: {
+                Text("Links")
+                    .settingsSectionHeading()
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
     }

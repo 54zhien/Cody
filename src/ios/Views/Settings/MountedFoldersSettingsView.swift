@@ -35,14 +35,13 @@ struct MountedFoldersSettingsView: View {
         List {
             Section {
                 InfoBanner()
+                    .settingsRowSurface()
             }
 
             if model.entries.isEmpty {
                 Section {
                     VStack(spacing: 10) {
-                        Image(systemName: "externaldrive.badge.plus")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
+                        CodySettingsIconBadge(systemImage: "externaldrive.badge.plus", tint: .orange)
                         Text("No mounted folders")
                             .font(.headline)
                         Text("Tap + to pick a folder from Files (e.g. an Obsidian vault in iCloud Drive).")
@@ -52,6 +51,7 @@ struct MountedFoldersSettingsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
+                        .settingsRowSurface()
                 }
             } else {
                 Section {
@@ -75,6 +75,7 @@ struct MountedFoldersSettingsView: View {
                                 Label("Remove", systemImage: "trash")
                             }
                         }
+                            .settingsRowSurface()
                     }
                 } header: {
                     HStack {
@@ -82,16 +83,20 @@ struct MountedFoldersSettingsView: View {
                         Spacer()
                         Text("\(model.entries.count) / \(MountedFoldersManager.maxMountCount)")
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(model.isAtCapacity ? .orange : .secondary)
+                            .foregroundStyle(model.isAtCapacity ? CodyColors.statusWarningText : CodyColors.textSecondary)
                     }
+                        .settingsSectionHeading()
                 } footer: {
                     if model.isAtCapacity {
                         Text("Mount limit reached. Remove an existing mount before adding a new one.")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(CodyColors.statusWarningText)
+                            .settingsSectionFooter()
                     }
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("Mount External Folders")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -100,6 +105,7 @@ struct MountedFoldersSettingsView: View {
                     showingPicker = true
                 } label: {
                     Image(systemName: "plus")
+                        .accessibilityLabel(Text("Mount External Folders"))
                 }
                 .disabled(model.isAtCapacity)
             }
@@ -255,7 +261,7 @@ struct MountedFoldersSettingsView: View {
 private struct InfoBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("Mount external folders", systemImage: "info.circle")
+            SettingsIconLabel(title: Text("Mount external folders"), systemImage: "info", tint: .neutral)
                 .font(.subheadline.weight(.semibold))
             Text("Picked folders are bind-mounted at /var/cody/mounts/<name>. You can browse them in Browse Files and read/write them directly from the iSH shell, just like /var/cody/shared. Up to 10 folders can be mounted at a time.")
                 .font(.caption)
@@ -273,25 +279,25 @@ private struct MountedFolderRow: View {
     let sourceURL: URL?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(.blue)
-                Text(entry.name)
-                    .font(.body.weight(.medium))
-                accessBadge
-                Spacer()
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: "folder.fill", tint: .orange)
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                HStack(spacing: CodySpacing.sm) {
+                    Text(entry.name)
+                        .font(CodyTypography.titleMedium)
+                    accessBadge
+                }
+                Text("/var/cody/mounts/\(entry.name)")
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(verbatim: "← \(sourceURL?.path ?? entry.sourceDisplayName)")
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            Text("/var/cody/mounts/\(entry.name)")
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Text(verbatim: "← \(sourceURL?.path ?? entry.sourceDisplayName)")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
         }
         .padding(.vertical, 2)
     }
@@ -303,23 +309,33 @@ private struct MountedFolderRow: View {
     @ViewBuilder
     private var accessBadge: some View {
         if !entry.isWritable {
-            badgePill(text: AppLocalized("Read-only"), color: .orange)
+            badgePill(
+                text: AppLocalized("Read-only"),
+                foreground: CodyColors.statusWarningText,
+                background: CodyColors.statusWarningBg
+            )
         } else if !entry.userAllowWrite {
-            badgePill(text: AppLocalized("Locked"), color: .purple)
+            badgePill(
+                text: AppLocalized("Locked"),
+                foreground: CodyCategoryTint.purple.color,
+                background: CodyColors.interactiveSecondaryBg
+            )
         } else {
-            badgePill(text: AppLocalized("R/W"), color: .green)
+            badgePill(
+                text: AppLocalized("R/W"),
+                foreground: CodyColors.statusSuccessText,
+                background: CodyColors.statusSuccessBg
+            )
         }
     }
 
-    private func badgePill(text: String, color: Color) -> some View {
+    private func badgePill(text: String, foreground: Color, background: Color) -> some View {
         Text(text)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
+            .foregroundStyle(foreground)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(
-                Capsule().strokeBorder(color.opacity(0.5), lineWidth: 1)
-            )
+            .background(background, in: Capsule())
     }
 }
 
@@ -348,19 +364,26 @@ private struct AddMountSheet: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, 2)
+                            .settingsRowSurface()
                     } footer: {
                         Text("The path above is how iOS exposes the folder you picked. Use it to confirm which app this data belongs to.")
                             .font(.caption2)
+                            .settingsSectionFooter()
                     }
                 }
 
-                Section(header: Text("Mount name")) {
+                Section {
                     TextField("name", text: $name)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .settingsRowSurface()
                     Text("This will be the folder name under /var/cody/mounts/")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .settingsRowSurface()
+                } header: {
+                    Text("Mount name")
+                        .settingsSectionHeading()
                 }
 
                 Section {
@@ -374,13 +397,17 @@ private struct AddMountSheet: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                        .settingsRowSurface()
                 } header: {
                     Text("Permissions")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("You can change the write permission later from the mount details page.")
                         .font(.caption)
+                        .settingsSectionFooter()
                 }
             }
+            .settingsGroupedCanvas()
             .navigationTitle("New Mount")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

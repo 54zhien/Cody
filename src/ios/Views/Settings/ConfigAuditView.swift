@@ -29,14 +29,18 @@ struct ConfigAuditView: View {
                             ConfigAuditLog.shared.clearAll()
                             reload()
                         }
-                        .font(.footnote)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .buttonStyle(CodyPressableButtonStyle())
                     }
                 }
+                    .settingsRowSurface()
             }
 
             if entries.isEmpty {
                 Text("No config changes recorded yet.")
                     .foregroundStyle(.secondary)
+                    .settingsRowSurface()
             } else {
                 ForEach(entries) { entry in
                     // [T-config-readable] Tap a record for its details: the
@@ -46,9 +50,11 @@ struct ConfigAuditView: View {
                     } label: {
                         auditRow(entry)
                     }
+                        .settingsRowSurface()
                 }
             }
         }
+        .settingsGroupedCanvas()
         .listStyle(.insetGrouped)
         .onAppear { reload() }
         .onChange(of: log.revision) { _ in reload() }
@@ -111,7 +117,8 @@ struct ConfigAuditView: View {
                         .foregroundStyle(.secondary)
                     Image(systemName: "arrow.right")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(CodyColors.iconTertiary)
+                        .accessibilityHidden(true)
                     Text(displayJSON(entry.newValueJSON))
                         .lineLimit(1)
                         .foregroundStyle(entry.status == .applied ? .primary : .secondary)
@@ -128,7 +135,8 @@ struct ConfigAuditView: View {
                 } icon: {
                     Image(systemName: "text.quote")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(CodyColors.iconTertiary)
+                        .accessibilityHidden(true)
                 }
             }
 
@@ -138,12 +146,17 @@ struct ConfigAuditView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.uturn.backward")
+                            .accessibilityHidden(true)
                         Text("Revert")
                     }
-                    .font(.caption)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .padding(.horizontal, CodySpacing.md)
+                    .frame(minHeight: CodyControlHeight.standard)
+                    .background(CodyColors.interactiveSecondaryBg, in: RoundedRectangle(cornerRadius: CodyRadius.control))
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(revertingId == entry.id)
                 .padding(.top, 2)
             } else if entry.status == .reverted {

@@ -544,6 +544,7 @@ class StorageManagementViewModel: ObservableObject {
 struct StorageManagementView: View {
     @StateObject private var vm = StorageManagementViewModel()
     @State private var showClearLogsConfirmation = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // [T-storage-session-cache] Multi-select on the Sessions list, Mail-style:
     // "Select" in the navigation bar, tap rows to tick them, act from the bar
     // at the bottom.
@@ -590,24 +591,29 @@ struct StorageManagementView: View {
     private var storageContent: some View {
         List {
             Section {
-                storageRow(icon: "terminal", color: .gray, label: "Shell Container", value: vm.format(vm.shellContainerSize))
-                storageRow(icon: "cylinder", color: .blue, label: "Chat Database", value: vm.format(vm.chatDatabaseSize))
-                storageRow(icon: "doc", color: .indigo, label: "Session Files", value: vm.format(vm.totalSessionSize))
-                storageRow(icon: "doc.text", color: .orange, label: "Logs & Caches", value: vm.format(vm.logsAndCachesSize))
-                storageRow(icon: "clock", color: .teal, label: "Temporary Files", value: vm.format(vm.temporarySize))
+                storageRow(icon: "terminal", tint: .neutral, label: "Shell Container", value: vm.format(vm.shellContainerSize))
+                storageRow(icon: "cylinder", tint: .blue, label: "Chat Database", value: vm.format(vm.chatDatabaseSize))
+                storageRow(icon: "doc", tint: .purple, label: "Session Files", value: vm.format(vm.totalSessionSize))
+                storageRow(icon: "doc.text", tint: .orange, label: "Logs & Caches", value: vm.format(vm.logsAndCachesSize))
+                storageRow(icon: "clock", tint: .green, label: "Temporary Files", value: vm.format(vm.temporarySize))
                 conditionalOverviewRows
-                storageRow(icon: "ellipsis", color: .gray, label: "Other", value: vm.format(vm.otherSize))
+                storageRow(icon: "ellipsis", tint: .neutral, label: "Other", value: vm.format(vm.otherSize))
                 HStack {
                     Text("Total")
-                        .fontWeight(.semibold)
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Spacer()
                     Text(vm.format(vm.containerTotalSize))
-                        .fontWeight(.semibold)
+                        .font(CodyTypography.titleMedium.monospacedDigit())
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
+                    .settingsRowSurface()
             } header: {
                 Text("Overview")
+                    .settingsSectionHeading()
             } footer: {
                 Text("Total is the app's full container size and should match the figure iOS Settings shows for Cody. \"Other\" covers everything not itemized above, so the categories always add up to the total.")
+                    .settingsSectionFooter()
             }
 
             // [T-storage-clear-logs-caches]
@@ -621,34 +627,44 @@ struct StorageManagementView: View {
                                 .controlSize(.small)
                             Text("Clearing…")
                         } else {
-                            Label("Clear Logs & Caches", systemImage: "trash")
+                            SettingsIconLabel(title: Text("Clear Logs & Caches"), systemImage: "trash", tint: .red)
                         }
                     }
                 }
                 .disabled(vm.isClearingLogsAndCaches)
+                    .settingsRowSurface()
             } footer: {
                 Text("Deletes all logs, including crash reports, and cached data such as model lists and web page caches. Logs older than 15 days are also deleted automatically. Chats, files and settings are not affected.")
+                    .settingsSectionFooter()
             }
 
             orphanCleanupSection
 
-            Section("Sessions") {
+            Section {
                 if vm.isLoading {
                     HStack {
                         Spacer()
                         ProgressView()
                         Spacer()
                     }
+                        .settingsRowSurface()
                 } else if vm.sessions.isEmpty {
                     Text("No sessions")
                         .foregroundStyle(.secondary)
+                        .settingsRowSurface()
                 } else {
                     ForEach(vm.sessions) { session in
                         sessionRow(session)
+                            .settingsRowSurface()
                     }
                 }
+            } header: {
+                Text("Sessions")
+                    .settingsSectionHeading()
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("Storage")
         .navigationBarTitleDisplayMode(.inline)
         // [T-storage-session-cache] Scan once per visit: onAppear fires again
@@ -663,7 +679,7 @@ struct StorageManagementView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 if isSelecting || (!vm.isLoading && !vm.sessions.isEmpty) {
                     Button(isSelecting ? AppLocalized("Done") : AppLocalized("Select")) {
-                        withAnimation {
+                        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
                             isSelecting.toggle()
                             selection = []
                         }
@@ -714,14 +730,14 @@ struct StorageManagementView: View {
         // Only shown when non-zero: these two are failure residue, and a
         // permanent "0 bytes" row would read as a normal part of the app.
         if vm.orphanedSessionSize > 0 {
-            storageRow(icon: "questionmark.folder", color: .brown, label: "Orphaned Session Files", value: vm.format(vm.orphanedSessionSize))
+            storageRow(icon: "questionmark.folder", tint: .orange, label: "Orphaned Session Files", value: vm.format(vm.orphanedSessionSize))
         }
         if vm.staleRootfsSize > 0 {
-            storageRow(icon: "exclamationmark.triangle", color: .red, label: "Stale Shell Leftovers", value: vm.format(vm.staleRootfsSize))
+            storageRow(icon: "exclamationmark.triangle", tint: .red, label: "Stale Shell Leftovers", value: vm.format(vm.staleRootfsSize))
         }
         // [T-storage-orphan-cleanup] Was folded into "orphaned".
         if vm.sharedDataSize > 0 {
-            storageRow(icon: "square.stack.3d.up", color: .purple, label: "Skills, Memory & Shared Files", value: vm.format(vm.sharedDataSize))
+            storageRow(icon: "square.stack.3d.up", tint: .purple, label: "Skills, Memory & Shared Files", value: vm.format(vm.sharedDataSize))
         }
     }
 
@@ -741,8 +757,10 @@ struct StorageManagementView: View {
                     orphanCleanupLabel
                 }
                 .disabled(vm.isCleaningOrphans || vm.isLoading)
+                    .settingsRowSurface()
             } footer: {
                 Text("Orphaned session files were left behind by conversations that no longer exist, for example ones deleted by an older version of the app or on another device. They are not in the list below. Cleaning them up does not touch your chats, skills, memory or shared files.")
+                    .settingsSectionFooter()
             }
         }
     }
@@ -774,6 +792,7 @@ struct StorageManagementView: View {
         } else {
             HStack {
                 Label("Clean Up Orphaned Session Files", systemImage: "trash")
+                    .labelStyle(StorageCleanupLabelStyle())
                 Spacer()
                 Text(vm.format(vm.orphanedSessionSize))
                     .foregroundStyle(.secondary)
@@ -793,14 +812,17 @@ struct StorageManagementView: View {
             } label: {
                 HStack {
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                        .font(.title3)
+                        .foregroundStyle(selected ? CodyColors.iconAccent : CodyColors.iconSecondary)
+                        .font(CodyTypography.titleLarge)
+                        .accessibilityHidden(true)
                     sessionLabel(session, busy: busy)
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
+            .accessibilityAddTraits(selected ? .isSelected : [])
             .disabled(busy)
+            .settingsRowSurface()
         } else {
             NavigationLink {
                 SessionStorageDetailView(sessionId: session.id, fallback: session, vm: vm)
@@ -825,21 +847,24 @@ struct StorageManagementView: View {
                 .tint(.orange)
                 .disabled(session.totalSize == 0)
             }
+            .settingsRowSurface()
         }
     }
 
     private func sessionLabel(_ session: StorageManagementViewModel.SessionStorage, busy: Bool) -> some View {
         HStack {
             Text(session.title ?? "Untitled")
+                .font(CodyTypography.bodyLarge)
                 .lineLimit(1)
-                .foregroundStyle(.primary)
+                .foregroundStyle(CodyColors.textPrimary)
             Spacer()
             if busy {
                 ProgressView()
                     .controlSize(.small)
             } else {
                 Text(vm.format(session.totalSize))
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium.monospacedDigit())
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
     }
@@ -854,31 +879,35 @@ struct StorageManagementView: View {
                 Button(allSelected ? AppLocalized("Deselect All") : AppLocalized("Select All")) {
                     selection = allSelected ? [] : Set(allIds)
                 }
+                .buttonStyle(CodyPressableButtonStyle())
                 Spacer()
                 Button {
                     confirm(.clearFiles, Array(selection))
                 } label: {
                     Text("Clear Files")
                 }
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(selection.isEmpty || selectedBytes == 0 || !vm.processingIds.isEmpty)
                 Spacer()
                 Button(role: .destructive) {
                     confirm(.delete, Array(selection))
                 } label: {
                     Text("Delete")
+                        .foregroundStyle(CodyColors.statusErrorText)
                 }
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(selection.isEmpty || !vm.processingIds.isEmpty)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, CodySpacing.xl)
+            .padding(.vertical, CodySpacing.md)
             if !selection.isEmpty {
                 Text("\(selection.count) selected · \(vm.format(selectedBytes))")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 8)
+                    .font(CodyTypography.bodySmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .padding(.bottom, CodySpacing.sm)
             }
         }
-        .background(.bar)
+        .background(CodyColors.bgGroupedSurface)
     }
 
     private func confirm(_ action: StorageManagementViewModel.SessionAction, _ ids: [String]) {
@@ -956,21 +985,32 @@ struct StorageManagementView: View {
         }
     }
 
-    private func storageRow(icon: String, color: Color, label: String, value: String) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .font(.system(size: 9))
-                .foregroundStyle(.white)
-                .frame(width: 21, height: 21)
-                .background(color, in: Circle())
+    private func storageRow(icon: String, tint: CodyCategoryTint, label: String, value: String) -> some View {
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: icon, tint: tint)
             // [T-storage-orphan-cleanup] `Text(label)` with a String shows the
             // key itself: every overview row was English in every language,
             // although all of them are in the catalog.
             Text(AppLocalized(String.LocalizationValue(label)))
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(CodyColors.textPrimary)
             Spacer()
             Text(value)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodyMedium.monospacedDigit())
+                .foregroundStyle(CodyColors.textSecondary)
         }
+        .settingsRowSurface()
+    }
+}
+
+private struct StorageCleanupLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Label {
+            configuration.title
+        } icon: {
+            CodySettingsIconBadge(systemImage: "trash", tint: .red)
+        }
+        .labelStyle(.titleAndIcon)
     }
 }
 
@@ -1009,22 +1049,27 @@ struct SessionStorageDetailView: View {
 
     var body: some View {
         List {
-            Section("Cody Files") {
+            Section {
                 if currentCodySize > 0 {
                     NavigationLink {
                         FileBrowserView(rootPath: codyURL)
                     } label: {
                         HStack {
-                            Label("Browse Files", systemImage: "folder")
+                            SettingsIconLabel(title: Text("Browse Files"), systemImage: "folder", tint: .blue)
                             Spacer()
                             Text(formatter.string(fromByteCount: currentCodySize))
                                 .foregroundStyle(.secondary)
                         }
                     }
+                        .settingsRowSurface()
                 } else {
                     Text("No cody files")
                         .foregroundStyle(.secondary)
+                        .settingsRowSurface()
                 }
+            } header: {
+                Text("Cody Files")
+                    .settingsSectionHeading()
             }
 
             Section {
@@ -1037,7 +1082,7 @@ struct SessionStorageDetailView: View {
                                 .controlSize(.small)
                             Text("Clearing…")
                         } else {
-                            Label("Clear Session Files", systemImage: "trash")
+                            SettingsIconLabel(title: Text("Clear Session Files"), systemImage: "trash", tint: .red)
                         }
                         Spacer()
                         if !isClearing {
@@ -1047,10 +1092,14 @@ struct SessionStorageDetailView: View {
                     }
                 }
                 .disabled(!hasFiles || isClearing)
+                    .settingsRowSurface()
             } footer: {
                 Text("Removes all files generated by this session. The conversation itself will be preserved.")
+                    .settingsSectionFooter()
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle(session.title ?? "Session")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Clear Session Files?", isPresented: $showClearConfirmation) {

@@ -10,6 +10,7 @@ import SwiftUI
 struct MemoryManagementView: View {
     @State private var memoryFiles: [MemoryFileItem] = []
     @State private var forceSyncToast: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
     /// [T-memory-global-toggle-settings-ui-ios] Global default for whether
     /// a NEW session starts with memory enabled. Default true preserves
@@ -22,41 +23,53 @@ struct MemoryManagementView: View {
         List {
             Section {
                 Toggle(AppLocalized("settings_memory_global_enabled"), isOn: $memoryGlobalEnabled)
+                    .settingsRowSurface()
             } footer: {
                 Text(AppLocalized("settings_memory_global_enabled_footer"))
+                    .settingsSectionFooter()
             }
 
-            ForEach(memoryFiles) { file in
-                NavigationLink {
-                    MemoryFileEditView(fileName: file.name, isGlobal: file.isGlobal)
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(file.name)
-                                .font(.body)
-                            if !file.fileSize.isEmpty {
-                                Text(file.fileSize)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+            Section {
+                ForEach(memoryFiles) { file in
+                    NavigationLink {
+                        MemoryFileEditView(fileName: file.name, isGlobal: file.isGlobal)
+                    } label: {
+                        HStack(spacing: CodySpacing.md) {
+                            CodySettingsIconBadge(systemImage: file.isGlobal ? "brain.head.profile" : "doc.text", tint: .purple)
+                            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                                HStack {
+                                    Text(file.name)
+                                        .font(CodyTypography.bodyLarge)
+                                        .foregroundStyle(CodyColors.textPrimary)
+                                    if !file.fileSize.isEmpty {
+                                        Text(file.fileSize)
+                                            .font(CodyTypography.labelSmall)
+                                            .foregroundStyle(CodyColors.textTertiary)
+                                    }
+                                    Spacer()
+                                    Text(file.modifiedDate)
+                                        .font(CodyTypography.labelSmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
+                                }
+                                if !file.preview.isEmpty {
+                                    Text(file.preview)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
+                                        .lineLimit(1)
+                                }
                             }
-                            Spacer()
-                            Text(file.modifiedDate)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
                         }
-                        if !file.preview.isEmpty {
-                            Text(file.preview)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                        .padding(.vertical, CodySpacing.xs)
                     }
+                        .settingsRowSurface()
+                }
+                .onDelete { offsets in
+                    deleteFiles(at: offsets)
                 }
             }
-            .onDelete { offsets in
-                deleteFiles(at: offsets)
-            }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("Memory")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -77,6 +90,7 @@ struct MemoryManagementView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
+                            .accessibilityLabel(Text("More options"))
                     }
                 }
             }
@@ -84,16 +98,16 @@ struct MemoryManagementView: View {
         .overlay(alignment: .top) {
             if let msg = forceSyncToast {
                 Text(msg)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor, in: Capsule())
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .padding(.top, CodySpacing.sm)
+                    .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3), value: forceSyncToast)
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: forceSyncToast)
         .onAppear { loadFiles() }
         // Refresh when an inbound iCloud merge / memory_write tool / another
         // view writes a memory file. Cheap operation (directory list +
@@ -238,7 +252,10 @@ private struct MemoryFileEditView: View {
             }
 
             TextEditor(text: $content)
-                .font(.system(.caption, design: .monospaced))
+                .font(CodyTypography.code)
+                .foregroundStyle(CodyColors.textPrimary)
+                .scrollContentBackground(.hidden)
+                .background(CodyColors.bgGroupedSurface)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onChange(of: content) { _ in
@@ -256,6 +273,7 @@ private struct MemoryFileEditView: View {
         // blank pane under "2026-05-21.md" nav title). Anchor the VStack
         // to the available space so the TextEditor has somewhere to live.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(CodyColors.bgGrouped)
         .navigationTitle(fileName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

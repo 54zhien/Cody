@@ -34,13 +34,16 @@ struct HelperSettingsView: View {
                     // the HStack that existed only to hold it.
                     VStack(alignment: .leading, spacing: 2) {
                         Text(AppLocalized("Sub Agents"))
+                            .font(CodyTypography.bodyLarge)
                         Text(SubAgentDefinition.toolName)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
+                    .settingsRowSurface()
             } footer: {
                 Text(AppLocalized("Delegate self-contained sub-tasks to a sub agent that works in its own hidden session and reports back. The same tool also lets the assistant check on or stop what it started. Several agents can run at once, so a large fan-out uses correspondingly more of your quota. On by default; when off, it is not offered to the model at all."))
+                    .settingsSectionFooter()
             }
 
             Section {
@@ -50,11 +53,12 @@ struct HelperSettingsView: View {
                     } label: {
                         row(def)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(CodyPressableButtonStyle())
                     // The built-in is the target of every delegation that names
                     // no agent, so it must not be deletable.
                     .deleteDisabled(def.isBuiltIn)
                     .moveDisabled(def.isBuiltIn)
+                        .settingsRowSurface()
                 }
                 .onDelete(perform: delete)
                 .onMove(perform: move)
@@ -62,15 +66,19 @@ struct HelperSettingsView: View {
                 Button {
                     editorTarget = SubAgentEditorTarget(definition: nil)
                 } label: {
-                    Label(AppLocalized("Add Sub Agent"), systemImage: "plus.circle")
+                    SettingsIconLabel(title: Text(AppLocalized("Add Sub Agent")), systemImage: "plus", tint: .purple)
+                        .settingsRowActionLabel()
                 }
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(!store.canAddSubAgent)
+                    .settingsRowSurface()
             } header: {
                 HStack {
                     Text(AppLocalized("Sub Agents"))
                     Spacer()
                     if roster.count > 1 { EditButton().font(.caption) }
                 }
+                    .settingsSectionHeading()
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(AppLocalized("The assistant picks a sub agent by its description, so write the description as “when to use this”. Order is the order it sees them in."))
@@ -80,12 +88,14 @@ struct HelperSettingsView: View {
                     }
                 }
                 .font(.caption)
+                    .settingsSectionFooter()
             }
             // Greyed out but still editable when the switch is off: off means
             // "not offered to the model", not "cannot be configured" — same
             // rule the other tool switches follow.
             .opacity(agentsEnabled ? 1 : 0.5)
         }
+        .settingsGroupedCanvas()
         .environment(\.editMode, $editMode)
         .navigationTitle(AppLocalized("Sub Agents"))
         .navigationBarTitleDisplayMode(.inline)
@@ -96,15 +106,17 @@ struct HelperSettingsView: View {
 
     @ViewBuilder
     private func row(_ def: SubAgentDefinition) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
+            CodySettingsIconBadge(systemImage: HelperAccent.glyph, tint: .purple)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(def.displayName)
+                        .font(CodyTypography.titleMedium)
                     if def.isBuiltIn {
                         Text(AppLocalized("Built-in"))
                             .font(.caption2)
                             .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(Color.secondary.opacity(0.15), in: Capsule())
+                            .background(CodyColors.interactiveSecondaryBg, in: Capsule())
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -119,11 +131,12 @@ struct HelperSettingsView: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            Image(systemName: "chevron.forward")
+                .font(CodyTypography.labelMedium)
+                .foregroundStyle(CodyColors.iconDisclosure)
+                .accessibilityHidden(true)
         }
-        .contentShape(Rectangle())
+        .settingsRowActionLabel()
     }
 
     private func modelLabel(_ def: SubAgentDefinition) -> String {
@@ -198,42 +211,55 @@ struct SubAgentEditorView: View {
                 Section {
                     if isBuiltIn {
                         Text(existing?.displayName ?? name).foregroundStyle(.secondary)
+                            .settingsRowSurface()
                     } else {
                         TextField(AppLocalized("Name"), text: $name)
                             .autocorrectionDisabled()
+                            .settingsRowSurface()
                         counter(name.count, SubAgentLimits.nameMaxLength)
+                            .settingsRowSurface()
                     }
                 } header: {
                     Text(AppLocalized("Name"))
+                        .settingsSectionHeading()
                 } footer: {
                     if nameIsDuplicate {
                         Text(AppLocalized("Another sub agent already uses this name."))
-                            .foregroundStyle(.red)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .settingsSectionFooter()
                     }
                 }
 
                 Section {
                     if isBuiltIn {
                         Text(existing?.displayDescription ?? descriptionText).foregroundStyle(.secondary)
+                            .settingsRowSurface()
                     } else {
                         TextField(AppLocalized("Description"), text: $descriptionText, axis: .vertical)
                             .lineLimit(2...4)
+                            .settingsRowSurface()
                         counter(descriptionText.count, SubAgentLimits.descriptionMaxLength)
+                            .settingsRowSurface()
                     }
                 } header: {
                     Text(AppLocalized("Description"))
+                        .settingsSectionHeading()
                 } footer: {
                     Text(isBuiltIn
                          ? AppLocalized("The built-in sub agent's name and description are fixed. You can still change its model and instructions.")
                          : AppLocalized("Describe when this sub agent should be used. Keep it short — details go in Instructions."))
+                        .settingsSectionFooter()
                 }
 
                 Section {
                     TextField(AppLocalized("Instructions"), text: $instructions, axis: .vertical)
                         .lineLimit(4...12)
+                        .settingsRowSurface()
                     counter(instructions.count, SubAgentLimits.instructionsMaxLength)
+                        .settingsRowSurface()
                 } header: {
                     Text(AppLocalized("Instructions"))
+                        .settingsSectionHeading()
                 } footer: {
                     // Two different footers, because the built-in's instructions
                     // are the default for every unnamed delegation while a
@@ -243,6 +269,7 @@ struct SubAgentEditorView: View {
                     Text(isBuiltIn
                          ? AppLocalized("These instructions apply to every delegation that does not name a sub agent. Custom sub agents use their own.")
                          : AppLocalized("These instructions apply only to this sub agent."))
+                        .settingsSectionFooter()
                 }
 
                 Section {
@@ -252,10 +279,13 @@ struct SubAgentEditorView: View {
                             Text(group.name).tag(String?.some(group.id))
                         }
                     }
+                        .settingsRowSurface()
                 } header: {
                     Text(AppLocalized("Model"))
+                        .settingsSectionHeading()
                 } footer: {
                     Text(AppLocalized("Auto lets the assistant choose per task: the same model as the conversation, your Default group for hard reasoning, or your light group for simple well-defined work. Pick a specific Model Group instead to run this sub agent on it every time."))
+                        .settingsSectionFooter()
                 }
 
                 // [T-subagent-thinking-override] Same shape as a Model Group's
@@ -266,17 +296,24 @@ struct SubAgentEditorView: View {
                         get: { thinkingOverride != nil },
                         set: { thinkingOverride = $0 ? (thinkingOverride ?? .medium) : nil }
                     )) {
-                        HStack {
+                        HStack(spacing: CodySpacing.smPlus) {
                             Image("ThinkingIcon")
                                 .resizable()
                                 .renderingMode(.template)
-                                .foregroundStyle(.white)
-                                .frame(width: 11, height: 11)
-                                .frame(width: 21, height: 21)
-                                .background(.purple, in: Circle())
+                                .foregroundStyle(CodyCategoryTint.purple.color)
+                                .frame(width: 13, height: 13)
+                                .frame(width: CodyMetrics.Sidebar.iconSize, height: CodyMetrics.Sidebar.iconSize)
+                                .background(CodyColors.bgListIcon, in: RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                        .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                                        .allowsHitTesting(false)
+                                }
+                                .accessibilityHidden(true)
                             Text(AppLocalized("Override Reasoning"))
                         }
                     }
+                        .settingsRowSurface()
 
                     if thinkingOverride != nil {
                         let levels = overrideThinkingLevels
@@ -299,15 +336,19 @@ struct SubAgentEditorView: View {
                             }
                         }
                         .pickerStyle(.segmented)
+                            .settingsRowSurface()
                     }
                 } header: {
                     Text(AppLocalized("Reasoning"))
+                        .settingsSectionHeading()
                 } footer: {
                     Text(thinkingOverride == nil
                          ? AppLocalized("Off: runs use the reasoning level of the Model Group above, or of the conversation that delegated when the model is Auto.")
                          : AppLocalized("Every run of this sub agent uses this level, overriding the Model Group's own default. Models that cannot reason this hard are clamped to their own ceiling."))
+                        .settingsSectionFooter()
                 }
             }
+            .settingsGroupedCanvas()
             .navigationTitle(existing == nil ? AppLocalized("New Sub Agent") : AppLocalized("Edit Sub Agent"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -351,7 +392,7 @@ struct SubAgentEditorView: View {
             Spacer()
             Text("\(count)/\(limit)")
                 .font(.caption2)
-                .foregroundStyle(count > limit ? .red : .secondary)
+                .foregroundStyle(count > limit ? CodyColors.statusErrorText : CodyColors.textSecondary)
         }
     }
 

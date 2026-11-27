@@ -131,6 +131,8 @@ struct MountDetailView: View {
                 unmountSection
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle(context.canRename ? AppLocalized("Edit Mount") : AppLocalized("Folder Details"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -175,14 +177,19 @@ struct MountDetailView: View {
 
     // MARK: - Sections
 
+    private var headerBadgeTint: CodyCategoryTint {
+        guard context.kind == .shared else { return .orange }
+        switch context.sharedFolderName {
+        case "shared": return .blue
+        case "skills": return .purple
+        default: return .green
+        }
+    }
+
     private var headerSection: some View {
         Section {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: context.iconName)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-                    .background(context.iconColor, in: RoundedRectangle(cornerRadius: 8))
+                CodySettingsIconBadge(systemImage: context.iconName, tint: headerBadgeTint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(context.initialName)
                         .font(.headline)
@@ -206,6 +213,7 @@ struct MountDetailView: View {
                 Spacer()
             }
             .padding(.vertical, 4)
+                .settingsRowSurface()
         }
     }
 
@@ -214,15 +222,19 @@ struct MountDetailView: View {
             TextField("name", text: $nameText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .settingsRowSurface()
             if nameChanged && !nameIsValid {
                 Text("Mount name must not be empty, contain '/', or be '.' or '..'.")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .settingsRowSurface()
             }
         } header: {
             Text("Name")
+                .settingsSectionHeading()
         } footer: {
             Text("Becomes the folder name under /var/cody/mounts/")
+                .settingsSectionFooter()
         }
     }
 
@@ -238,10 +250,13 @@ struct MountDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+                .settingsRowSurface()
         } header: {
             Text("Permissions")
+                .settingsSectionHeading()
         } footer: {
             Text("When off, the iSH shell and AI tools cannot create, edit, or delete files in this mount.")
+                .settingsSectionFooter()
         }
     }
 
@@ -257,13 +272,16 @@ struct MountDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+                .settingsRowSurface()
             if context.isReadOnlyFromFiles {
                 Text("Read-only from the Files app. The app itself can always read and write.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .settingsRowSurface()
             }
         } header: {
             Text("Files app")
+                .settingsSectionHeading()
         }
     }
 
@@ -275,13 +293,10 @@ struct MountDetailView: View {
                 Label {
                     Text("Browse Files")
                 } icon: {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white)
-                        .frame(width: 21, height: 21)
-                        .background(.blue, in: Circle())
+                    CodySettingsIconBadge(systemImage: "folder.fill", tint: .blue)
                 }
             }
+                .settingsRowSurface()
         }
     }
 
@@ -293,13 +308,10 @@ struct MountDetailView: View {
                 Label {
                     Text("Unmount")
                 } icon: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white)
-                        .frame(width: 21, height: 21)
-                        .background(.red, in: Circle())
+                    CodySettingsIconBadge(systemImage: "xmark", tint: .red)
                 }
             }
+                .settingsRowSurface()
         }
     }
 

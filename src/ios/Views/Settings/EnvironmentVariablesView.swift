@@ -9,6 +9,7 @@ struct EnvironmentVariablesView: View {
     @State private var showingAddSheet = false
     @State private var editingEntry: EnvVarEntry?
     @State private var revealedKeys: Set<String> = []
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copiedId: String?
     @State private var prefillKey = ""
     @State private var prefillValue = ""
@@ -30,16 +31,16 @@ struct EnvironmentVariablesView: View {
         List {
             Section {
                 Toggle("Privacy Mode", isOn: $privacy.enabled)
+                    .settingsRowSurface()
             } footer: {
                 Text("When enabled, any environment variable value that appears in shell-execute output is replaced with a masked form (e.g. `sk-1********ajhks`) before reaching the model. Values shorter than 8 characters become all `*`. The user-visible output in chat is unchanged.")
+                    .settingsSectionFooter()
             }
 
             if store.entries.isEmpty {
                 Section {
                     VStack(spacing: 8) {
-                        Image(systemName: "terminal")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
+                        CodySettingsIconBadge(systemImage: "terminal", tint: .green)
                         Text("No Environment Variables")
                             .font(.headline)
                         Text("Add variables like API keys or tokens that will be available in the shell environment.")
@@ -49,6 +50,7 @@ struct EnvironmentVariablesView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
+                        .settingsRowSurface()
                 }
             } else {
                 ForEach(filteredEntries) { entry in
@@ -57,6 +59,7 @@ struct EnvironmentVariablesView: View {
                 .onDelete(perform: deleteEntries)
             }
         }
+        .settingsGroupedCanvas()
         .listStyle(.insetGrouped)
         .searchable(text: $searchText, prompt: "Filter by name")
         .navigationTitle("Environment Variables")
@@ -67,6 +70,7 @@ struct EnvironmentVariablesView: View {
                     showingAddSheet = true
                 } label: {
                     Image(systemName: "plus")
+                        .accessibilityLabel(Text("Add Environment Variable"))
                 }
             }
         }
@@ -172,23 +176,30 @@ struct EnvironmentVariablesView: View {
                     }
                 } label: {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.labelLarge)
+                        .foregroundStyle(CodyColors.iconSecondary)
+                        .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
+                .accessibilityLabel(isRevealed ? Text("Hide Value") : Text("Reveal Value"))
 
                 Button {
                     UIPasteboard.general.string = "\(entry.key)=\(currentValue)"
-                    withAnimation { copiedId = entry.id }
+                    withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { copiedId = entry.id }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        withAnimation { if copiedId == entry.id { copiedId = nil } }
+                        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { if copiedId == entry.id { copiedId = nil } }
                     }
                 } label: {
                     Image(systemName: copiedId == entry.id ? "checkmark" : "doc.on.clipboard")
-                        .font(.system(size: 13))
-                        .foregroundStyle(copiedId == entry.id ? .green : .secondary)
+                        .font(CodyTypography.labelLarge)
+                        .foregroundStyle(copiedId == entry.id ? CodyColors.statusSuccessText : CodyColors.iconSecondary)
+                        .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
+                .accessibilityLabel(Text("Copy"))
+                .accessibilityValue(copiedId == entry.id ? Text("Copied") : Text(verbatim: ""))
             }
         }
         .opacity(isEnabled ? 1 : 0.6)
@@ -214,6 +225,7 @@ struct EnvironmentVariablesView: View {
             }
             .tint(isEnabled ? .gray : .green)
         }
+        .settingsRowSurface()
     }
 
     private func deleteEntries(at offsets: IndexSet) {
@@ -269,16 +281,19 @@ private struct EnvVarFormSheet: View {
                     .focused($focusedField, equals: .key)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .value }
+                        .settingsRowSurface()
                 } header: {
                     Text("Name")
+                        .settingsSectionHeading()
                 } footer: {
                     if !key.isEmpty && !isValid {
                         Text("Must start with a letter and contain only letters, digits, and underscores.")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .settingsSectionFooter()
                     }
                 }
 
-                Section("Value") {
+                Section {
                     if EnvVarStore.isShortcutKey(key) {
                         // [T-shortcut-envvar] Shortcut-stored text (an SMS, a
                         // note) can span lines; a single-line field would
@@ -288,6 +303,7 @@ private struct EnvVarFormSheet: View {
                             .font(.system(.body, design: .monospaced))
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .value)
+                            .settingsRowSurface()
                     } else {
                         TextField("Value", text: $value)
                             .font(.system(.body, design: .monospaced))
@@ -295,10 +311,14 @@ private struct EnvVarFormSheet: View {
                             .focused($focusedField, equals: .value)
                             .submitLabel(.next)
                             .onSubmit { focusedField = .note }
+                            .settingsRowSurface()
                     }
+                } header: {
+                    Text("Value")
+                        .settingsSectionHeading()
                 }
 
-                Section("Note") {
+                Section {
                     ZStack(alignment: .topLeading) {
                         if note.isEmpty {
                             Text("Describe what this variable is for (optional)")
@@ -312,13 +332,18 @@ private struct EnvVarFormSheet: View {
                             .focused($focusedField, equals: .note)
                             .scrollContentBackground(.hidden)
                     }
+                        .settingsRowSurface()
+                } header: {
+                    Text("Note")
+                        .settingsSectionHeading()
                 }
 
                 if mode == .edit, initialEnabled != nil {
                     Section {
                         Toggle(AppLocalized("Enabled"), isOn: $enabled)
                             .listRowBackground(highlightEnabled && !enabled
-                                               ? Color.orange.opacity(0.18) : nil)
+                                               ? Color.orange.opacity(0.18)
+                                               : CodyColors.bgGroupedSurface)
                     }
                 }
 
@@ -330,16 +355,14 @@ private struct EnvVarFormSheet: View {
                             Label {
                                 Text("Delete Variable")
                             } icon: {
-                                Image(systemName: "trash.fill")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 21, height: 21)
-                                    .background(.red, in: Circle())
+                                CodySettingsIconBadge(systemImage: "trash.fill", tint: .red)
                             }
                         }
+                            .settingsRowSurface()
                     }
                 }
             }
+            .settingsGroupedCanvas()
             .navigationTitle(mode == .add ? "Add Variable" : "Edit Variable")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

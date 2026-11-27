@@ -133,14 +133,17 @@ struct ToolsSettingsView: View {
         Form {
             Section {
                 toolRow(AppLocalized("Browser Use"), tool: "browser_use", icon: "globe", isOn: $browserEnabled)
+                    .settingsRowSurface()
             } footer: {
                 Text(AppLocalized("Browse the web in the in-app browser: open pages, read them, click and type. Stable and on by default. When off, the tool is removed from every conversation — the model does not see it at all."))
+                    .settingsSectionFooter()
             }
             userAskSections
             // [T-sub-agents-v1] No Agents section here, and deliberately not
             // even a read-only pointer row: the switch belongs to the Sub Agents
             // page, next to the definitions it governs.
         }
+        .settingsGroupedCanvas()
         .navigationTitle(AppLocalized("Agent Tools"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -155,6 +158,7 @@ struct ToolsSettingsView: View {
     private var userAskSections: some View {
         Section {
             toolRow(AppLocalized("User Interaction"), tool: "user_ask", icon: "questionmark.bubble", isOn: $userAskEnabled)
+                .settingsRowSurface()
             if userAskEnabled {
                 // [T-tools-subrow-indent] Sub-settings of the tool: their labels
                 // line up with the tool's title, past the icon column. The
@@ -167,37 +171,36 @@ struct ToolsSettingsView: View {
                 } label: {
                     Text(AppLocalized("Wait for an answer")).padding(.leading, Self.subRowIndent)
                 }
+                    .settingsRowSurface()
                 Toggle(isOn: $userAskNotify) {
                     Text(AppLocalized("Notify when in the background")).padding(.leading, Self.subRowIndent)
                 }
+                    .settingsRowSurface()
             }
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(AppLocalized("Lets the assistant ask you to choose between options, or to confirm a risky action before doing it, on a card in the chat. Only in chats you are in — never for sub agents, Shortcuts or scheduled tasks. When off, the assistant decides for itself and does not take risky actions without your go-ahead."))
                 if userAskEnabled && userAskNotify && notificationsDenied {
                     Text(AppLocalized("Notifications are off for Cody in iOS Settings — questions will only show when you open the app."))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CodyColors.statusWarningText)
                 }
             }
+                .settingsSectionFooter()
         }
     }
 
-    /// toolRow's icon column (22) plus its spacing (10): where its title starts.
-    static let toolIconColumn: CGFloat = 22
-    static let toolIconSpacing: CGFloat = 10
+    /// Align the nested controls with the title after the badge.
+    static let toolIconColumn = CodyMetrics.Sidebar.iconSize
+    static let toolIconSpacing = CodySpacing.smPlus
     static let subRowIndent: CGFloat = toolIconColumn + toolIconSpacing
 
-    func toolRow(_ title: String, tool: String, icon: String, iconSize: CGFloat = 14,
-                 accent: Color = Color.accentColor, isOn: Binding<Bool>) -> some View {
+    private func toolRow(_ title: String, tool: String, icon: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
             HStack(spacing: Self.toolIconSpacing) {
-                Image(systemName: icon)
-                    .font(.system(size: iconSize))
-                    .foregroundStyle(isOn.wrappedValue ? accent : Color.secondary)
-                    .frame(width: Self.toolIconColumn)
+                CodySettingsIconBadge(systemImage: icon, tint: isOn.wrappedValue ? .blue : .neutral)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                    Text(tool).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    Text(title).font(CodyTypography.bodyLarge)
+                    Text(tool).font(CodyTypography.code).foregroundStyle(CodyColors.textSecondary)
                 }
             }
         }

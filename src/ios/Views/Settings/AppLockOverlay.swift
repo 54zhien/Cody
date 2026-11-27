@@ -3,44 +3,49 @@ import SwiftUI
 struct AppLockOverlay: View {
     @ObservedObject private var store = SessionLockStore.shared
     @State private var isAuthenticating = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title2) private var iconSize = CodySpacing.s48
 
     var body: some View {
         if store.appIsLocked {
             ZStack {
-                Color(.systemBackground)
+                CodyColors.bgCanvas
                     .ignoresSafeArea()
 
-                VStack(spacing: 24) {
+                VStack(spacing: CodySpacing.xxl) {
                     Image(systemName: BiometricAuth.biometryIconName)
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: iconSize, weight: .regular))
+                        .foregroundStyle(CodyColors.iconPrimary)
+                        .accessibilityHidden(true)
 
                     Text("Cody is Locked")
-                        .font(.title2.bold())
+                        .font(CodyTypography.headlineSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
 
                     Text("Tap to unlock with \(BiometricAuth.biometryDisplayName)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
 
                     Button {
                         authenticate()
                     } label: {
-                        Label("Unlock", systemImage: BiometricAuth.biometryIconName)
-                            .font(.headline)
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 12)
-                            .background(.blue, in: RoundedRectangle(cornerRadius: 12))
-                            .foregroundStyle(.white)
+                        Text("Unlock")
+                            .font(CodyTypography.titleMedium)
+                            .padding(.horizontal, CodySpacing.lg)
                     }
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                     .disabled(isAuthenticating)
                 }
+                .padding(CodySpacing.xxl)
+                .multilineTextAlignment(.center)
             }
-            .transition(.opacity)
+            .transition(reduceMotion ? .identity : .opacity)
             .onAppear {
                 authenticate()
             }
         } else if store.showPrivacyScreen {
-            Color(.systemBackground)
+            CodyColors.bgCanvas
                 .ignoresSafeArea()
         }
     }
@@ -52,7 +57,7 @@ struct AppLockOverlay: View {
             let reason = AppLocalized("Unlock Cody")
             let ok = await BiometricAuth.authenticate(reason: reason)
             if ok {
-                withAnimation(.easeOut(duration: 0.25)) {
+                withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
                     store.noteAppUnlock()
                 }
             }

@@ -85,11 +85,13 @@ struct BackupRestoreView: View {
             if let errorText {
                 Section {
                     Text(errorText)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .settingsRowSurface()
                 }
             }
         }
+        .settingsGroupedCanvas()
         .modifier(StandaloneTitle(title: AppLocalized("Restore"),
                                  active: !embedded))
         .fileImporter(isPresented: $showPicker,
@@ -160,9 +162,10 @@ struct BackupRestoreView: View {
                             name: folder.name,
                             subtitle: AppLocalized("Shared Folder"),
                             systemName: "externaldrive.connected.to.line.below.fill",
-                            tint: .teal)
+                            tint: .green)
                     }
                     .disabled(isWorking)
+                        .settingsRowSurface()
                 }
                 ForEach(remotes) { r in
                     NavigationLink {
@@ -172,22 +175,25 @@ struct BackupRestoreView: View {
                             name: r.name,
                             subtitle: "\(r.backend.uppercased()) · /\(r.path)",
                             systemName: "network",
-                            tint: .indigo)
+                            tint: .purple)
                     }
                     .disabled(isWorking)
+                        .settingsRowSurface()
                 }
             } header: {
                 Text("Backup Destinations")
+                    .settingsSectionHeading()
             } footer: {
                 Text("Tap a destination to browse its folders and pick a backup.")
+                    .settingsSectionFooter()
             }
         }
     }
 
     private func destinationRow(name: String, subtitle: String,
-                                systemName: String, tint: Color) -> some View {
+                                systemName: String, tint: CodyCategoryTint) -> some View {
         HStack(spacing: 12) {
-            BackupActionIcon(systemName: systemName, tint: tint)
+            CodySettingsIconBadge(systemImage: systemName, tint: tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                 Text(subtitle)
@@ -216,10 +222,11 @@ struct BackupRestoreView: View {
                 Label {
                     Text("Choose from Files…")
                 } icon: {
-                    BackupActionIcon(systemName: "folder.fill", tint: .blue)
+                    CodySettingsIconBadge(systemImage: "folder.fill", tint: .blue)
                 }
             }
             .disabled(isWorking)
+                .settingsRowSurface()
 
             Button {
                 showServerPicker = true
@@ -227,14 +234,17 @@ struct BackupRestoreView: View {
                 Label {
                     Text("Browse Other Servers…")
                 } icon: {
-                    BackupActionIcon(systemName: "globe", tint: .purple)
+                    CodySettingsIconBadge(systemImage: "globe", tint: .purple)
                 }
             }
             .disabled(isWorking)
+                .settingsRowSurface()
         } header: {
             Text("Other Sources")
+                .settingsSectionHeading()
         } footer: {
             Text("Pick a .codybak file from Files, iCloud Drive, or any connected storage — or add a server your backups were saved to.")
+                .settingsSectionFooter()
         }
     }
 
@@ -282,6 +292,7 @@ struct BackupRestoreView: View {
                 .controlSize(.small)
                 .layoutPriority(1)
             }
+                .settingsRowSurface()
         }
     }
 
@@ -296,7 +307,7 @@ struct BackupRestoreView: View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 12) {
-                    BackupActionIcon(systemName: "doc.zipper", tint: .green)
+                    CodySettingsIconBadge(systemImage: "doc.zipper", tint: .green)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(packageURL?.lastPathComponent ?? AppLocalized("Backup"))
                             .font(.callout.weight(.medium))
@@ -308,9 +319,11 @@ struct BackupRestoreView: View {
                     }
                 }
             }
+                .settingsRowSurface()
 
             LabeledContent("Created",
                            value: m.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .settingsRowSurface()
             // The data cut-off, when the package records one. Distinct from
             // "Created": anything changed after this instant is deliberately
             // not in the package, and the user should see that before
@@ -318,10 +331,13 @@ struct BackupRestoreView: View {
             if let snapshotAt = m.snapshotAt, snapshotAt != m.createdAt {
                 LabeledContent("Data as of",
                                value: snapshotAt.formatted(date: .abbreviated, time: .shortened))
+                    .settingsRowSurface()
             }
             LabeledContent("From", value: "\(m.deviceName) · \(m.app.platform) \(m.app.version)")
+                .settingsRowSurface()
             if m.encryption != nil {
                 LabeledContent("Encrypted", value: AppLocalized("Yes"))
+                    .settingsRowSurface()
             }
             if let limits = m.limits.maxFileBytes, limits == 0 {
                 // The package was made with file contents switched off, so it
@@ -330,11 +346,13 @@ struct BackupRestoreView: View {
                 // too big, the user chose to leave files out.
                 LabeledContent("File contents",
                                value: "Not included (\(m.limits.skippedFiles) file(s) listed)")
+                    .settingsRowSurface()
             } else if let limits = m.limits.maxFileBytes, limits > 0 {
                 // §3.4 — the package is known-incomplete, and the user should
                 // learn that here rather than after restoring.
                 LabeledContent("Excluded (size limit)",
                                value: "\(m.limits.skippedFiles) file(s)")
+                    .settingsRowSurface()
             }
 
             // Escape hatch, kept with the thing it replaces rather than in the
@@ -346,12 +364,14 @@ struct BackupRestoreView: View {
                 Label {
                     Text("Choose a Different Backup")
                 } icon: {
-                    BackupActionIcon(systemName: "arrow.triangle.2.circlepath", tint: .gray)
+                    CodySettingsIconBadge(systemImage: "arrow.triangle.2.circlepath", tint: .neutral)
                 }
             }
             .disabled(isWorking)
+                .settingsRowSurface()
         } header: {
             Text("Selected Backup")
+                .settingsSectionHeading()
         }
     }
 
@@ -447,7 +467,7 @@ struct BackupRestoreView: View {
                     // recognisable across both screens rather than only by
                     // its wording.
                     HStack(spacing: 12) {
-                        BackupCategoryIcon(category: category)
+                        SettingsBackupCategoryBadge(category: category)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(displayName(category))
                             if let stat = m.categories[category.rawValue] {
@@ -458,11 +478,14 @@ struct BackupRestoreView: View {
                         }
                     }
                 }
+                    .settingsRowSurface()
             }
         } header: {
             Text("Restore")
+                .settingsSectionHeading()
         } footer: {
             Text("Merge: items are matched by id. Existing items are only replaced when the backup's copy is newer. Nothing is deleted.")
+                .settingsSectionFooter()
         }
     }
 
@@ -475,10 +498,13 @@ struct BackupRestoreView: View {
                 .textContentType(.password)
                 .focused($passphraseFocused)
                 .disabled(isWorking)
+                .settingsRowSurface()
         } header: {
             Text("Encryption")
+                .settingsSectionHeading()
         } footer: {
             Text("This backup is encrypted. Without its passphrase it cannot be opened.")
+                .settingsSectionFooter()
         }
     }
 
@@ -490,26 +516,25 @@ struct BackupRestoreView: View {
                 passphraseFocused = false
                 showConfirm = true
             } label: {
-                // [T-restore-primary-action] Centred icon + label, matching
-                // Start Backup on the other tab. This is the screen's primary
-                // action and was a left-aligned "Restore" that read like one
-                // more row in the list rather than the thing to press.
-                HStack(spacing: 10) {
-                    Spacer(minLength: 0)
+                HStack(spacing: CodySpacing.sm) {
                     if isWorking {
                         ProgressView()
-                            .frame(width: 28, height: 28)
+                            .tint(CodyColors.interactivePrimaryLabel)
+                            .accessibilityHidden(true)
                         Text(statusText.isEmpty ? AppLocalized("Working…") : statusText)
-                            .foregroundStyle(.secondary)
                     } else {
-                        BackupActionIcon(systemName: "arrow.down.doc.fill", tint: .indigo)
+                        Image(systemName: "arrow.down.doc.fill")
+                            .accessibilityHidden(true)
                         Text("Start Restore")
-                            .fontWeight(.semibold)
                     }
-                    Spacer(minLength: 0)
                 }
+                .font(CodyTypography.titleMedium)
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(CodyPrimaryCapsuleButtonStyle())
             .disabled(isWorking || selected.isEmpty || !passphraseReady)
+            .padding(.vertical, CodySpacing.xs)
+            .settingsRowSurface()
         }
     }
 
@@ -525,24 +550,31 @@ struct BackupRestoreView: View {
             text
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
+                .accessibilityHidden(true)
         }
-        .font(.caption)
+        .font(CodyTypography.bodySmall)
         .foregroundStyle(.orange)
+        .settingsRowSurface()
     }
 
     private func reportSection(_ r: BackupImporter.Report) -> some View {
         Section {
             LabeledContent("Restored", value: "\(r.totalImported)")
-            if r.totalUpdated > 0 { LabeledContent("Updated", value: "\(r.totalUpdated)") }
+                .settingsRowSurface()
+            if r.totalUpdated > 0 { LabeledContent("Updated", value: "\(r.totalUpdated)")
+                                        .settingsRowSurface() }
             // "Skipped" is the expected outcome for anything already present,
             // so it is labelled as such rather than looking like a failure.
             LabeledContent("Already up to date", value: "\(r.totalSkipped)")
+                .settingsRowSurface()
             if r.totalUnreadable > 0 {
                 LabeledContent("Unreadable", value: "\(r.totalUnreadable)")
+                    .settingsRowSurface()
             }
             let credsRestored = r.categories.reduce(0) { $0 + $1.credentialsRestored }
             if credsRestored > 0 {
                 LabeledContent("API keys restored", value: "\(credsRestored)")
+                    .settingsRowSurface()
             }
             // [T-restore-result-severity] Two tiers, told apart by colour AND
             // icon so the difference survives for colour-blind users:
@@ -557,6 +589,7 @@ struct BackupRestoreView: View {
                     Text("\(displayNameRaw(c.category)): \(failed)")
                         .font(.caption)
                         .foregroundStyle(.red)
+                        .settingsRowSurface()
                 } else {
                     // Was `.secondary`, which made a real gap look like fine print.
                     if c.sizeSkippedInPackage > 0 {
@@ -590,35 +623,39 @@ struct BackupRestoreView: View {
             }
         } header: {
             Text("Restore Complete")
+                .settingsSectionHeading()
         } footer: {
             if let prov = r.categories.first(where: { $0.category == BackupCategory.providers.rawValue }) {
-                if prov.credentialsRestored > 0 {
-                    // Credentials now always travel with Providers, so this is
-                    // the normal outcome rather than a bonus.
-                    Text("API keys were restored for \(prov.credentialsRestored) provider(s) along with their settings. Existing keys on this device were kept. OAuth logins may still need to be renewed if their tokens have expired.")
-                } else if prov.credentialsKept > 0 {
-                    // [T-backup-credentials-message-inverted] Nothing was
-                    // WRITTEN, but only because every key in the package is
-                    // already on this device — `credentialsRestored` counts
-                    // keys actually written (BackupSecretsImporter increments
-                    // it only `if wrote`), while an existing key increments
-                    // `providersSkippedExisting` instead.
-                    //
-                    // This is the normal outcome when restoring onto the device
-                    // that made the backup, and it used to fall into the branch
-                    // below — telling the user "this backup was created without
-                    // API keys… enter each API key again" on a fully
-                    // credentialed device, which is exactly backwards.
-                    // `credentialsKept` was already being computed for this and
-                    // simply never read by any view.
-                    Text("Your existing API keys were kept — the backup's keys matched credentials already on this device, so nothing needed to be overwritten.")
-                } else {
-                    // Reachable for OLDER packages: exports used to offer a
-                    // credential-free "share copy", and those must keep
-                    // restoring. Says why nothing arrived instead of implying
-                    // the restore misbehaved.
-                    Text("This backup was created without API keys, so restored providers have no credentials — enter each API key or sign in again before use.")
+                Group {
+                    if prov.credentialsRestored > 0 {
+                        // Credentials now always travel with Providers, so this is
+                        // the normal outcome rather than a bonus.
+                        Text("API keys were restored for \(prov.credentialsRestored) provider(s) along with their settings. Existing keys on this device were kept. OAuth logins may still need to be renewed if their tokens have expired.")
+                    } else if prov.credentialsKept > 0 {
+                        // [T-backup-credentials-message-inverted] Nothing was
+                        // WRITTEN, but only because every key in the package is
+                        // already on this device — `credentialsRestored` counts
+                        // keys actually written (BackupSecretsImporter increments
+                        // it only `if wrote`), while an existing key increments
+                        // `providersSkippedExisting` instead.
+                        //
+                        // This is the normal outcome when restoring onto the device
+                        // that made the backup, and it used to fall into the branch
+                        // below — telling the user "this backup was created without
+                        // API keys… enter each API key again" on a fully
+                        // credentialed device, which is exactly backwards.
+                        // `credentialsKept` was already being computed for this and
+                        // simply never read by any view.
+                        Text("Your existing API keys were kept — the backup's keys matched credentials already on this device, so nothing needed to be overwritten.")
+                    } else {
+                        // Reachable for OLDER packages: exports used to offer a
+                        // credential-free "share copy", and those must keep
+                        // restoring. Says why nothing arrived instead of implying
+                        // the restore misbehaved.
+                        Text("This backup was created without API keys, so restored providers have no credentials — enter each API key or sign in again before use.")
+                    }
                 }
+                .settingsSectionFooter()
             }
         }
     }
@@ -881,6 +918,7 @@ struct FolderPackageListView: View {
                     ProgressView()
                     Text("Looking for backups…").foregroundStyle(.secondary)
                 }
+                    .settingsRowSurface()
             } else if packages.isEmpty {
                 // Distinguishes "nothing there" from "couldn't reach it" — an
                 // offline share contributes no rows, and the user needs to
@@ -931,19 +969,24 @@ struct FolderPackageListView: View {
                         Label(AppLocalized("Delete"), systemImage: "trash")
                     }
                 }
+                    .settingsRowSurface()
             }
 
             if let errorText {
                 Text(errorText)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                    .font(CodyTypography.sectionHeader)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .settingsRowSurface()
             }
             } footer: {
                 if !packages.isEmpty {
                     Text("Showing .codybak files in this folder.")
+                        .settingsSectionFooter()
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .refreshable { await reload() }
         .navigationTitle(folder.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -1030,9 +1073,11 @@ struct ServerRestorePickerSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                                .settingsRowSurface()
                         }
                     } header: {
                         Text("Servers")
+                            .settingsSectionHeading()
                     }
                 }
 
@@ -1040,12 +1085,15 @@ struct ServerRestorePickerSheet: View {
                     Button {
                         showAddServer = true
                     } label: {
-                        Label("Add Server…", systemImage: "plus")
+                        SettingsIconLabel(title: Text("Add Server…"), systemImage: "plus", tint: .blue)
                     }
+                        .settingsRowSurface()
                 } footer: {
                     Text("Add the server your backups were saved to. Servers added here are also available as backup destinations.")
+                        .settingsSectionFooter()
                 }
             }
+            .settingsGroupedCanvas()
             .navigationTitle("Restore from Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1181,15 +1229,20 @@ struct ServerPackageListView: View {
                             ProgressView()
                             Text("Contacting server…").foregroundStyle(.secondary)
                         }
+                            .settingsRowSurface()
                     } else if entries.isEmpty, errorText == nil {
                         Text("Nothing here.").foregroundStyle(.secondary)
+                            .settingsRowSurface()
                     }
 
                     entryRows
                 } footer: {
                     Text("Open folders to browse. Only .codybak files are shown.")
+                        .settingsSectionFooter()
                 }
             }
+            .listStyle(.insetGrouped)
+            .settingsGroupedCanvas()
             .refreshable { await reload() }
         }
         .navigationTitle(remote.name)
@@ -1291,7 +1344,7 @@ struct ServerPackageListView: View {
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CodyPressableButtonStyle())
                 .disabled(path.isEmpty || loading)
                 .foregroundStyle(path.isEmpty || loading ? AnyShapeStyle(.tertiary)
                                                          : AnyShapeStyle(.tint))
@@ -1354,7 +1407,7 @@ struct ServerPackageListView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CodyPressableButtonStyle())
             .foregroundStyle(.tint)
             .disabled(loading)
         }
@@ -1391,23 +1444,27 @@ struct ServerPackageListView: View {
                         descend(into: e)
                     } label: {
                         HStack {
-                            Label {
-                                Text(e.name).lineLimit(1).truncationMode(.middle)
-                                    .foregroundStyle(.primary)
-                            } icon: {
-                                Image(systemName: "folder.fill")
-                                    .foregroundStyle(.tint)
-                            }
+                            SettingsIconLabel(
+                                title: Text(e.name),
+                                systemImage: "folder.fill",
+                                tint: .blue
+                            )
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(CodyColors.textPrimary)
                             Spacer(minLength: 8)
                             // Kept so a folder still reads as "opens
                             // something" now that it is a Button rather than
                             // a NavigationLink drawing this for us.
                             Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(downloadingKey != nil || loading)
+                        .settingsRowSurface()
                 } else {
                     Button {
                         // [T-restore-download-confirm] Confirm before pulling
@@ -1421,12 +1478,13 @@ struct ServerPackageListView: View {
                             Text(e.name)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text(subtitle(e.asPackage))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(downloadingKey != nil)
                     // [T-restore-list-swipe-delete] Swipe to delete the file
                     // on the server, as in the destination detail screen:
@@ -1440,13 +1498,15 @@ struct ServerPackageListView: View {
                         }
                         .disabled(downloadingKey != nil || loading)
                     }
+                        .settingsRowSurface()
                 }
             }
 
             if let errorText {
                 Text(errorText)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                    .font(CodyTypography.sectionHeader)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .settingsRowSurface()
             }
         }
     }
@@ -1463,8 +1523,7 @@ struct ServerPackageListView: View {
 
             // Determinate where possible: the package size is known up front,
             // so a bar beats a spinner at answering "how much longer".
-            ProgressView(value: downloadFraction)
-                .progressViewStyle(.linear)
+            CodyProgressBar(progress: downloadFraction)
             Text(progressText)
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)

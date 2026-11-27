@@ -9,43 +9,61 @@ struct OffloadPermissionSettingsView: View {
 
     var body: some View {
         List {
-            Section("Background") {
+            Section {
                 NavigationLink {
                     EnhancedBackgroundSettingsView()
                 } label: {
-                    Label("Background", systemImage: "location.circle.fill")
+                    SettingsIconLabel(title: Text("Background"), systemImage: "location", tint: .blue)
                 }
+                    .settingsRowSurface()
+            } header: {
+                Text("Background")
+                    .settingsSectionHeading()
             }
 
             Section {
                 Toggle("Allow cody-config", isOn: $configGate.enabled)
+                    .settingsRowSurface()
             } header: {
                 Text("Configuration Tool")
+                    .settingsSectionHeading()
             } footer: {
                 Text("When disabled, the agent cannot read or modify any settings via cody-config. The change history at Logs → Config Changes remains accessible. The agent will receive a permission_denied error and can guide you via deep links instead.")
+                    .settingsSectionFooter()
             }
 
-            Section("Privacy") {
+            Section {
                 ForEach(settingsCommands, id: \.name) { cmd in
                     CommandPermissionRow(command: cmd)
+                        .settingsRowSurface()
                 }
+            } header: {
+                Text("Privacy")
+                    .settingsSectionHeading()
             }
 
             Section {
                 Toggle(AppLocalized("Collect voice correction data",
                               comment: "Permissions: toggle for voice-correction learning data collection"),
                        isOn: $correctionConsent.isEnabled)
+                    .settingsRowSurface()
                 Button(role: .destructive) {
                     showClearCorrectionConfirm = true
                 } label: {
-                    Label(AppLocalized("Clear Collected Data",
-                                 comment: "Permissions: wipe voice-correction learning data"),
-                          systemImage: "trash")
+                    SettingsIconLabel(
+                        title: Text(AppLocalized("Clear Collected Data",
+                                                comment: "Permissions: wipe voice-correction learning data")),
+                        systemImage: "trash",
+                        tint: .red
+                    )
                 }
+                    .settingsRowSurface()
             } header: {
                 Text("Voice Correction Learning")
+                    .settingsSectionHeading()
             } footer: {
                 Text("When enabled, your manual fixes to voice transcripts (original → corrected pairs), accepted/rejected AI corrections, and frequently typed terms are stored in a local on-device database to make future voice corrections smarter. Nothing is uploaded. Default is off; existing data stays until you clear it.")
+                    .settingsSectionFooter()
             }
             .confirmationDialog(
                 AppLocalized("Clear all collected voice correction data?",
@@ -72,6 +90,8 @@ struct OffloadPermissionSettingsView: View {
                 Button("OK") {}
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("Permissions")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

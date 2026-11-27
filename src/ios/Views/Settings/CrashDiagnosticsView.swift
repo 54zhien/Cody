@@ -144,21 +144,32 @@ struct CrashDiagnosticsView: View {
                 Button {
                     export()
                 } label: {
-                    HStack {
+                    HStack(spacing: CodySpacing.sm) {
                         Label("Export Diagnostics", systemImage: "square.and.arrow.up")
-                        Spacer()
-                        if exporting { ProgressView() }
+                            .font(CodyTypography.titleMedium)
+                        if exporting {
+                            ProgressView()
+                                .tint(CodyColors.interactivePrimaryLabel)
+                                .accessibilityHidden(true)
+                        }
                     }
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 .disabled(exporting)
+                .padding(.vertical, CodySpacing.xs)
+                    .settingsRowSurface()
             } footer: {
                 Text("A zip of the breadcrumbs, crash contexts, MetricKit reports and the last 2 MB of the log. Keys, tokens, URL parameters, e-mail addresses and request bodies are removed first.")
+                    .settingsSectionFooter()
             }
             section("Earlier Runs", kinds: [.breadcrumbs])
             section("Crash Contexts", kinds: [.context])
             section("MetricKit Reports", kinds: [.metricKit])
             section("This Run", kinds: [.currentRun])
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("Crash Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { items = CrashDiagnostics.items() }
@@ -175,23 +186,29 @@ struct CrashDiagnosticsView: View {
     @ViewBuilder
     private func section(_ title: LocalizedStringKey, kinds: Set<CrashDiagnostics.Item.Kind>) -> some View {
         let rows = items.filter { kinds.contains($0.kind) }
-        Section(title) {
+        Section {
             if rows.isEmpty {
                 Text("None").foregroundStyle(.secondary)
+                    .settingsRowSurface()
             } else {
                 ForEach(rows) { item in
                     NavigationLink {
                         CrashDiagnosticTextView(id: item.id, title: item.title)
                     } label: {
                         HStack {
+                            CodySettingsIconBadge(systemImage: "doc.text", tint: .neutral)
                             Text(item.title).lineLimit(1)
                             Spacer()
                             Text(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))
                                 .foregroundStyle(.secondary)
                         }
                     }
+                        .settingsRowSurface()
                 }
             }
+        } header: {
+            Text(title)
+                .settingsSectionHeading()
         }
     }
 
@@ -223,11 +240,13 @@ private struct CrashDiagnosticTextView: View {
     var body: some View {
         ScrollView {
             Text(text)
-                .font(.system(.caption, design: .monospaced))
+                .font(CodyTypography.code)
+                .foregroundStyle(CodyColors.textPrimary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task {

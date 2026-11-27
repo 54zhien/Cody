@@ -27,8 +27,8 @@ struct FaceIDProtectionSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Lock App")
                         Text("Require \(BiometricAuth.biometryDisplayName) to cody.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
                 .onChange(of: appLockEnabled) { newValue in
@@ -47,8 +47,10 @@ struct FaceIDProtectionSettingsView: View {
                         }
                     }
                 }
+                    .settingsRowSurface()
             } footer: {
                 Text("When enabled, \(BiometricAuth.biometryDisplayName) (or device passcode) is required every time you open the app.")
+                    .settingsSectionFooter()
             }
 
             if appLockEnabled {
@@ -61,10 +63,13 @@ struct FaceIDProtectionSettingsView: View {
                     .onChange(of: appLockIdleSeconds) { newValue in
                         store.appLockIdleSeconds = newValue
                     }
+                        .settingsRowSurface()
                 } header: {
                     Text("App Lock Timeout")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("How long after leaving the app before the lock re-engages.")
+                        .settingsSectionFooter()
                 }
             }
 
@@ -74,8 +79,8 @@ struct FaceIDProtectionSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Lock Sessions")
                         Text("Long-press a session in the list to lock it.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
                 .onChange(of: enabled) { newValue in
@@ -88,8 +93,10 @@ struct FaceIDProtectionSettingsView: View {
                         }
                     }
                 }
+                    .settingsRowSurface()
             } footer: {
                 Text("When enabled, locked sessions require \(BiometricAuth.biometryDisplayName) (or device passcode) before their contents are revealed.")
+                    .settingsSectionFooter()
             }
 
             if enabled {
@@ -99,13 +106,16 @@ struct FaceIDProtectionSettingsView: View {
                             Text(opt.labelKey).tag(opt.seconds)
                         }
                     }
+                        .settingsRowSurface()
                 } header: {
                     // Session-only timeout (bound to `idleSeconds`). The app-level
                     // lock has its own separate "App Lock Timeout" above bound to
                     // `appLockIdleSeconds` — so this stays session-scoped.
                     Text("Session Lock Timeout")
+                        .settingsSectionHeading()
                 } footer: {
                     Text("After leaving an unlocked session, the lock re-engages once the idle window elapses.")
+                        .settingsSectionFooter()
                 }
 
                 Section {
@@ -116,6 +126,7 @@ struct FaceIDProtectionSettingsView: View {
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
+                        .settingsRowSurface()
                     if !store.lockedSessionIds.isEmpty {
                         Button(role: .destructive) {
                             Task { @MainActor in
@@ -128,12 +139,14 @@ struct FaceIDProtectionSettingsView: View {
                                 }
                             }
                         } label: {
-                            Label("Remove All Locks", systemImage: "lock.open")
+                            SettingsIconLabel(title: Text("Remove All Locks"), systemImage: "lock.open", tint: .red)
                         }
+                            .settingsRowSurface()
                     }
                 }
             }
         }
+        .settingsGroupedCanvas()
         .navigationTitle("\(BiometricAuth.biometryDisplayName) Protection")
         .navigationBarTitleDisplayMode(.inline)
     }

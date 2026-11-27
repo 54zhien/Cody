@@ -39,9 +39,10 @@ struct BackupAndRestoreView: View {
                 Text("Restore").tag(Tab.restore)
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
+            .padding(.horizontal, CodySpacing.lg)
+            .padding(.top, CodySpacing.sm)
+            .padding(.bottom, CodySpacing.xs)
+            .accessibilityLabel(Text("Backup & Restore"))
 
             // Both children are Forms that own their own scrolling, so they sit
             // directly under the picker rather than inside another container.
@@ -72,6 +73,7 @@ struct BackupAndRestoreView: View {
                     .accessibilityHidden(tab != .restore)
             }
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle("Backup & Restore")
         .navigationBarTitleDisplayMode(.inline)
     }

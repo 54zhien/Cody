@@ -18,16 +18,17 @@ struct SharedFoldersSettingsView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Shared folders", systemImage: "info.circle")
+                    SettingsIconLabel(title: Text("Shared folders"), systemImage: "info", tint: .neutral)
                         .font(.subheadline.weight(.semibold))
                     Text("These directories appear in iOS Files under On My iPhone → Cody. Tap a row to see details, browse, or toggle visibility.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                    .settingsRowSurface()
             }
 
-            Section(AppLocalized("Folders")) {
+            Section {
                 ForEach(model.entries) { entry in
                     NavigationLink {
                         MountDetailView(
@@ -40,9 +41,15 @@ struct SharedFoldersSettingsView: View {
                             isVisible: model.isVisible(entry.name)
                         )
                     }
+                        .settingsRowSurface()
                 }
+            } header: {
+                Text(AppLocalized("Folders"))
+                    .settingsSectionHeading()
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .navigationTitle("Shared Folders")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -76,16 +83,12 @@ private struct SharedFolderRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: entry.iconName)
-                .font(.system(size: 9))
-                .foregroundStyle(.white)
-                .frame(width: 21, height: 21)
-                .background(entry.iconColor, in: Circle())
+            CodySettingsIconBadge(systemImage: entry.iconName, tint: entry.badgeTint)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(entry.displayName)
-                        .font(.body)
+                        .font(CodyTypography.titleMedium)
                     accessBadge
                     if !isVisible {
                         Text("Hidden")
@@ -94,7 +97,7 @@ private struct SharedFolderRow: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(
-                                Capsule().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1)
+                                Capsule().strokeBorder(CodyColors.borderHeavy, lineWidth: CodySpacing.px)
                             )
                     }
                 }
@@ -114,20 +117,20 @@ private struct SharedFolderRow: View {
         if entry.isWritableFromFiles {
             Text("R/W")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.green)
+                .foregroundStyle(CodyColors.statusSuccessText)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(
-                    Capsule().strokeBorder(Color.green.opacity(0.5), lineWidth: 1)
+                    CodyColors.statusSuccessBg, in: Capsule()
                 )
         } else {
             Text("Read-only")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(CodyColors.statusWarningText)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(
-                    Capsule().strokeBorder(Color.orange.opacity(0.5), lineWidth: 1)
+                    CodyColors.statusWarningBg, in: Capsule()
                 )
         }
     }
@@ -152,6 +155,15 @@ struct SharedFolderEntry: Identifiable, Hashable {
     let isWritableFromFiles: Bool
 
     var id: String { name }
+
+    var badgeTint: CodyCategoryTint {
+        switch name {
+        case "shared": return .blue
+        case "skills": return .purple
+        case "memory": return .green
+        default: return .green
+        }
+    }
 }
 
 @MainActor

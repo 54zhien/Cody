@@ -62,8 +62,8 @@ struct LogManagementView: View {
                 Text("Config Changes").tag("config-audit")
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, CodySpacing.lg)
+            .padding(.vertical, CodySpacing.sm)
 
             if tab == "config-audit" {
                 ConfigAuditView()
@@ -71,6 +71,7 @@ struct LogManagementView: View {
                 logsBody
             }
         }
+        .background(CodyColors.bgGrouped)
         .navigationTitle("Logs")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -86,6 +87,7 @@ struct LogManagementView: View {
         List {
             Section {
                 Toggle("Enable Logging", isOn: $loggingManager.isEnabled)
+                    .settingsRowSurface()
                 if loggingManager.isEnabled {
                     // [T-ios-log-verbose-tier] Verbose turns on the
                     // high-frequency traces (per-syscall filesystem, per-render
@@ -99,32 +101,40 @@ struct LogManagementView: View {
                         Text("Info").tag(AppLogger.Level.info)
                         Text("Verbose").tag(AppLogger.Level.verbose)
                     }
+                        .settingsRowSurface()
                 }
             } footer: {
-                if loggingManager.isEnabled && loggingManager.level == .verbose {
-                    Text("Verbose adds high-frequency traces (filesystem, rendering, context). Useful when reproducing a specific problem — logs grow very quickly, so switch back to Info afterwards.")
-                } else {
-                    Text("When enabled, all console output is captured to daily log files.")
+                Group {
+                    if loggingManager.isEnabled && loggingManager.level == .verbose {
+                        Text("Verbose adds high-frequency traces (filesystem, rendering, context). Useful when reproducing a specific problem — logs grow very quickly, so switch back to Info afterwards.")
+                    } else {
+                        Text("When enabled, all console output is captured to daily log files.")
+                    }
                 }
+                .settingsSectionFooter()
             }
 
-            Section("Log Files") {
+            Section {
                 if vm.runningFiles.isEmpty {
                     Text("No log files")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .settingsRowSurface()
                 } else {
                     ForEach(vm.runningFiles) { file in
                         NavigationLink {
                             LogDetailView(url: file.url, name: file.name)
                         } label: {
-                            HStack {
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(systemImage: "doc.text", tint: .neutral)
                                 Text(file.name)
                                     .lineLimit(1)
                                 Spacer()
                                 Text(vm.format(file.size))
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.bodyMedium.monospacedDigit())
+                                    .foregroundStyle(CodyColors.textSecondary)
                             }
                         }
+                            .settingsRowSurface()
                     }
                     .onDelete { indexSet in
                         let files = vm.runningFiles
@@ -134,22 +144,28 @@ struct LogManagementView: View {
                         vm.load()
                     }
                 }
+            } header: {
+                Text("Log Files")
+                    .settingsSectionHeading()
             }
 
             if !vm.crashFiles.isEmpty {
-                Section("Crash Reports") {
+                Section {
                     ForEach(vm.crashFiles) { file in
                         NavigationLink {
                             LogDetailView(url: file.url, name: file.name)
                         } label: {
-                            HStack {
-                                Text("⚠️ \(file.name)")
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(systemImage: "exclamationmark.triangle.fill", tint: .orange)
+                                Text(file.name)
                                     .lineLimit(1)
                                 Spacer()
                                 Text(vm.format(file.size))
-                                    .foregroundStyle(.secondary)
+                                    .font(CodyTypography.bodyMedium.monospacedDigit())
+                                    .foregroundStyle(CodyColors.textSecondary)
                             }
                         }
+                            .settingsRowSurface()
                     }
                     .onDelete { indexSet in
                         let files = vm.crashFiles
@@ -158,6 +174,9 @@ struct LogManagementView: View {
                         }
                         vm.load()
                     }
+                } header: {
+                    Text("Crash Reports")
+                        .settingsSectionHeading()
                 }
             }
 
@@ -167,8 +186,9 @@ struct LogManagementView: View {
                 NavigationLink {
                     CrashDiagnosticsView()
                 } label: {
-                    Label("Crash Diagnostics", systemImage: "stethoscope")
+                    SettingsIconLabel(title: Text("Crash Diagnostics"), systemImage: "stethoscope", tint: .orange)
                 }
+                    .settingsRowSurface()
             }
 
             if #available(iOS 17.0, *) {
@@ -177,12 +197,13 @@ struct LogManagementView: View {
                         SyncLogView()
                     } label: {
                         HStack {
-                            Label("iCloud Sync Logs", systemImage: "icloud.fill")
+                            SettingsIconLabel(title: Text("iCloud Sync Logs"), systemImage: "icloud", tint: .blue)
                             Spacer()
                             Text("\(SyncLogStore.shared.entries.count)")
                                 .foregroundStyle(.secondary)
                         }
                     }
+                        .settingsRowSurface()
                 }
             }
 
@@ -192,17 +213,21 @@ struct LogManagementView: View {
                         showDeleteAllConfirm = true
                     } label: {
                         HStack {
-                            Label("Delete All Logs", systemImage: "trash")
+                            SettingsIconLabel(title: Text("Delete All Logs"), systemImage: "trash", tint: .red)
                             Spacer()
                             Text(vm.format(vm.totalSize))
                                 .foregroundStyle(.secondary)
                         }
                     }
+                        .settingsRowSurface()
                 } footer: {
                     Text("Total log storage: \(vm.format(vm.totalSize))")
+                        .settingsSectionFooter()
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .settingsGroupedCanvas()
         .toolbar {
             if !vm.logFiles.isEmpty && tab == "logs" {
                 ToolbarItem(placement: .topBarTrailing) {

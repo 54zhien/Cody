@@ -132,17 +132,14 @@ struct BackupSettingsView: View {
         Form {
             deviceNameSection
             Section {
-                // Row styling mirrors the iCloud Sync category list
-                // (CloudSyncSettingsV2View): a 28pt rounded-square badge with a
-                // white glyph. Same kind of choice, so it should look the same
-                // rather than inventing a second visual language for it.
                 ForEach(BackupCategory.backupable, id: \.self) { category in
                     Toggle(isOn: binding(for: category)) {
                         HStack(spacing: 12) {
-                            BackupCategoryIcon(category: category)
+                            SettingsBackupCategoryBadge(category: category)
                             Text(displayName(category))
                         }
                     }
+                        .settingsRowSurface()
                 }
 
                 // §3.4's cap, surfaced. Only meaningful when a category that
@@ -163,35 +160,36 @@ struct BackupSettingsView: View {
                         Text("Unlimited").tag(BackupSettingsView.unlimitedTag)
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "doc.zipper")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 28, height: 28)
-                                .background(Color.gray, in: Circle())
+                            CodySettingsIconBadge(systemImage: "doc.zipper", tint: .neutral)
                             Text("Max Per-File Size")
                         }
                     }
                     .pickerStyle(.menu)
+                        .settingsRowSurface()
                 }
             } header: {
                 Text("Include")
+                    .settingsSectionHeading()
             } footer: {
                 // The cap's consequence is stated, because §3.4's whole point is
                 // that a skipped file leaves a tombstone rather than silently
                 // vanishing — the user should know that before it happens, not
                 // discover it at restore time.
-                if selected.contains(where: \.carriesFileTree),
-                   maxFileSizeMB == Self.noFilesTag {
-                    // Worth stating plainly: this is the one setting that makes
-                    // the backup unable to restore a conversation's files at
-                    // all, so it should not read like just another size.
-                    Text("Chats includes every file in each conversation, not just the messages. File contents are not being backed up — the backup lists which files existed, but restoring won't bring them back.")
-                } else if selected.contains(where: \.carriesFileTree),
-                          maxFileSizeMB != Self.unlimitedTag {
-                    Text("Chats includes every file in each conversation, not just the messages. Files larger than \(maxFileSizeMB) MB are listed in the backup but not included.")
-                } else {
-                    Text("Chats includes every file in each conversation, not just the messages.")
+                Group {
+                    if selected.contains(where: \.carriesFileTree),
+                       maxFileSizeMB == Self.noFilesTag {
+                        // Worth stating plainly: this is the one setting that makes
+                        // the backup unable to restore a conversation's files at
+                        // all, so it should not read like just another size.
+                        Text("Chats includes every file in each conversation, not just the messages. File contents are not being backed up — the backup lists which files existed, but restoring won't bring them back.")
+                    } else if selected.contains(where: \.carriesFileTree),
+                              maxFileSizeMB != Self.unlimitedTag {
+                        Text("Chats includes every file in each conversation, not just the messages. Files larger than \(maxFileSizeMB) MB are listed in the backup but not included.")
+                    } else {
+                        Text("Chats includes every file in each conversation, not just the messages.")
+                    }
                 }
+                .settingsSectionFooter()
             }
 
             // Encryption is a CHOICE; the passphrase only appears once it's on.
@@ -207,49 +205,55 @@ struct BackupSettingsView: View {
             Section {
                 Toggle(isOn: $encryptBackup.animation()) {
                     HStack(spacing: 12) {
-                        Image(systemName: encryptBackup ? "lock.fill" : "lock.open.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(encryptBackup ? Color.green : Color.gray,
-                                        in: Circle())
+                        CodySettingsIconBadge(
+                            systemImage: encryptBackup ? "lock.fill" : "lock.open.fill",
+                            tint: encryptBackup ? .green : .neutral
+                        )
                         Text("Encrypt Backup")
                     }
                 }
+                    .settingsRowSurface()
                 if encryptBackup {
                     SecureField("Passphrase", text: $passphrase)
                         .textContentType(.newPassword)
+                        .settingsRowSurface()
                     if !passphrase.isEmpty {
                         SecureField("Confirm passphrase", text: $confirmPassphrase)
                             .textContentType(.newPassword)
+                            .settingsRowSurface()
                         if passphrase != confirmPassphrase {
                             Text("Passphrases don't match.")
-                                .font(.footnote)
-                                .foregroundStyle(.red)
+                                .font(CodyTypography.sectionHeader)
+                                .foregroundStyle(CodyColors.statusErrorText)
+                                .settingsRowSurface()
                         }
                     }
                 }
             } header: {
                 Text("Encryption")
+                    .settingsSectionHeading()
             } footer: {
-                if encryptBackup {
-                    // Both halves are load-bearing: what the passphrase covers,
-                    // and that losing it is final. A user who doesn't
-                    // understand the second can lose everything.
-                    Text("This passphrase encrypts the entire backup, including chats, files, and credentials. There is no way to recover a forgotten passphrase — the backup cannot be opened without it.")
-                } else if selected.contains(where: Self.credentialCarryingCategories.contains) {
-                    // [T-backup-credentials-without-encryption] This used to
-                    // read "API keys are left out", which was the old
-                    // behaviour. Now they are IN, so the footer has to say the
-                    // opposite — and say it as a warning, because the risk has
-                    // moved from "my backup is useless" to "my keys are
-                    // readable by anyone holding this file".
-                    Label("This backup contains your API keys, OAuth tokens and environment variable values, and it is NOT encrypted — anyone with the file can read them. Turn on encryption to protect it.",
-                          systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                } else {
-                    Text("Without encryption the backup is not protected — anyone with the file can read its contents.")
+                Group {
+                    if encryptBackup {
+                        // Both halves are load-bearing: what the passphrase covers,
+                        // and that losing it is final. A user who doesn't
+                        // understand the second can lose everything.
+                        Text("This passphrase encrypts the entire backup, including chats, files, and credentials. There is no way to recover a forgotten passphrase — the backup cannot be opened without it.")
+                    } else if selected.contains(where: Self.credentialCarryingCategories.contains) {
+                        // [T-backup-credentials-without-encryption] This used to
+                        // read "API keys are left out", which was the old
+                        // behaviour. Now they are IN, so the footer has to say the
+                        // opposite — and say it as a warning, because the risk has
+                        // moved from "my backup is useless" to "my keys are
+                        // readable by anyone holding this file".
+                        Label("This backup contains your API keys, OAuth tokens and environment variable values, and it is NOT encrypted — anyone with the file can read them. Turn on encryption to protect it.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(CodyColors.statusWarningText)
+                    } else {
+                        Text("Without encryption the backup is not protected — anyone with the file can read its contents.")
+                    }
                 }
+                .settingsSectionFooter()
             }
 
             destinationSection
@@ -262,77 +266,20 @@ struct BackupSettingsView: View {
                         Label {
                             Text("Restore from Backup…")
                         } icon: {
-                            Image(systemName: "arrow.down.doc")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white)
-                                .frame(width: 21, height: 21)
-                                .background(.indigo, in: Circle())
+                            CodySettingsIconBadge(systemImage: "arrow.down.doc", tint: .purple)
                         }
                     }
+                        .settingsRowSurface()
                 } footer: {
                     Text("Restoring merges a backup into your existing data. Nothing is deleted.")
+                        .settingsSectionFooter()
                 }
             }
 
             Section {
-                // ONE button that toggles. While a backup runs it says "Stop
-                // Backup" and stops it — nothing else about this row changes.
-                //
-                // It used to do three things at once: the button turned into a
-                // disabled spinner captioned with the live status, and a
-                // SECOND Stop button appeared under it. That put the progress
-                // report inside the control, so the row a user reaches for
-                // moved and greyed out at the moment they wanted to act, and
-                // the section grew a row every time a run started. Progress
-                // belongs in the run's own entry in Backup History below,
-                // which already shows the status text and the full log; the
-                // control stays a control.
-                Button(role: runController.isRunning ? .destructive : nil) {
-                    if runController.isRunning {
-                        BackupRunController.shared.stop()
-                        return
-                    }
-                    // The Task is handed to the controller so Stop (here or
-                    // in the run's detail view) can cancel it — a view can be
-                    // dismissed mid-backup, and a running task nobody holds is
-                    // one nobody can stop.
-                    let t = Task { await runExport() }
-                    BackupRunController.shared.started(task: t)
-                } label: {
-                    // [T-restore-primary-action] Badged like every other
-                    // action row in the backup screens, and matching Start
-                    // Restore on the other tab — a bare glyph here was the odd
-                    // one out. Red while running, so Stop reads as the
-                    // destructive action it is.
-                    HStack(spacing: 10) {
-                        BackupActionIcon(
-                            systemName: runController.isRunning
-                                ? "stop.fill" : "externaldrive.badge.timemachine",
-                            tint: runController.isRunning ? .red : .blue)
-                        Text(runController.isRunning ? "Stop Backup" : "Start Backup")
-                    }
-                    // Without maxWidth the row sizes to its content and sits
-                    // left; this is what centres it in the Form row.
-                    .frame(maxWidth: .infinity)
-                    .fontWeight(.medium)
-                }
-                // The start-time requirements gate STARTING only. Applying
-                // them while running would disable the button mid-run and
-                // leave no way to stop the backup from this screen.
-                // A destination is now a REQUIREMENT, not a nice-to-have. With
-                // none configured the package would only ever reach the app's
-                // own sandbox, where it dies with the app it exists to
-                // protect — that is not a backup, so the button says so
-                // instead of producing one.
-                .disabled(!runController.isRunning
-                          && (selected.isEmpty || !passphraseValid || !hasDestination))
-                // List aligns a row's separator to its first Text's leading
-                // edge. These rows centre their content, so the text starts
-                // mid-row and the separator under "Exporting sessions…" only
-                // spanned the middle of the card (user report: the divider
-                // above Stop Backup looked broken). Pin it to the row's
-                // leading edge so it runs the full card width.
-                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                backupActionRow
+                    .settingsRowSurface()
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
 
                 // A disabled button with no explanation is a dead end — say
                 // which requirement is unmet rather than leaving the user to
@@ -351,6 +298,7 @@ struct BackupSettingsView: View {
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
                             .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .settingsRowSurface()
                     } else if selected.isEmpty {
                         Text("Choose at least one thing to include.")
                             .font(.footnote)
@@ -358,6 +306,7 @@ struct BackupSettingsView: View {
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
                             .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .settingsRowSurface()
                     } else if encryptBackup && passphrase.isEmpty {
                         Text("Set a passphrase to encrypt this backup.")
                             .font(.footnote)
@@ -365,6 +314,7 @@ struct BackupSettingsView: View {
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
                             .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .settingsRowSurface()
                     } else if encryptBackup && passphrase != confirmPassphrase {
                         Text("Confirm the passphrase to continue.")
                             .font(.footnote)
@@ -372,6 +322,7 @@ struct BackupSettingsView: View {
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
                             .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .settingsRowSurface()
                     }
                 }
 
@@ -379,8 +330,9 @@ struct BackupSettingsView: View {
 
                 if let errorText {
                     Text(errorText)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.statusErrorText)
+                        .settingsRowSurface()
                 }
             }
 
@@ -389,6 +341,7 @@ struct BackupSettingsView: View {
             if let result {
                 Section {
                     LabeledContent("Size", value: byteText(result.totalBytes))
+                        .settingsRowSurface()
                     if result.skippedFiles > 0 {
                         // §3.4: a size-capped export has gaps, and the user is
                         // told here rather than discovering it at restore time.
@@ -398,6 +351,7 @@ struct BackupSettingsView: View {
                                        ? "Files not included"
                                        : "Excluded (too large)",
                                        value: "\(result.skippedFiles) file(s)")
+                            .settingsRowSurface()
                     }
                     // [T-backup-share-when-undelivered] Offer Share / Save only
                     // when the user still has to move the package themselves.
@@ -427,13 +381,15 @@ struct BackupSettingsView: View {
                         Button {
                             showShare = true
                         } label: {
-                            Label("Share…", systemImage: "square.and.arrow.up")
+                            SettingsIconLabel(title: Text("Share…"), systemImage: "square.and.arrow.up", tint: .blue)
                         }
+                            .settingsRowSurface()
                         Button {
                             showSaveToFiles = true
                         } label: {
-                            Label("Save to Files…", systemImage: "folder")
+                            SettingsIconLabel(title: Text("Save to Files…"), systemImage: "folder", tint: .blue)
                         }
+                            .settingsRowSurface()
                     }
 
                     // Per-destination outcome. Reported individually rather
@@ -443,34 +399,41 @@ struct BackupSettingsView: View {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Image(systemName: r.succeeded
                                   ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(r.succeeded ? .green : .orange)
+                                .foregroundStyle(r.succeeded ? CodyColors.statusSuccessText : CodyColors.statusWarningText)
+                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(r.folderName)
                                 if let error = r.error {
                                     Text(error)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                 }
                             }
                         }
-                        .font(.footnote)
+                        .font(CodyTypography.sectionHeader)
+                            .settingsRowSurface()
                     }
                 } header: {
                     Text("Backup Ready")
+                        .settingsSectionHeading()
                 } footer: {
-                    if localCopyRemoved {
-                        Text("Delivered to all \(deliveryResults.count) destination(s) and verified. The copy on this iPhone was removed to save space.")
-                    } else if deliveryResults.isEmpty {
-                        Text("Saved in Cody ▸ Backups. Use Save to Files to copy it to iCloud Drive, a connected server, or another cloud provider.")
-                    } else {
-                        let ok = deliveryResults.filter(\.succeeded).count
-                        // The local copy is stated explicitly so a user whose
-                        // NAS was offline can see the backup still exists.
-                        Text("Saved in Cody ▸ Backups, and copied to \(ok) of \(deliveryResults.count) selected folder(s).")
+                    Group {
+                        if localCopyRemoved {
+                            Text("Delivered to all \(deliveryResults.count) destination(s) and verified. The copy on this iPhone was removed to save space.")
+                        } else if deliveryResults.isEmpty {
+                            Text("Saved in Cody ▸ Backups. Use Save to Files to copy it to iCloud Drive, a connected server, or another cloud provider.")
+                        } else {
+                            let ok = deliveryResults.filter(\.succeeded).count
+                            // The local copy is stated explicitly so a user whose
+                            // NAS was offline can see the backup still exists.
+                            Text("Saved in Cody ▸ Backups, and copied to \(ok) of \(deliveryResults.count) selected folder(s).")
+                        }
                     }
+                    .settingsSectionFooter()
                 }
             }
         }
+        .settingsGroupedCanvas()
         .modifier(StandaloneTitle(title: AppLocalized("Backup"),
                                  active: !embedded))
         .onAppear {
@@ -650,37 +613,41 @@ struct BackupSettingsView: View {
                     Image(systemName: d.error != nil ? "exclamationmark.triangle.fill"
                           : d.finishedAt != nil ? "checkmark.circle.fill"
                           : "arrow.up.circle")
-                        .foregroundStyle(d.error != nil ? .orange
-                                         : d.finishedAt != nil ? .green : .blue)
+                        .foregroundStyle(d.error != nil ? CodyColors.statusWarningText
+                                         : d.finishedAt != nil ? CodyColors.statusSuccessText : CodyColors.iconAccent)
+                        .accessibilityHidden(true)
                     Text(d.name).font(.callout)
                     Spacer()
                     Text("\(Int(d.fraction * 100))%")
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
                 if d.error == nil {
-                    ProgressView(value: d.fraction)
+                    CodyProgressBar(progress: d.fraction)
                 }
                 // Bytes / rate / elapsed / remaining — the four numbers that
                 // together answer "is this working, and how long more?".
                 if let error = d.error {
-                    Text(error).font(.caption).foregroundStyle(.orange)
+                    Text(error).font(CodyTypography.bodySmall).foregroundStyle(CodyColors.statusWarningText)
                 } else {
                     Text(transferDetail(d))
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
             .padding(.vertical, 2)
+                .settingsRowSurface()
         }
 
         if let note = transfer.cleanupNote {
             Label {
-                Text(note).font(.caption)
+                Text(note).font(CodyTypography.bodySmall)
             } icon: {
-                Image(systemName: "sparkles").foregroundStyle(.green)
+                Image(systemName: "sparkles").foregroundStyle(CodyColors.statusSuccessText)
+                    .accessibilityHidden(true)
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(CodyColors.textSecondary)
+                .settingsRowSurface()
         }
 
     }
@@ -729,14 +696,43 @@ struct BackupSettingsView: View {
     /// same device token and remain indistinguishable — exactly the problem
     /// putting the device in the filename was meant to solve. Typing a name
     /// solves it without an entitlement.
+    @ViewBuilder
+    private var backupActionRow: some View {
+        if runController.isRunning {
+            backupAction.buttonStyle(CodyPressableButtonStyle())
+        } else {
+            backupAction.buttonStyle(CodyPrimaryCapsuleButtonStyle())
+        }
+    }
+
+    private var backupAction: some View {
+        Button(role: runController.isRunning ? .destructive : nil) {
+            if runController.isRunning {
+                BackupRunController.shared.stop()
+                return
+            }
+            let t = Task { await runExport() }
+            BackupRunController.shared.started(task: t)
+        } label: {
+            HStack(spacing: CodySpacing.sm) {
+                Image(systemName: runController.isRunning ? "stop.fill" : "externaldrive.badge.timemachine")
+                    .accessibilityHidden(true)
+                Text(runController.isRunning ? "Stop Backup" : "Start Backup")
+            }
+            .font(CodyTypography.titleMedium)
+            .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard - 2 * CodySpacing.smPlus)
+            .foregroundStyle(runController.isRunning ? CodyColors.statusErrorText : CodyColors.interactivePrimaryLabel)
+            .contentShape(Rectangle())
+        }
+        // Stop stays available even when a requirement for starting is no longer met.
+        .disabled(!runController.isRunning && (selected.isEmpty || !passphraseValid || !hasDestination))
+        .padding(.vertical, CodySpacing.xs)
+    }
+
     private var deviceNameSection: some View {
         Section {
             HStack(spacing: 12) {
-                Image(systemName: "iphone")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 28, height: 28)
-                    .background(Color.blue, in: Circle())
+                CodySettingsIconBadge(systemImage: "iphone", tint: .blue)
                 // The placeholder is the automatic name, so an untouched field
                 // shows the user what will be used rather than sitting blank.
                 TextField(DeviceIdentity.automaticName, text: $deviceNameDraft)
@@ -754,13 +750,16 @@ struct BackupSettingsView: View {
                     // target is iOS 16 and the two-parameter overload is 17+.
                     .onChange(of: deviceNameDraft) { _ in commitDeviceName() }
             }
+                .settingsRowSurface()
         } header: {
             Text("Device Name")
+                .settingsSectionHeading()
         } footer: {
             // Says what the name is FOR — the whole point is the filename —
             // and how to get back to the default, which an empty field does
             // not otherwise advertise.
             Text("Used to identify this device in backup filenames and in the iCloud sync device list. Leave empty to use “\(DeviceIdentity.automaticName)”.")
+                .settingsSectionFooter()
         }
         // Seeded in onAppear rather than defaulted, so reopening the screen
         // shows what is actually stored instead of an empty field over a set
@@ -806,11 +805,14 @@ struct BackupSettingsView: View {
                             .tint(.blue)
                         }
                     }
+                        .settingsRowSurface()
                 }
             } header: {
                 Text("Backup History")
+                    .settingsSectionHeading()
             } footer: {
                 Text("Records from the past month. Older ones are removed automatically.")
+                    .settingsSectionFooter()
             }
         }
     }
@@ -846,12 +848,8 @@ struct BackupSettingsView: View {
                 // hidden link driven by state, so the label area pushes the
                 // detail view and the switch keeps its own hit area.
                 HStack(spacing: 12) {
-                    Image(systemName: RcloneBackendCatalog.backend(for: r.backend)?.icon
-                          ?? "externaldrive.connected.to.line.below")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Color.blue, in: Circle())
+                    CodySettingsIconBadge(systemImage: RcloneBackendCatalog.backend(for: r.backend)?.icon
+                          ?? "externaldrive.connected.to.line.below", tint: .blue)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(r.name)
                         Text("\(r.backend.uppercased()) · /\(r.path)")
@@ -870,6 +868,7 @@ struct BackupSettingsView: View {
                         }
                     ))
                     .labelsHidden()
+                    .accessibilityLabel(Text(r.name))
                     .fixedSize()
                 }
                 .contentShape(Rectangle())
@@ -882,6 +881,7 @@ struct BackupSettingsView: View {
                         Label("Remove", systemImage: "trash")
                     }
                 }
+                    .settingsRowSurface()
             }
 
             if eligible.isEmpty && remotes.isEmpty {
@@ -897,6 +897,7 @@ struct BackupSettingsView: View {
                 // backed up when nothing had left the device.
                 Text("No destinations yet — add one to back up.")
                     .foregroundStyle(.secondary)
+                    .settingsRowSurface()
             } else if !eligible.isEmpty {
                 // Same badge treatment as the category rows above, so the two
                 // lists read as one screen rather than two styles.
@@ -905,11 +906,7 @@ struct BackupSettingsView: View {
                     // inside the Toggle, so no chevron pinched against the
                     // switch.
                     HStack(spacing: 12) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Color.indigo, in: Circle())
+                        CodySettingsIconBadge(systemImage: "folder.fill", tint: .purple)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(folder.name)
                             Text(folder.sourceDisplayName)
@@ -920,6 +917,7 @@ struct BackupSettingsView: View {
                             .contentShape(Rectangle())
                         Toggle("", isOn: destinationBinding(for: folder))
                             .labelsHidden()
+                            .accessibilityLabel(Text(folder.name))
                             .fixedSize()
                     }
                     .contentShape(Rectangle())
@@ -936,6 +934,7 @@ struct BackupSettingsView: View {
                             Label("Remove", systemImage: "trash")
                         }
                     }
+                        .settingsRowSurface()
                 }
             }
             // ONE entry point. Two buttons ("Add Folder" / "Add Server")
@@ -947,28 +946,30 @@ struct BackupSettingsView: View {
                 showAddDestination = true
             } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Color.green, in: Circle())
+                    CodySettingsIconBadge(systemImage: "plus", tint: .green)
                     Text("Add Backup Destination…")
                 }
             }
+                .settingsRowSurface()
 
             if let destinationWarning {
                 Text(destinationWarning)
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
+                    .font(CodyTypography.sectionHeader)
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .settingsRowSurface()
             }
         } header: {
             Text("Backup Destinations")
+                .settingsSectionHeading()
         } footer: {
-            if eligible.isEmpty {
-                Text("Add a folder to also copy each backup there — including a server connected in the Files app (SMB, WebDAV) or a cloud provider.")
-            } else {
-                Text("Each new backup is also copied to the selected folders — including servers connected in the Files app (SMB, WebDAV) and cloud providers. A folder that is offline is reported and skipped; the local copy is always kept.")
+            Group {
+                if eligible.isEmpty {
+                    Text("Add a folder to also copy each backup there — including a server connected in the Files app (SMB, WebDAV) or a cloud provider.")
+                } else {
+                    Text("Each new backup is also copied to the selected folders — including servers connected in the Files app (SMB, WebDAV) and cloud providers. A folder that is offline is reported and skipped; the local copy is always kept.")
+                }
             }
+            .settingsSectionFooter()
         }
     }
 
@@ -1200,5 +1201,22 @@ struct BackupSettingsView: View {
 
     private func byteText(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+struct SettingsBackupCategoryBadge: View {
+    let category: BackupCategory
+
+    private var tint: CodyCategoryTint {
+        switch category {
+        case .chats: .blue
+        case .sharedFiles, .memory, .voiceCorrections: .purple
+        case .skills, .environmentVariables: .orange
+        case .providers, .mcpServers: .green
+        }
+    }
+
+    var body: some View {
+        CodySettingsIconBadge(systemImage: BackupCategoryIcon.symbol(for: category), tint: tint)
     }
 }
