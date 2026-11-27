@@ -44,7 +44,7 @@ struct CopilotDeviceLoginSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            VStack(spacing: CodySpacing.xxl) {
                 switch phase {
                 case .consent:
                     consentBody
@@ -52,7 +52,8 @@ struct CopilotDeviceLoginSheet: View {
                 case .starting:
                     ProgressView()
                     Text(AppLocalized("Contacting GitHub…"))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
 
                 case let .awaitingUser(userCode, url):
                     awaitingBody(userCode: userCode, url: url)
@@ -60,24 +61,28 @@ struct CopilotDeviceLoginSheet: View {
                 case .success:
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 48))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(CodyColors.connectionReady)
+                        .accessibilityHidden(true)
                     Text(AppLocalized("Signed in"))
-                        .font(.headline)
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
 
                 case let .failed(message):
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 40))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CodyColors.statusWarningText)
+                        .accessibilityHidden(true)
                     Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .multilineTextAlignment(.center)
                     Button(AppLocalized("Try Again")) { start() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
+            .padding(CodySpacing.lg)
+            .background(CodyColors.bgGrouped)
             .navigationTitle(AppLocalized("GitHub Copilot Login"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -130,14 +135,20 @@ struct CopilotDeviceLoginSheet: View {
     @ViewBuilder
     private var consentBody: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: CodySpacing.lg) {
                 Image(systemName: "exclamationmark.shield.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.orange)
-                Text(AppLocalized("Notice regarding unofficial access"))
-                    .font(.headline)
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .frame(width: CodySpacing.s64, height: CodySpacing.s64)
+                    .background(CodyColors.statusWarningBg, in: Circle())
+                    .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 12) {
+                Text(AppLocalized("Notice regarding unofficial access"))
+                    .font(CodyTypography.titleMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
+
+                let cardShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                VStack(alignment: .leading, spacing: CodySpacing.md) {
                     disclaimerPoint(AppLocalized(
                         "This sign-in method is not officially authorized. Cody is not affiliated with, endorsed by, or supported by GitHub, and this integration has not been reviewed or approved by GitHub.",
                         comment: "Copilot disclaimer: unofficial status"))
@@ -160,11 +171,17 @@ struct CopilotDeviceLoginSheet: View {
                         "This feature is provided on an “as is” basis, without warranty of any kind. By continuing you confirm that you have read this notice and accept these risks entirely at your own discretion.",
                         comment: "Copilot disclaimer: as-is, user accepts the risk"))
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(CodySpacing.lg)
+                .background(cardShape.fill(CodyColors.bgGroupedSurface))
+                .overlay {
+                    cardShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, CodySpacing.sm)
         }
 
         Button {
@@ -172,17 +189,18 @@ struct CopilotDeviceLoginSheet: View {
         } label: {
             Text(AppLocalized("I have read and accept these terms",
                               comment: "Copilot disclaimer: explicit consent button"))
+                .font(CodyTypography.titleSmall)
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.orange)
+        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
     }
 
     /// One bullet of the notice.
     @ViewBuilder
     private func disclaimerPoint(_ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: CodySpacing.sm) {
             Text(verbatim: "•")
+                .foregroundStyle(CodyColors.textTertiary)
             Text(text)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -194,28 +212,36 @@ struct CopilotDeviceLoginSheet: View {
         // the code: opening the page copies it, so "paste" is the accurate
         // instruction. Tapping the code still works for anyone who wants it.
         Text(AppLocalized("1. Open the verification page — this copies the code\n2. Paste it to authorize Cody"))
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .font(CodyTypography.bodyMedium)
+            .foregroundStyle(CodyColors.textSecondary)
             .multilineTextAlignment(.center)
 
         // Tap to copy — the code is long enough that retyping it in a browser
         // is a real annoyance.
+        let codeShape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
         Button {
             UIPasteboard.general.string = userCode
             copied = true
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: CodySpacing.sm) {
                 Text(userCode)
                     .font(.system(.title, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(CodyColors.textPrimary)
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(copied ? CodyColors.connectionReady : CodyColors.iconSecondary)
+                    .accessibilityHidden(true)
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 20)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, CodySpacing.md)
+            .padding(.horizontal, CodySpacing.xl)
+            .background(codeShape.fill(CodyColors.bgCodeBlock))
+            .overlay {
+                codeShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(copied ? AppLocalized("Copied") : AppLocalized("Copy"))
 
         Button {
             // [T-copilot-copy-on-open] Copy the code as part of opening the
@@ -230,16 +256,18 @@ struct CopilotDeviceLoginSheet: View {
             if let u = URL(string: url) { presentSafari(u) }
         } label: {
             Label(AppLocalized("Open verification page"), systemImage: "safari")
+                .font(CodyTypography.titleSmall)
+                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
 
-        HStack(spacing: 6) {
+        HStack(spacing: CodySpacing.xsPlus) {
             ProgressView().controlSize(.small)
             Text(AppLocalized("Waiting for authorization…"))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.sectionHeader)
+                .foregroundStyle(CodyColors.textSecondary)
         }
-        .padding(.top, 4)
+        .padding(.top, CodySpacing.xs)
     }
 
     private func start() {

@@ -39,7 +39,10 @@ struct QuotaDetailSheet: View {
                 if let instance = ProviderConfigStore.shared.instance(for: instanceId) {
                     let display = quota.display(for: instance)
                     if case .pools = display {} else if let url = QuotaConsoleLink.url(for: QuotaStore.descriptor(for: instance)) {
-                        Section { QuotaConsoleLinkRow(url: url) { consoleURL = url } }
+                        Section {
+                            QuotaConsoleLinkRow(url: url) { consoleURL = url }
+                                .codyGroupedRow()
+                        }
                     }
                     switch display {
                     case .pools(let sid):
@@ -54,24 +57,46 @@ struct QuotaDetailSheet: View {
                         }
                     case .loading:
                         Section {
-                            HStack(spacing: 8) {
+                            HStack(spacing: CodySpacing.sm) {
                                 ProgressView().controlSize(.small)
-                                Text("Checking balance…").foregroundStyle(.secondary)
+                                Text("Checking balance…")
+                                    .font(CodyTypography.bodyMedium)
+                                    .foregroundStyle(CodyColors.textSecondary)
                             }
+                            .codyGroupedRow()
                         }
                     case .unsupported(let reason):
-                        Section { Text(ProviderQuotaSection.message(for: reason)).foregroundStyle(.secondary) }
+                        Section {
+                            Text(ProviderQuotaSection.message(for: reason))
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
+                                .codyGroupedRow()
+                        }
                     case .failed(let err):
-                        Section { Text(ProviderQuotaSection.message(for: err)).foregroundStyle(.orange) }
+                        Section {
+                            Text(ProviderQuotaSection.message(for: err))
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.statusWarningText)
+                                .codyGroupedRow()
+                        }
                     case .empty:
                         Section {
-                            Text("The provider reported no balance or quota for this key.").foregroundStyle(.secondary)
+                            Text("The provider reported no balance or quota for this key.")
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
+                                .codyGroupedRow()
                         }
                     case .hidden:
-                        Section { Text("Add an API key to see the balance.").foregroundStyle(.secondary) }
+                        Section {
+                            Text("Add an API key to see the balance.")
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
+                                .codyGroupedRow()
+                        }
                     }
                 }
             }
+            .codyGroupedListCanvas()
             .refreshable { await refresh() }
             .sheet(item: $consoleURL) { url in
                 CodyLinkPreviewView(url: url, browserPool: nil)
@@ -110,41 +135,51 @@ struct QuotaDetailSheet: View {
                 LabeledContent(String(localized: "Relay type")) {
                     VStack(alignment: .trailing, spacing: 1) {
                         Text(detection.text)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Text(String(format: String(localized: "detected %@"), ProviderQuotaSection.relative(detection.at)))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.labelSmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
+                .codyGroupedRow()
             }
             if let refreshed = subject?.lastRefresh?.succeededAt {
                 LabeledContent(String(localized: "Last checked")) {
                     Text(Self.stamp(refreshed))
+                        .font(CodyTypography.bodyMedium.monospacedDigit())
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
+                .codyGroupedRow()
             }
             let sharing = quota.sharingInstanceIds(for: instanceId)
                 .compactMap { ProviderConfigStore.shared.instance(for: $0)?.label }
             if !sharing.isEmpty {
                 Text(String(format: String(localized: "Same account as “%@” — the same balance, don't add them up"),
                             sharing.joined(separator: "”, “")))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .codyGroupedRow()
             }
             if let err = subject?.lastRefresh?.error {
                 Text(String(format: String(localized: "Last refresh failed: %@"), ProviderQuotaSection.message(for: err)))
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .codyGroupedRow()
             }
             if let blockedMessage {
                 Text(blockedMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .codyGroupedRow()
             }
             if let instance = ProviderConfigStore.shared.instance(for: instanceId),
                let url = QuotaConsoleLink.url(for: QuotaStore.descriptor(for: instance)) {
                 QuotaConsoleLinkRow(url: url) { consoleURL = url }
+                    .codyGroupedRow()
             }
         } header: {
             Text("Account")
+                .codySectionHeaderText()
         }
     }
 
@@ -154,21 +189,28 @@ struct QuotaDetailSheet: View {
         let scopes = quota.bindings.filter { $0.poolKey == pool.id }
         Section {
             QuotaPoolRow(pool: pool, status: status, detailed: true)
+                .codyGroupedRow()
             LabeledContent(String(localized: "Source")) {
                 Text(Self.sourceText(pool.provenance))
+                    .foregroundStyle(CodyColors.textSecondary)
                     .multilineTextAlignment(.trailing)
             }
+            .codyGroupedRow()
             LabeledContent(String(localized: "Updated")) {
                 Text(Self.stamp(pool.observedAt))
+                    .font(CodyTypography.bodyMedium.monospacedDigit())
+                    .foregroundStyle(CodyColors.textSecondary)
             }
+            .codyGroupedRow()
             ForEach(Array(scopes.enumerated()), id: \.offset) { _, binding in
                 Label {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(Self.scopeText(binding.target))
+                            .foregroundStyle(CodyColors.textPrimary)
                         if binding.evidence == .assumedSubjectWide {
                             Text("The provider didn't state the scope; treated as shared by the account.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.labelSmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                     }
                 } icon: {
@@ -176,10 +218,12 @@ struct QuotaDetailSheet: View {
                     // coloured circle), the shared BackupActionIcon.
                     Self.scopeIcon(binding.target)
                 }
-                .font(.footnote)
+                .font(CodyTypography.bodySmall)
+                .codyGroupedRow()
             }
         } header: {
             Text(Self.kindName(pool.kind))
+                .codySectionHeaderText()
         }
     }
 

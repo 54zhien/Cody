@@ -87,20 +87,28 @@ struct ThinkingRuleEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Name") {
+                Section {
                     TextField("Rule name", text: $label)
                         .autocorrectionDisabled()
+                        .codyGroupedRow()
+                } header: {
+                    Text("Name")
+                        .codySectionHeaderText()
                 }
 
                 Section {
                     Toggle("All models", isOn: $scopeIsAllModels)
+                        .codyGroupedRow()
                     if !scopeIsAllModels {
                         TextField("Model pattern (e.g. deepseek-v4*)", text: $pattern)
+                            .font(CodyTypography.code)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .codyGroupedRow()
                     }
                 } header: {
                     Text("Applies to")
+                        .codySectionHeaderText()
                 } footer: {
                     if !scopeIsAllModels {
                         // The most likely user error is a pattern that matches nothing,
@@ -116,24 +124,40 @@ struct ThinkingRuleEditorView: View {
                             Text(c.title).tag(c)
                         }
                     }
+                    .codyGroupedRow()
                     Text(choice.explanation)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .codyGroupedRow()
                     formatFields
+                        .codyGroupedRow()
                 } header: {
                     Text("What to send")
+                        .codySectionHeaderText()
                 }
 
                 Section {
+                    let previewShape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
                     Text(previewText)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(CodyTypography.code)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(CodySpacing.md)
+                        .background(previewShape.fill(CodyColors.bgCodeBlock))
+                        .overlay {
+                            previewShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
+                        .codyGroupedRow()
                 } header: {
                     Text("Request preview")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("The thinking fields this rule adds to a request at the High level.")
                 }
             }
+            .codyGroupedFormCanvas()
             .navigationTitle(existing == nil ? Text("New Rule") : Text("Edit Rule"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -156,28 +180,33 @@ struct ThinkingRuleEditorView: View {
             Toggle("Send a value when thinking is off", isOn: $sendOffValue)
             if sendOffValue {
                 TextField("Off value (e.g. none, minimal)", text: $offValue)
+                    .font(CodyTypography.code)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
             } else {
                 // This is not a cosmetic choice: sending an off tier to a strict-enum
                 // backend killed whole requests on MiMo (c5efeb1e).
                 Text("The field is omitted entirely when thinking is off.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         case .booleanToggle:
             TextField("Field path", text: $togglePath)
+                .font(CodyTypography.code)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
         case .extraBodyToggle:
             TextField("Field path", text: $extraBodyPath)
+                .font(CodyTypography.code)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
         case .customPath:
             TextField("Dotted path (e.g. extra.thinking.mode)", text: $customPath)
+                .font(CodyTypography.code)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
             TextField("Value at High", text: $customHighValue)
+                .font(CodyTypography.code)
                 .autocorrectionDisabled()
         case .omitEverything, .deepSeekSibling, .qwenDual, .qwenRootOnly:
             EmptyView()

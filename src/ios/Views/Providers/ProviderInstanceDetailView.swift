@@ -120,7 +120,7 @@ struct ProviderInstanceDetailView: View {
                 Form {
                     Section {
                         SecureField("Bearer token", text: $manualTokenInputText)
-                            .font(.system(.body, design: .monospaced))
+                            .font(CodyTypography.code)
                             // [T-provider-label-keyboard issue #364] Opt this
                             // field OUT of AutoFill's password association, the
                             // same declaration AddProviderView has carried since
@@ -136,10 +136,12 @@ struct ProviderInstanceDetailView: View {
                             .textContentType(.oneTimeCode)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .codyGroupedRow()
                     } footer: {
                         Text("Paste the bearer token. Whitespace and newlines will be stripped automatically.")
                     }
                 }
+                .codyGroupedFormCanvas()
                 .navigationTitle("Manual Bearer Token")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -196,7 +198,7 @@ struct ProviderInstanceDetailView: View {
     private func instanceContent(_ instance: ProviderInstance) -> some View {
         List {
             // MARK: Label
-            Section("Label") {
+            Section {
                 TextField("Label", text: $editingLabel)
                     // [T-provider-label-keyboard] Same reason as the Add flow: this
                     // screen also hosts `.numberPad` fields (Context Window, Max
@@ -219,13 +221,19 @@ struct ProviderInstanceDetailView: View {
                     .onAppear { editingLabel = instance.label }
                     .onSubmit { saveLabel(instance) }
                     .onChange(of: editingLabel) { _ in saveLabel(instance) }
+                    .codyGroupedRow()
+            } header: {
+                Text("Label")
+                    .codySectionHeaderText()
             }
 
             // MARK: Credential
             Section {
                 credentialSection(instance)
+                    .codyGroupedRow()
             } header: {
                 Text("Credential")
+                    .codySectionHeaderText()
             } footer: {
                 Text(instance.credentialType == .apiKey
                      ? "API key is stored securely in the iOS Keychain."
@@ -288,6 +296,7 @@ struct ProviderInstanceDetailView: View {
                         Text("Chat Completions").tag(false)
                         Text("Responses API").tag(true)
                     }
+                    .codyGroupedRow()
                 } footer: {
                     Text(instance.providerType == .openAIResponses
                         ? "Uses /v1/responses endpoint format."
@@ -323,7 +332,7 @@ struct ProviderInstanceDetailView: View {
             }
 
             // MARK: Status
-            Section("Status") {
+            Section {
                 Toggle("Enabled", isOn: Binding(
                     get: { instance.isEnabled },
                     set: { newValue in
@@ -336,6 +345,10 @@ struct ProviderInstanceDetailView: View {
                         store.updateInstance(updated)
                     }
                 ))
+                .codyGroupedRow()
+            } header: {
+                Text("Status")
+                    .codySectionHeaderText()
             }
 
             // MARK: Quota
@@ -360,6 +373,7 @@ struct ProviderInstanceDetailView: View {
             } header: {
                 HStack {
                     Text("Models")
+                        .codySectionHeaderText()
                     Spacer()
                     // [T-mimo-shadow-voice] Refresh always available now — the
                     // fetch never wipes voice seed entries (replaceEntries
@@ -373,33 +387,40 @@ struct ProviderInstanceDetailView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             } else {
-                                HStack(spacing: 4) {
+                                HStack(spacing: CodySpacing.xs) {
                                     Image(systemName: "arrow.clockwise")
                                     Text("Refresh")
                                 }
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.secondary.opacity(0.15), in: Capsule())
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
+                                .padding(.horizontal, CodySpacing.smPlus)
+                                .padding(.vertical, CodySpacing.xs)
+                                .background(CodyColors.bgSecondary, in: Capsule())
+                                .overlay {
+                                    Capsule()
+                                        .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                        .allowsHitTesting(false)
+                                }
                             }
                         }
+                        .buttonStyle(CodyPressableButtonStyle())
                         .disabled(isFetchingModels)
                     }
                 }
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
                     // [T-ios-model-refresh-visible] The result of the last
                     // Refresh: what was found, or why the list did not change.
                     if let outcome = refreshOutcome {
                         let summary = ModelRefreshSummary(outcome)
                         Label(summary.text, systemImage: summary.systemImage)
-                            .font(.caption)
-                            .foregroundStyle(summary.isProblem ? .orange : .green)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(summary.isProblem ? CodyColors.statusWarningText : CodyColors.connectionReady)
                             .textSelection(.enabled)
                         if outcome.source == .kept {
                             Text(AppLocalized("You may need to add the model ID manually."))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                     }
                     // Error (red)
@@ -408,21 +429,26 @@ struct ProviderInstanceDetailView: View {
                         let truncated = lines.prefix(4).joined(separator: "\n")
                             + (lines.count > 4 ? "\n…" : "")
                         Text(truncated)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.statusErrorText)
                             .textSelection(.enabled)
                         Text(AppLocalized("You may need to add the model ID manually."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
             }
 
             // MARK: Custom Model
             Section {
-                Button("Add Custom Model") {
+                Button {
                     showAddCustomModel = true
+                } label: {
+                    Label("Add Custom Model", systemImage: "plus.circle")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textAccent)
                 }
+                .codyGroupedRow()
             }
 
             // MARK: Voice Service (shadow)
@@ -431,16 +457,18 @@ struct ProviderInstanceDetailView: View {
                     NavigationLink {
                         ShadowVoiceProviderDetailView(instanceId: instance.id)
                     } label: {
-                        HStack {
-                            Label("Voice Service", systemImage: "waveform")
+                        HStack(spacing: CodySpacing.md) {
+                            CodySettingsIconBadge(systemImage: "waveform", tint: .purple)
+                            Text("Voice Service")
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Spacer()
                             if store.isVoiceShadowDisabled(instance.id) {
-                                Text("Hidden", comment: "Voice shadow disabled badge")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                CodyStatusPill("Hidden", tone: .neutral)
                             }
                         }
                     }
+                    .codyGroupedRow()
                 } footer: {
                     Text("Manage ASR/TTS models and Voice Services visibility.",
                          comment: "Voice service section footer")
@@ -452,8 +480,11 @@ struct ProviderInstanceDetailView: View {
                 Button("Delete Provider", role: .destructive) {
                     showDeleteConfirm = true
                 }
+                .foregroundStyle(CodyColors.statusErrorText)
+                .codyGroupedRow()
             }
         }
+        .codyGroupedListCanvas()
         .sheet(isPresented: $showExportShare) {
             if let json = store.exportInstanceJSON(instanceId) {
                 let label = store.instance(for: instanceId).map(\.label) ?? "provider"
@@ -515,16 +546,16 @@ struct ProviderInstanceDetailView: View {
                     .textContentType(.oneTimeCode)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .foregroundStyle(showKeyRevealed ? Color.primary : Color.clear)
+                    .foregroundStyle(showKeyRevealed ? CodyColors.textPrimary : Color.clear)
 
                 if !showKeyRevealed {
                     // Show bullet mask over the clear-glyph text field
                     Text(keyInputText.isEmpty ? "" : String(repeating: "•", count: keyInputText.count))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(CodyColors.textPrimary)
                         .allowsHitTesting(false)
                 }
             }
-            .font(.system(.body, design: .monospaced))
+            .font(CodyTypography.code)
             .onAppear {
                 AppLogger(category: "Provider").info("apiKeyTextField onAppear instanceId=\(instance.id.prefix(8)) rawKeyHit=\(rawKey != nil) rawKeyLen=\(rawKey?.count ?? 0) prevTextLen=\(keyInputText.count)")
                 keyInputText = rawKey ?? ""
@@ -544,9 +575,10 @@ struct ProviderInstanceDetailView: View {
                 showKeyRevealed.toggle()
             } label: {
                 Image(systemName: showKeyRevealed ? "eye.slash" : "eye")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.iconSecondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(showKeyRevealed ? AppLocalized("Hide") : AppLocalized("Show"))
         }
         .contextMenu {
             if let key = rawKey {
@@ -570,57 +602,68 @@ struct ProviderInstanceDetailView: View {
         let _ = oauthRefreshTrigger
         let _ = store.authRevision
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                     Text("OAuth")
-                        .font(.body)
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                     if needsReauth {
                         Text(AppLocalized("Sign-in expired. Sign in again to keep using this provider."))
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.statusErrorText)
                     }
                 }
                 Spacer()
                 if isAuth {
-                    Circle()
-                        .fill(needsReauth ? Color.red : Color.green)
-                        .frame(width: 8, height: 8)
+                    if needsReauth {
+                        CodyStatusPill(localized: AppLocalized("Sign-in expired"), tone: .error, dotColor: CodyColors.statusErrorText)
+                    } else {
+                        CodyStatusPill(localized: AppLocalized("Authenticated"), tone: .success, dotColor: CodyColors.connectionReady)
+                    }
                 }
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: CodySpacing.sm) {
                 if needsReauth {
                     Button(AppLocalized("Sign In Again")) {
                         oauthStartSignIn(instance)
                     }
-                    .font(.caption.weight(.medium))
+                    .font(CodyTypography.labelMedium)
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 }
                 if isAuth {
                     if !needsReauth {
                         Button(AppLocalized("Copy Token")) {
                             Task { await oauthCopyToken(instance) }
                         }
-                        .font(.caption.weight(.medium))
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .buttonStyle(.bordered)
+                        .tint(CodyColors.textSecondary)
+                        .controlSize(.small)
                     }
                     Button(AppLocalized("Sign Out"), role: .destructive) {
                         oauthLogout(instance)
                         oauthRefreshTrigger.toggle()
                     }
-                    .font(.caption.weight(.medium))
+                    .font(CodyTypography.labelMedium)
+                    .buttonStyle(.bordered)
+                    .tint(CodyColors.statusErrorText)
+                    .controlSize(.small)
                 } else {
                     Button(oauthSignInLabel(instance)) {
                         oauthStartSignIn(instance)
                     }
-                    .font(.caption.weight(.medium))
+                    .font(CodyTypography.labelMedium)
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 }
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
+        .padding(.vertical, CodySpacing.xxs)
         .id(oauthRefreshTrigger)
     }
 
@@ -661,13 +704,14 @@ struct ProviderInstanceDetailView: View {
     private func customBaseURLSection(_ instance: ProviderInstance) -> some View {
         Section {
             TextField(customBaseURLPlaceholder(instance), text: $editingCustomBaseURL)
-                .font(.system(.body, design: .monospaced))
+                .font(CodyTypography.code)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
                 .onAppear { editingCustomBaseURL = instance.customBaseURL ?? "" }
                 .onSubmit { saveCustomBaseURL(instance) }
                 .onDisappear { saveCustomBaseURL(instance) }
+                .codyGroupedRow()
 
             // [T-mimo-shadow-voice] /v1 toggle always shown — instances are no
             // longer classified voice-only; this is a normal endpoint setting.
@@ -679,8 +723,10 @@ struct ProviderInstanceDetailView: View {
                     store.updateInstance(updated)
                 }
             ))
+            .codyGroupedRow()
         } header: {
             Text("Custom API Base")
+                .codySectionHeaderText()
         } footer: {
             Text(instance.appendV1Suffix
                  ? "Leave empty to use the default endpoint. \"/v1\" is appended automatically — enter the base host only."
@@ -705,6 +751,7 @@ struct ProviderInstanceDetailView: View {
                     store.updateInstance(updated)
                 }
             ))
+            .codyGroupedRow()
         } footer: {
             Text(AppLocalized("Use Azure OpenAI authentication (api-key header). Paste your full Azure endpoint into Custom API Base above, including the ?api-version=… query. Works with both API formats."))
         }
@@ -713,14 +760,16 @@ struct ProviderInstanceDetailView: View {
     private func customUserAgentSection(_ instance: ProviderInstance) -> some View {
         Section {
             TextField(AppLocalized("Default"), text: $editingCustomUserAgent)
-                .font(.system(.body, design: .monospaced))
+                .font(CodyTypography.code)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onAppear { editingCustomUserAgent = instance.customUserAgent ?? "" }
                 .onSubmit { saveCustomUserAgent(instance) }
                 .onDisappear { saveCustomUserAgent(instance) }
+                .codyGroupedRow()
         } header: {
             Text(AppLocalized("Custom User-Agent"))
+                .codySectionHeaderText()
         } footer: {
             Text(AppLocalized("Override the User-Agent header sent to this endpoint. Leave empty to use the Cody default. Useful for relays that only accept specific clients (e.g. \"claude-cli/1.0\")."))
         }
@@ -761,6 +810,7 @@ struct ProviderInstanceDetailView: View {
                 }
                 Text(AppLocalized("Custom…")).tag(Self.responseIdleCustomTag)
             }
+            .codyGroupedRow()
             if responseIdleIsCustom {
                 HStack {
                     Text(AppLocalized("Seconds (30–3600)"))
@@ -768,14 +818,17 @@ struct ProviderInstanceDetailView: View {
                     TextField("120", text: $responseIdleCustomText)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
                         .frame(maxWidth: 100)
                         .onSubmit { saveCustomResponseIdle(instance) }
                         .onDisappear { saveCustomResponseIdle(instance) }
                         .onChange(of: responseIdleCustomText) { _ in saveCustomResponseIdle(instance) }
                 }
+                .codyGroupedRow()
             }
         } header: {
             Text(AppLocalized("Response idle timeout"))
+                .codySectionHeaderText()
         } footer: {
             Text(AppLocalized("How long to wait for the first response, and between pieces of a response, before treating the connection as stalled and retrying. This is not a limit on total generation time: a reply that keeps arriving never times out. Raise it for a local model that needs minutes to process a long context. With a longer value, a connection that really died also takes that long to be noticed. Saved on this device only."))
         }
@@ -828,8 +881,10 @@ struct ProviderInstanceDetailView: View {
             } label: {
                 Text(AppLocalized("Image Endpoint"))
             }
+            .codyGroupedRow()
         } header: {
             Text(AppLocalized("Image Generation"))
+                .codySectionHeaderText()
         } footer: {
             imageEndpointFooter(instance)
         }
@@ -863,43 +918,49 @@ struct ProviderInstanceDetailView: View {
         Section {
             if hasManualToken {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                         Text("Manual Bearer Token")
-                            .font(.body)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                         Text("Configured")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                     Spacer()
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 8, height: 8)
+                    CodyStatusPill("Configured", tone: .success, dotColor: CodyColors.connectionReady)
                 }
+                .codyGroupedRow()
 
-                HStack(spacing: 12) {
+                HStack(spacing: CodySpacing.md) {
                     Button("Change Token") {
                         manualTokenInputText = ""
                         showManualTokenInput = true
                     }
-                    .font(.caption.weight(.medium))
+                    .font(CodyTypography.labelMedium)
+                    .tint(CodyColors.textPrimary)
 
                     Button("Remove", role: .destructive) {
                         ProviderKeychainHelper.deleteOAuthString(instanceId: instance.id, account: "manual-oauth-token")
                         oauthRefreshTrigger.toggle()
                     }
-                    .font(.caption.weight(.medium))
+                    .font(CodyTypography.labelMedium)
+                    .tint(CodyColors.statusErrorText)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .codyGroupedRow()
             } else {
                 Button("Set Manual Bearer Token") {
                     manualTokenInputText = ""
                     showManualTokenInput = true
                 }
-                .font(.caption.weight(.medium))
+                .font(CodyTypography.labelLarge)
+                .foregroundStyle(CodyColors.textAccent)
+                .codyGroupedRow()
             }
         } header: {
             Text("Manual Token")
+                .codySectionHeaderText()
         } footer: {
             Text("Use a static bearer token instead of the OAuth sign-in flow. Useful with custom proxy endpoints.")
         }
@@ -912,81 +973,86 @@ struct ProviderInstanceDetailView: View {
         let entries = store.entries(for: instance.id)
 
         if entries.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: CodySpacing.smPlus) {
                 Text("No models")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                 Button {
                     showAddCustomModel = true
                 } label: {
                     Label("Add Custom Model", systemImage: "plus.circle")
-                        .font(.subheadline)
+                        .font(CodyTypography.labelLarge)
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, CodySpacing.sm)
+            .codyGroupedRow()
         }
 
         ForEach(entries) { entry in
             modelEntryRow(entry, isHidden: entry.isHidden)
+                .codyGroupedRow()
         }
     }
 
     private func modelEntryRow(_ entry: ModelEntry, isHidden: Bool) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
+        HStack(spacing: CodySpacing.sm) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Text(entry.model.displayName)
-                        .font(.subheadline)
-                        .foregroundStyle(isHidden || entry.isUnavailableFromProvider ? .secondary : .primary)
+                        .font(CodyTypography.bodyMedium.weight(.medium))
+                        .foregroundStyle(isHidden || entry.isUnavailableFromProvider ? CodyColors.textSecondary : CodyColors.textPrimary)
                     modalityIcons(for: entry.model)
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: CodySpacing.xs) {
                     Text(entry.model.id)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textTertiary)
+                        .lineLimit(1)
                     if entry.isCustom {
-                        Text("Custom")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.orange)
+                        CodyStatusPill("Custom", tone: .warning)
                     }
                     // [T-model-absence-grace] The provider stopped listing this
                     // model. The entry (and its overrides) is kept for the grace
                     // window, so say why it is greyed out instead of letting it
                     // look normal — or, as before, letting it silently vanish.
                     if entry.isUnavailableFromProvider {
-                        Text("Not listed by provider")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.orange)
+                        CodyStatusPill("Not listed by provider", tone: .warning)
                     }
                 }
             }
-            Spacer()
+            Spacer(minLength: CodySpacing.xs)
             Button {
                 var updated = entry
                 updated.isHidden = !entry.isHidden
                 store.updateEntry(updated)
             } label: {
                 Image(systemName: entry.isHidden ? "eye.slash" : "eye")
-                    .font(.caption)
-                    .foregroundStyle(entry.isHidden ? .tertiary : .secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(entry.isHidden ? CodyColors.iconTertiary : CodyColors.iconSecondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(minWidth: 22, minHeight: 22)
+            .accessibilityLabel(entry.isHidden ? AppLocalized("Show") : AppLocalized("Hide"))
 
             Button {
                 pendingDeleteModelEntry = entry
             } label: {
                 Image(systemName: "trash")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(minWidth: 22, minHeight: 22)
+            .accessibilityLabel(Text("Delete"))
 
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                .foregroundStyle(CodyColors.iconDisclosure)
+                .accessibilityHidden(true)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -1015,45 +1081,45 @@ struct ProviderInstanceDetailView: View {
             // Input modalities (muted/secondary).
             if modality.contains(.imageInput) {
                 Image(systemName: "photo")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityLabel(AppLocalized("Image input"))
             }
             if modality.contains(.pdfInput) {
                 Image(systemName: "doc")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityLabel(AppLocalized("PDF input"))
             }
             if modality.contains(.audioInput) {
                 Image(systemName: "waveform")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityLabel(AppLocalized("Audio input"))
             }
             if modality.contains(.videoInput) {
                 Image(systemName: "video")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityLabel(AppLocalized("Video input"))
             }
             // Output modalities (tinted, generate-style glyphs).
             if modality.contains(.imageOutput) {
                 Image(systemName: "photo.badge.plus")
-                    .font(.caption2)
-                    .foregroundStyle(.tint)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyCategoryTint.blue.color)
                     .accessibilityLabel(AppLocalized("Image output"))
             }
             if modality.contains(.audioOutput) {
                 Image(systemName: "speaker.wave.2")
-                    .font(.caption2)
-                    .foregroundStyle(.tint)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyCategoryTint.blue.color)
                     .accessibilityLabel(AppLocalized("Audio output"))
             }
             if modality.contains(.videoOutput) {
                 Image(systemName: "video.badge.plus")
-                    .font(.caption2)
-                    .foregroundStyle(.tint)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyCategoryTint.blue.color)
                     .accessibilityLabel(AppLocalized("Video output"))
             }
         }
@@ -1337,20 +1403,23 @@ struct AddCustomModelSheet: View {
             List {
                 Section {
                     TextField("Model ID (e.g. claude-3-opus-latest)", text: $modelId)
-                        .font(.system(.subheadline, design: .monospaced))
+                        .font(CodyTypography.code)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onChange(of: modelId) { _ in duplicateError = nil }
+                        .codyGroupedRow()
 
                     TextField("Display name (optional)", text: $displayName)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .codyGroupedRow()
                 } header: {
                     Text("Model")
+                        .codySectionHeaderText()
                 } footer: {
                     if let duplicateError {
                         Text(duplicateError)
-                            .foregroundColor(.red)
+                            .foregroundStyle(CodyColors.statusErrorText)
                     } else {
                         Text("Leave display name empty to use the model ID.")
                     }
@@ -1363,35 +1432,48 @@ struct AddCustomModelSheet: View {
                         TextField("128000", text: $contextWindowText)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
                             .frame(maxWidth: 120)
                     }
+                    .codyGroupedRow()
                     Toggle(AppLocalized("Thinking"), isOn: $supportsThinking)
+                        .codyGroupedRow()
                 } header: {
                     Text(AppLocalized("Capabilities"))
+                        .codySectionHeaderText()
                 } footer: {
                     Text(AppLocalized("Context window size in tokens. Leave empty for default."))
                 }
 
                 Section {
                     Toggle("Image input", isOn: $imageInput)
+                        .codyGroupedRow()
                     Toggle("PDF input", isOn: $pdfInput)
+                        .codyGroupedRow()
                     Toggle("Audio input", isOn: $audioInput)
+                        .codyGroupedRow()
                     Toggle("Video input", isOn: $videoInput)
+                        .codyGroupedRow()
                 } header: {
                     Text("Input Modality")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("Text input is always supported. Disable modalities the model doesn't actually support to prevent sending unsupported attachments.")
                 }
 
                 Section {
                     Toggle("Image output", isOn: $imageOutput)
+                        .codyGroupedRow()
                     Toggle("Audio output", isOn: $audioOutput)
+                        .codyGroupedRow()
                 } header: {
                     Text("Output Modality")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("Enable for models that generate images (e.g. gpt-image-1, dall-e-3, flux) or audio (e.g. TTS models). Text output is always enabled.")
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle("Add Custom Model")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1522,10 +1604,10 @@ struct ModelEntryDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Identity") {
+                Section {
                     HStack {
                         Text("Model ID")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.textSecondary)
                         Spacer()
                         if entry.isCustom {
                             // axis: .vertical lets long IDs wrap so the cursor
@@ -1533,46 +1615,51 @@ struct ModelEntryDetailSheet: View {
                             // trailing alignment lost the cursor past the row
                             // edge with no horizontal autoscroll.
                             TextField("model-id", text: $modelId, axis: .vertical)
-                                .font(.system(.body, design: .monospaced))
+                                .font(CodyTypography.code)
                                 .multilineTextAlignment(.trailing)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         } else {
                             Text(entry.model.id)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.code)
+                                .foregroundStyle(CodyColors.textSecondary)
                                 .textSelection(.enabled)
                         }
                     }
+                    .codyGroupedRow()
 
                     HStack {
                         Text("Display Name")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.textSecondary)
                         Spacer()
                         TextField("Display name", text: $displayName)
                             .multilineTextAlignment(.trailing)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
+                    .codyGroupedRow()
 
                     HStack {
                         Text("Provider")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.textSecondary)
                         Spacer()
                         Text(providerDisplayName)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
+                    .codyGroupedRow()
 
                     if entry.isCustom {
                         HStack {
                             Text("Type")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CodyColors.textSecondary)
                             Spacer()
-                            Text("Custom")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.orange)
+                            CodyStatusPill("Custom", tone: .warning)
                         }
+                        .codyGroupedRow()
                     }
+                } header: {
+                    Text("Identity")
+                        .codySectionHeaderText()
                 }
 
                 if entry.isCustom {
@@ -1583,12 +1670,17 @@ struct ModelEntryDetailSheet: View {
                             TextField("128000", text: $contextWindowText)
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
                                 .frame(maxWidth: 120)
                         }
+                        .codyGroupedRow()
                         maxTokensField()
+                            .codyGroupedRow()
                         Toggle(AppLocalized("Thinking"), isOn: $supportsThinking)
+                            .codyGroupedRow()
                     } header: {
                         Text(AppLocalized("Capabilities"))
+                            .codySectionHeaderText()
                     } footer: {
                         Text(AppLocalized("Context window and max output tokens in tokens. Leave empty for default."))
                     }
@@ -1603,35 +1695,38 @@ struct ModelEntryDetailSheet: View {
                             )
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
                             .frame(maxWidth: 120)
                         }
+                        .codyGroupedRow()
 
                         maxTokensField()
+                            .codyGroupedRow()
 
                         HStack {
                             Text(AppLocalized("Thinking"))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CodyColors.textSecondary)
                             Spacer()
                             if supportsThinking {
-                                Label(AppLocalized("Supported"), systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .labelStyle(.titleAndIcon)
+                                CodyStatusPill(localized: AppLocalized("Supported"), tone: .success, dotColor: CodyColors.connectionReady)
                             } else if entry.baseModel.supportsReasoning == false {
                                 Text(AppLocalized("Not Supported"))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(CodyColors.textSecondary)
                             } else {
                                 Text(AppLocalized("Unknown"))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(CodyColors.textTertiary)
                                 Button(AppLocalized("Force Enable")) {
                                     showForceThinkingAlert = true
                                 }
-                                .font(.caption)
+                                .font(CodyTypography.labelSmall)
                                 .buttonStyle(.bordered)
                                 .controlSize(.mini)
                             }
                         }
+                        .codyGroupedRow()
                     } header: {
                         Text(AppLocalized("Capabilities"))
+                            .codySectionHeaderText()
                     } footer: {
                         Text(AppLocalized("Leave Context Window empty to use auto-detected value. Leave Max Output Tokens empty to follow the provider default."))
                     }
@@ -1639,26 +1734,35 @@ struct ModelEntryDetailSheet: View {
 
                 Section {
                     Toggle("Hidden", isOn: $isHidden)
+                        .codyGroupedRow()
                 } footer: {
                     Text("Hidden models won't appear in the model picker.")
                 }
 
                 Section {
                     Toggle("Image input", isOn: $imageInput)
+                        .codyGroupedRow()
                     Toggle("PDF input", isOn: $pdfInput)
+                        .codyGroupedRow()
                     Toggle("Audio input", isOn: $audioInput)
+                        .codyGroupedRow()
                     Toggle("Video input", isOn: $videoInput)
+                        .codyGroupedRow()
                 } header: {
                     Text("Input Modality")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("Text input is always enabled. Configure which additional input modalities this model supports.")
                 }
 
                 Section {
                     Toggle("Image output", isOn: $imageOutput)
+                        .codyGroupedRow()
                     Toggle("Audio output", isOn: $audioOutput)
+                        .codyGroupedRow()
                 } header: {
                     Text("Output Modality")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("Enable for models that generate images (e.g. gpt-image-1, dall-e-3, flux) or audio (e.g. TTS models). Text output is always enabled.")
                 }
@@ -1672,7 +1776,9 @@ struct ModelEntryDetailSheet: View {
                                 Image(systemName: "arrow.counterclockwise")
                                 Text(AppLocalized("Reset to Default"))
                             }
+                            .foregroundStyle(CodyColors.statusErrorText)
                         }
+                        .codyGroupedRow()
                     } footer: {
                         Text(AppLocalized("Clear your customizations and restore the values reported by the provider."))
                     }
@@ -1686,13 +1792,25 @@ struct ModelEntryDetailSheet: View {
                         AppLogger(category: "QuickTest").info("[QuickTest] button tapped model=\(entry.model.id)")
                         showQuickTest = true
                     } label: {
-                        Label(AppLocalized("Quick Test"), systemImage: "bolt.badge.checkmark")
+                        HStack(spacing: CodySpacing.md) {
+                            CodySettingsIconBadge(systemImage: "bolt.badge.checkmark", tint: .orange)
+                            Text(AppLocalized("Quick Test"))
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                                .foregroundStyle(CodyColors.iconDisclosure)
+                                .accessibilityHidden(true)
+                        }
                     }
                     .buttonStyle(.borderless)
+                    .codyGroupedRow()
                 } footer: {
                     Text(AppLocalized("Run a quick test matching this model's main capability."))
                 }
             }
+            .codyGroupedListCanvas()
             .navigationTitle("Model Details")
             .navigationBarTitleDisplayMode(.inline)
             // [T-ipad-sheet-keyboard-crash] `.immediately`, NOT `.interactively`.
@@ -1815,17 +1933,19 @@ struct ModelEntryDetailSheet: View {
                 TextField(maxTokensPlaceholder, text: $maxTokensText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
                     .frame(maxWidth: 120)
             }
             if maxTokensExceedsApiLimit, let apiMax = entry.baseModel.maxOutputTokens {
-                HStack(spacing: 6) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Image(systemName: "exclamationmark.triangle.fill")
+                        .accessibilityHidden(true)
                     Text(String(
                         localized: "Above the provider's reported limit of \(apiMax) — the API may reject requests."
                     ))
                 }
-                .font(.caption)
-                .foregroundStyle(.orange)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusWarningText)
             }
         }
     }

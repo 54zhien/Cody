@@ -20,13 +20,15 @@ struct AgentLoopModelsSection: View {
         Section {
             if currentGroups.isEmpty && currentEntries.isEmpty {
                 Text("No models or groups added")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .codyGroupedRow()
             }
 
             if !currentGroups.isEmpty {
                 ForEach(currentGroups) { group in
                     groupRow(group)
+                        .codyGroupedRow()
                 }
                 .onMove(perform: moveGroups)
                 .onDelete(perform: deleteGroups)
@@ -35,6 +37,7 @@ struct AgentLoopModelsSection: View {
             if !currentEntries.isEmpty {
                 ForEach(currentEntries) { entry in
                     entryRow(entry)
+                        .codyGroupedRow()
                 }
                 .onMove(perform: moveEntries)
                 .onDelete(perform: deleteEntries)
@@ -55,15 +58,18 @@ struct AgentLoopModelsSection: View {
                 }
             } label: {
                 Label("Add Models or Groups", systemImage: "plus.circle")
-                    .font(.subheadline)
+                    .font(CodyTypography.bodyMedium.weight(.medium))
+                    .foregroundStyle(CodyColors.textAccent)
             }
+            .codyGroupedRow()
         } header: {
             HStack {
                 Text("Models Cody Can Call at Runtime")
+                    .codySectionHeaderText()
                 Spacer()
                 if !currentEntries.isEmpty || !currentGroups.isEmpty {
                     EditButton()
-                        .font(.caption)
+                        .font(CodyTypography.bodySmall)
                 }
             }
         } footer: {
@@ -74,58 +80,50 @@ struct AgentLoopModelsSection: View {
     // MARK: - Rows
 
     private func groupRow(_ group: ModelGroup) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "square.stack.3d.up.fill")
-                .font(.caption)
-                .foregroundStyle(.blue)
-                .frame(width: 16)
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: "square.stack.3d.up.fill", tint: .blue)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(group.name)
-                    .font(.subheadline.weight(.medium))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
                 let count = group.memberEntryIds.count
                 Text(AppLocalized("\(count) models") + " · \(group.strategy == .fallback ? AppLocalized("Fallback") : AppLocalized("Load Balance"))")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textTertiary)
             }
 
             Spacer()
 
-            Text("Group")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            CodyStatusPill("Group", tone: .neutral)
         }
     }
 
     private func entryRow(_ entry: ModelEntry) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Circle()
-                .fill(providerColor(entry.model.provider))
+                .fill(CodyProviderVisuals.tint(forProviderName: entry.model.provider).color)
                 .frame(width: 6, height: 6)
-                .frame(width: 16)
+                .frame(width: CodySpacing.lg)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(entry.model.displayName)
-                    .font(.subheadline)
-                HStack(spacing: 4) {
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
+                HStack(spacing: CodySpacing.xs) {
                     if let instance = store.instance(for: entry.providerInstanceId) {
                         Text(instance.label)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.textTertiary)
                     }
-                    let badges = modalityBadges(entry.model)
+                    let badges = CodyProviderVisuals.modalityBadges(for: entry.model)
                     if !badges.isEmpty {
                         Text("·")
-                            .font(.caption2)
-                            .foregroundStyle(.quaternary)
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.textTertiary)
                         ForEach(badges, id: \.self) { badge in
-                            Text(badge)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color(UIColor.tertiarySystemFill))
-                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                            CodyModalityCapsule(text: badge)
                         }
                     }
                 }
@@ -134,8 +132,8 @@ struct AgentLoopModelsSection: View {
             Spacer()
 
             Text(entry.model.provider)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.labelSmall)
+                .foregroundStyle(CodyColors.textSecondary)
         }
     }
 
@@ -179,30 +177,6 @@ struct AgentLoopModelsSection: View {
         visibleIds.remove(atOffsets: offsets)
         store.agentLoopGroupIds = visibleIds
     }
-
-    private func modalityBadges(_ model: LLMModel) -> [String] {
-        let m = model.capabilities.supportedModalities
-        var badges: [String] = []
-        if m.contains(.imageInput)  { badges.append("img") }
-        if m.contains(.audioInput)  { badges.append("audio") }
-        if m.contains(.videoInput)  { badges.append("video") }
-        if m.contains(.pdfInput)    { badges.append("pdf") }
-        if m.contains(.imageOutput) { badges.append("img-out") }
-        if m.contains(.audioOutput) { badges.append("audio-out") }
-        if m.contains(.videoOutput) { badges.append("video-out") }
-        return badges
-    }
-
-    private func providerColor(_ provider: String) -> Color {
-        switch provider {
-        case "Anthropic": return .purple
-        case "Google", "Google Gemini": return .blue
-        case "OpenAI": return .green
-        case "Antigravity": return .orange
-        case "OpenRouter": return .cyan
-        default: return .gray
-        }
-    }
 }
 
 // MARK: - Add Groups Sheet
@@ -222,10 +196,11 @@ struct AddAgentLoopGroupsSheet: View {
             if availableGroups.isEmpty {
                 Section {
                     Text("All groups are already added.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, CodySpacing.lg)
+                        .codyGroupedRow()
                 }
             }
 
@@ -233,33 +208,36 @@ struct AddAgentLoopGroupsSheet: View {
                 Button {
                     toggleSelection(group.id)
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: CodySpacing.smPlus) {
                         Image(systemName: selectedGroupIds.contains(group.id) ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 20))
-                            .foregroundStyle(selectedGroupIds.contains(group.id) ? Color.accentColor : Color(UIColor.tertiaryLabel))
+                            .foregroundStyle(selectedGroupIds.contains(group.id) ? CodyColors.interactivePrimaryBg : CodyColors.iconTertiary)
+                            .accessibilityHidden(true)
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                             Text(group.name)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Color(UIColor.label))
+                                .font(CodyTypography.titleSmall)
+                                .foregroundStyle(CodyColors.textPrimary)
                             let entries = group.memberEntryIds.compactMap { store.entry(for: $0) }
                             let names = entries.prefix(3).map(\.model.displayName)
                             let suffix = entries.count > 3 ? " +\(entries.count - 3)" : ""
                             Text(names.joined(separator: ", ") + suffix)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .font(CodyTypography.labelSmall)
+                                .foregroundStyle(CodyColors.textTertiary)
                                 .lineLimit(1)
                         }
 
                         Spacer()
 
                         Text("\(group.memberEntryIds.count) models")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.labelSmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
+                .codyGroupedRow()
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle("Add Groups")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

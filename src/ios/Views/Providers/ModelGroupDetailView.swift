@@ -5,6 +5,7 @@ struct ModelGroupDetailView: View {
     let groupId: String
     @ObservedObject private var store = ProviderConfigStore.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var editingName = ""
     @State private var showAddModels = false
@@ -110,7 +111,7 @@ struct ModelGroupDetailView: View {
     private func groupContent(_ group: ModelGroup) -> some View {
         List {
             // MARK: Name
-            Section("Name") {
+            Section {
                 HStack {
                     TextField("Group name", text: $editingName)
                         .onAppear { editingName = group.name }
@@ -120,9 +121,14 @@ struct ModelGroupDetailView: View {
                             updated.name = editingName.trimmingCharacters(in: .whitespaces)
                             store.updateGroup(updated)
                         }
-                        .font(.caption.weight(.semibold))
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.textAccent)
                     }
                 }
+                .codyGroupedRow()
+            } header: {
+                Text("Name")
+                    .codySectionHeaderText()
             }
 
             // MARK: Strategy
@@ -135,21 +141,23 @@ struct ModelGroupDetailView: View {
                         store.updateGroup(updated)
                     }
                 )) {
-                    HStack {
-                        settingsIcon("arrow.down.circle", color: .blue)
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: "arrow.down.circle", tint: .blue)
                         Text("Fallback")
                     }
                     .tag(RoutingStrategy.fallback)
-                    HStack {
-                        settingsIcon("arrow.triangle.branch", color: .orange)
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: "arrow.triangle.branch", tint: .orange)
                         Text("Load Balance")
                     }
                     .tag(RoutingStrategy.loadBalance)
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
+                .codyGroupedRow()
             } header: {
                 Text("Routing Strategy")
+                    .codySectionHeaderText()
             } footer: {
                 if group.strategy == .fallback {
                     Text("Models are tried in order. If one fails, the next is used.")
@@ -169,21 +177,23 @@ struct ModelGroupDetailView: View {
                             store.updateGroup(updated)
                         }
                     )) {
-                        HStack {
-                            settingsIcon("hand.raised.circle", color: .teal)
+                        HStack(spacing: CodySpacing.md) {
+                            CodySettingsIconBadge(systemImage: "hand.raised.circle", tint: .blue)
                             Text("Default")
                         }
                         .tag(FallbackStrategy.limited)
-                        HStack {
-                            settingsIcon("arrow.2.squarepath", color: .mint)
+                        HStack(spacing: CodySpacing.md) {
+                            CodySettingsIconBadge(systemImage: "arrow.2.squarepath", tint: .green)
                             Text("Always")
                         }
                         .tag(FallbackStrategy.always)
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+                    .codyGroupedRow()
                 } header: {
                     Text("Fallback Strategy")
+                        .codySectionHeaderText()
                 } footer: {
                     if group.fallbackStrategy == .limited {
                         Text("Only switch to the next model on provider-level errors such as rate limiting, invalid API key, or provider rejection. Network and server errors are retried on the current model first.")
@@ -197,8 +207,9 @@ struct ModelGroupDetailView: View {
             Section {
                 if group.memberEntryIds.isEmpty {
                     Text("No models in this group")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .codyGroupedRow()
                 } else {
                     ForEach(group.memberEntryIds, id: \.self) { entryId in
                         // System engine member ids ("__builtin_system_speech__/…")
@@ -206,10 +217,13 @@ struct ModelGroupDetailView: View {
                         // check them first or they'd render as stale.
                         if let sysEntry = UnifiedModelPicker.systemEntry(for: entryId) {
                             systemMemberRow(entry: sysEntry)
+                                .codyGroupedRow()
                         } else if let entry = store.entry(for: entryId) {
                             memberRow(entry: entry, group: group)
+                                .codyGroupedRow()
                         } else {
                             staleMemberRow(entryId: entryId, group: group)
+                                .codyGroupedRow()
                         }
                     }
                     .onMove { from, to in
@@ -224,18 +238,21 @@ struct ModelGroupDetailView: View {
                     showAddModels = true
                 } label: {
                     Label("Add Models", systemImage: "plus.circle")
-                        .font(.subheadline)
+                        .font(CodyTypography.bodyMedium.weight(.medium))
+                        .foregroundStyle(CodyColors.textAccent)
                 }
+                .codyGroupedRow()
             } header: {
                 HStack {
                     Text("Models")
+                        .codySectionHeaderText()
                     Spacer()
                     Button(editMode.isEditing ? AppLocalized("Done") : AppLocalized("Edit")) {
-                        withAnimation {
+                        withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
                             editMode = editMode.isEditing ? .inactive : .active
                         }
                     }
-                    .font(.caption)
+                    .font(CodyTypography.bodySmall)
                 }
             } footer: {
                 if group.strategy == .fallback {
@@ -254,17 +271,14 @@ struct ModelGroupDetailView: View {
                         store.updateGroup(updated)
                     }
                 )) {
-                    HStack {
-                        Image("ThinkingIcon")
-                            .resizable()
-                            .renderingMode(.template)
-                            .foregroundStyle(.white)
-                            .frame(width: 11, height: 11)
-                            .frame(width: 21, height: 21)
-                            .background(.purple, in: Circle())
+                    HStack(spacing: CodySpacing.md) {
+                        thinkingIconBadge
                         Text("Enable Reasoning")
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                     }
                 }
+                .codyGroupedRow()
 
                 if group.defaultThinkingLevel != nil {
                     let maxLevel = groupMaxThinkingLevel(group)
@@ -294,6 +308,7 @@ struct ModelGroupDetailView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .codyGroupedRow()
                 }
 
                 // Context Limit
@@ -318,11 +333,14 @@ struct ModelGroupDetailView: View {
                         store.updateGroup(updated)
                     }
                 )) {
-                    HStack {
-                        settingsIcon("memorychip", color: .indigo)
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: "memorychip", tint: .purple)
                         Text("Limit Context Window")
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                     }
                 }
+                .codyGroupedRow()
 
                 if group.contextLimitTokens != nil {
                     ContextLimitSlider(
@@ -338,9 +356,11 @@ struct ModelGroupDetailView: View {
                             }
                         )
                     )
+                    .codyGroupedRow()
                 }
             } header: {
                 Text("Session Defaults")
+                    .codySectionHeaderText()
             } footer: {
                 Text("Applied automatically when a new session is bound to this group.")
             }
@@ -350,8 +370,11 @@ struct ModelGroupDetailView: View {
                 Button("Delete Group", role: .destructive) {
                     showDeleteConfirm = true
                 }
+                .foregroundStyle(CodyColors.statusErrorText)
+                .codyGroupedRow()
             }
         }
+        .codyGroupedListCanvas()
         // [T-ipad-sheet-keyboard-crash] `.immediately`, not `.interactively`:
         // this page lives inside the Settings sheet, where an interactive
         // keyboard drag and the sheet's drag-to-dismiss can share one gesture —
@@ -412,15 +435,15 @@ struct ModelGroupDetailView: View {
     private func memberRow(entry: ModelEntry, group: ModelGroup) -> some View {
         let instance = store.instance(for: entry.providerInstanceId)
         let providerDisabled = instance?.isEnabled == false
-        return HStack(spacing: 10) {
+        return HStack(spacing: CodySpacing.smPlus) {
             providerDot(entry)
                 .opacity(providerDisabled ? 0.35 : 1)
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .quotaCapCenter, spacing: 4) {
+                HStack(alignment: .quotaCapCenter, spacing: CodySpacing.xs) {
                     Text(entry.model.displayName)
-                        .font(.subheadline)
-                        .foregroundStyle(providerDisabled ? Color.secondary : Color(UIColor.label))
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(providerDisabled ? CodyColors.textSecondary : CodyColors.textPrimary)
                         .alignmentGuide(.quotaCapCenter) { $0.quotaCapCenter }
                     // [T-quota-group-member-pill] The model's (or its account's)
                     // quota; this page has no other way to the provider's quota.
@@ -432,16 +455,16 @@ struct ModelGroupDetailView: View {
                     }
                 }
                 if let instance = instance {
-                    HStack(spacing: 4) {
+                    HStack(spacing: CodySpacing.xs) {
                         Text(instance.label)
                         if providerDisabled {
                             Text("·")
                             Text("Provider disabled")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(CodyColors.statusWarningText)
                         }
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textTertiary)
                 }
             }
 
@@ -459,8 +482,8 @@ struct ModelGroupDetailView: View {
                 }
                 return entry.model.provider
             }())
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.labelSmall)
+                .foregroundStyle(CodyColors.textSecondary)
                 .opacity(providerDisabled ? 0.5 : 1)
         }
     }
@@ -473,43 +496,43 @@ struct ModelGroupDetailView: View {
         // TTS = the auto default OR any concrete voice (audioOutput); ASR otherwise.
         let isTTS = entry.model.id == "system-tts"
             || (entry.model.modalityOverride?.contains(.audioOutput) ?? false)
-        return HStack(spacing: 10) {
-            Image(systemName: isTTS ? "speaker.wave.2.fill" : "mic.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(.blue)
+        return HStack(spacing: CodySpacing.smPlus) {
+            CodySettingsIconBadge(
+                systemImage: isTTS ? "speaker.wave.2.fill" : "mic.fill",
+                tint: .blue
+            )
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.model.displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(Color(UIColor.label))
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Text("iOS built-in, works offline")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textTertiary)
             }
 
             Spacer()
 
-            Text("System")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            CodyStatusPill("System", tone: .neutral)
         }
     }
 
     /// Row for a memberEntryId that no longer resolves to a ModelEntry —
     /// typically because the provider's model list changed and dropped this model.
     private func staleMemberRow(entryId: String, group: ModelGroup) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(.orange)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusWarningText)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Model no longer available")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                 Text(entryId)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -520,37 +543,39 @@ struct ModelGroupDetailView: View {
                 removeMember(entryId: entryId, from: group)
             } label: {
                 Image(systemName: "trash")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("Delete"))
         }
     }
 
     @ViewBuilder
     private func providerDot(_ entry: ModelEntry) -> some View {
         Circle()
-            .fill(providerColor(entry.model.provider))
+            .fill(CodyProviderVisuals.tint(forProviderName: entry.model.provider).color)
             .frame(width: 6, height: 6)
+            .accessibilityHidden(true)
     }
 
-    private func providerColor(_ provider: String) -> Color {
-        switch provider {
-        case "Anthropic": return .purple
-        case "Google", "Google Gemini": return .blue
-        case "OpenAI": return .green
-        default: return .gray
-        }
-    }
-
-    // MARK: - Settings Icon
-
-    private func settingsIcon(_ systemName: String, color: Color) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 9))
-            .foregroundStyle(.white)
-            .frame(width: 21, height: 21)
-            .background(color, in: Circle())
+    private var thinkingIconBadge: some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+        return Image("ThinkingIcon")
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(CodyCategoryTint.purple.color)
+            .frame(width: 13, height: 13)
+            .frame(width: CodyMetrics.Sidebar.iconSize, height: CodyMetrics.Sidebar.iconSize)
+            .background(shape.fill(CodyColors.bgListIcon))
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .accessibilityHidden(true)
     }
 
     // MARK: - Actions
@@ -640,15 +665,15 @@ private struct ContextLimitSlider: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
             HStack {
                 Text("Max Context")
-                    .font(.subheadline)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 Text(currentLabel)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .monospacedDigit()
+                    .font(CodyTypography.labelLarge.monospacedDigit())
+                    .foregroundStyle(CodyColors.textAccent)
             }
             Slider(
                 value: Binding(
@@ -662,14 +687,14 @@ private struct ContextLimitSlider: View {
             )
             HStack {
                 Text(steps.first?.label ?? "32K")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textTertiary)
                 Spacer()
                 Text("Unlimited")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textTertiary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, CodySpacing.xs)
     }
 }

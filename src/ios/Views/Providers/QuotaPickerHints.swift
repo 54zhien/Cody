@@ -69,6 +69,7 @@ struct QuotaSectionHeaderBadge: View {
                         if onTap != nil {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
+                                .accessibilityHidden(true)
                         }
                     }
                     .font(.caption2.weight(.medium).monospacedDigit())
@@ -118,11 +119,13 @@ struct ModelQuotaMemberPill: View {
                         if pill.isManual {
                             Image(systemName: "hand.point.up.left.fill")
                                 .font(.system(size: 7))
+                                .accessibilityHidden(true)
                         }
                         Text(pill.text)
                             .lineLimit(1)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 6, weight: .semibold))
+                            .accessibilityHidden(true)
                     }
                     .font(.system(size: 9, weight: .medium).monospacedDigit())
                     .foregroundStyle(QuotaTagStyle.foreground(pill.level, normal: pill.tone.color))
@@ -181,6 +184,7 @@ struct ModelQuotaHintView: View {
             HStack(spacing: 2) {
                 Image(systemName: QuotaHintStyle.icon(status))
                     .font(.system(size: 9))
+                    .accessibilityHidden(true)
                 Text(detail ?? QuotaHintStyle.word(status))
                     .font(.system(size: 9, weight: .medium).monospacedDigit())
                 if isManual {

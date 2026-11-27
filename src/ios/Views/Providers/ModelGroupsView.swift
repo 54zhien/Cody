@@ -3,6 +3,7 @@ import SwiftUI
 /// Lists all model groups with default badges, and allows creating new groups.
 struct ModelGroupsView: View {
     @ObservedObject private var store = ProviderConfigStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showCreateGroup = false
     @State private var newGroupName = ""
     @State private var showAddAgentModels = false
@@ -19,20 +20,21 @@ struct ModelGroupsView: View {
         List {
             if store.modelGroups.isEmpty {
                 Section {
-                    VStack(spacing: 8) {
-                        Image(systemName: "square.stack.3d.up")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.quaternary)
-                        Text("No model groups")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("Groups let you combine models for fallback or load balancing.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .multilineTextAlignment(.center)
+                    CodyEmptyStateCard(
+                        systemImage: "square.stack.3d.up",
+                        title: "No model groups",
+                        subtitle: "Groups let you combine models for fallback or load balancing."
+                    ) {
+                        Button {
+                            showCreateGroup = true
+                            newGroupName = ""
+                        } label: {
+                            Label(AppLocalized("New Group"), systemImage: "plus")
+                                .font(CodyTypography.labelLarge)
+                        }
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
+                    .codyGroupedRow()
                 }
             }
 
@@ -44,6 +46,7 @@ struct ModelGroupsView: View {
                         } label: {
                             GroupRow(group: group)
                         }
+                        .codyGroupedRow()
                         // [T-provider-group-swipe-actions] Explicit swipe
                         // actions REPLACE the previous `.onDelete`, which gave
                         // a swipe-to-delete with NO confirmation: a group can
@@ -64,7 +67,7 @@ struct ModelGroupsView: View {
                             } label: {
                                 Label("Edit", systemImage: "pencil")
                             }
-                            .tint(.blue)
+                            .tint(CodyColors.textAccent)
                         }
                     }
                     .onMove(perform: moveGroups)
@@ -75,9 +78,10 @@ struct ModelGroupsView: View {
                 } header: {
                     HStack {
                         Text("Groups")
+                            .codySectionHeaderText()
                         Spacer()
                         EditButton()
-                            .font(.caption)
+                            .font(CodyTypography.bodySmall)
                             .textCase(nil)
                     }
                 }
@@ -93,6 +97,7 @@ struct ModelGroupsView: View {
                             set: { store.defaultPrimaryGroupId = $0 }
                         )
                     )
+                    .codyGroupedRow()
                     GroupSlotPicker(
                         label: "Default Sub",
                         selection: Binding(
@@ -100,6 +105,7 @@ struct ModelGroupsView: View {
                             set: { store.defaultSubGroupId = $0 }
                         )
                     )
+                    .codyGroupedRow()
                     GroupSlotPicker(
                         label: "Voice Input",
                         selection: Binding(
@@ -108,6 +114,7 @@ struct ModelGroupsView: View {
                         ),
                         voiceDirection: .input
                     )
+                    .codyGroupedRow()
                     GroupSlotPicker(
                         label: "Voice Output",
                         selection: Binding(
@@ -116,6 +123,7 @@ struct ModelGroupsView: View {
                         ),
                         voiceDirection: .output
                     )
+                    .codyGroupedRow()
                     GroupSlotPicker(
                         label: "Vision Input",
                         selection: Binding(
@@ -124,8 +132,10 @@ struct ModelGroupsView: View {
                         ),
                         isVision: true
                     )
+                    .codyGroupedRow()
                 } header: {
                     Text("Defaults")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("Primary is used for main agent tasks. Sub is used for lightweight tasks like title generation. Voice Input/Output pick a group whose audio-capable models drive speech-to-text and text-to-speech; if none is set, the offline System voice is used. Vision Input picks a group whose image-capable models describe images when the chat model cannot see them itself; if none is set, models without vision cannot read images at all.")
                 }
@@ -135,6 +145,7 @@ struct ModelGroupsView: View {
             AgentLoopModelsSection(showAddModels: $showAddAgentModels,
                                    showAddGroups: $showAddAgentGroups)
         }
+        .codyGroupedListCanvas()
         .navigationTitle("Model Groups")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddAgentModels) {
@@ -168,21 +179,28 @@ struct ModelGroupsView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel(AppLocalized("New Group"))
             }
         }
         .overlay(alignment: .top) {
             if let msg = forceSyncToast {
                 Text(msg)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor, in: Capsule())
-                    .padding(.top, 8)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                    .padding(.top, CodySpacing.sm)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3), value: forceSyncToast)
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: forceSyncToast)
         // [T-provider-group-swipe-actions] Swipe-Edit reuses the row's own
         // destination.
         //
@@ -322,35 +340,35 @@ private struct GroupRow: View {
         switch modality {
         case .videoOutput:
             Image(systemName: "video.badge.plus")
-                .font(.caption).foregroundStyle(.tint)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyCategoryTint.blue.color)
                 .accessibilityLabel(AppLocalized("Video generation"))
         case .imageOutput:
             Image(systemName: "photo.badge.plus")
-                .font(.caption).foregroundStyle(.tint)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyCategoryTint.blue.color)
                 .accessibilityLabel(AppLocalized("Image generation"))
         case .audioOutput:
             Image(systemName: "speaker.wave.2")
-                .font(.caption).foregroundStyle(.tint)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyCategoryTint.blue.color)
                 .accessibilityLabel(AppLocalized("Speech output"))
         case .audioInput:
             Image(systemName: "waveform.badge.mic")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyColors.iconSecondary)
                 .accessibilityLabel(AppLocalized("Speech transcription"))
         case .videoInput:
             Image(systemName: "video")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyColors.iconSecondary)
                 .accessibilityLabel(AppLocalized("Video input"))
         case .imageInput:
             Image(systemName: "photo")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyColors.iconSecondary)
                 .accessibilityLabel(AppLocalized("Image input"))
         case .pdfInput:
             Image(systemName: "doc")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyColors.iconSecondary)
                 .accessibilityLabel(AppLocalized("PDF input"))
         case .textOutput:
             Image(systemName: "text.alignleft")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall).foregroundStyle(CodyColors.iconSecondary)
                 .accessibilityLabel(AppLocalized("Text generation"))
         default:
             EmptyView()
@@ -358,68 +376,60 @@ private struct GroupRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(group.name)
-                    .font(.body.weight(.medium))
-                // [T-ios-modelgroup-modality-icons] Mark the group's top-2 most
-                // distinctive modalities (inputs + outputs) right after the title,
-                // in priority order, for at-a-glance "what is this group for".
-                ForEach(topModalities, id: \.rawValue) { modality in
-                    modalityIcon(modality)
-                }
-                Spacer()
-                // AppLocalized, not a bare literal: `badge` takes a `String`,
-                // so `Text(text)` inside it is the runtime-value initializer
-                // and performs NO table lookup. A literal here renders English
-                // in every locale — caught on device in id, but it affected
-                // all of them equally.
-                if isPrimaryDefault {
-                    badge(AppLocalized("Primary"), color: .blue)
-                }
-                if isSubDefault {
-                    badge(AppLocalized("Sub"), color: .orange)
-                }
-            }
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(
+                systemImage: group.strategy == .fallback ? "arrow.down.circle" : "arrow.triangle.branch",
+                tint: group.strategy == .fallback ? .blue : .orange
+            )
 
-            HStack(spacing: 6) {
-                Image(systemName: group.strategy == .fallback ? "arrow.down.circle" : "arrow.triangle.branch")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(group.strategy == .fallback ? "Fallback" : "Load Balance")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if group.strategy == .fallback {
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                HStack(spacing: CodySpacing.xsPlus) {
+                    Text(group.name)
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
+                    // [T-ios-modelgroup-modality-icons] Mark the group's top-2 most
+                    // distinctive modalities (inputs + outputs) right after the title,
+                    // in priority order, for at-a-glance "what is this group for".
+                    ForEach(topModalities, id: \.rawValue) { modality in
+                        modalityIcon(modality)
+                    }
+                    Spacer()
+                    // AppLocalized, not a bare literal: `CodyStatusPill` takes a
+                    // `String` when using `localized:`.
+                    if isPrimaryDefault {
+                        CodyStatusPill(localized: AppLocalized("Primary"), tone: .accent)
+                    }
+                    if isSubDefault {
+                        CodyStatusPill(localized: AppLocalized("Sub"), tone: .warning)
+                    }
+                }
+
+                HStack(spacing: CodySpacing.xsPlus) {
+                    Text(group.strategy == .fallback ? "Fallback" : "Load Balance")
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
+                    if group.strategy == .fallback {
+                        Text("·")
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textTertiary)
+                        Text(group.fallbackStrategy == .always ? AppLocalized("Always") : AppLocalized("Default"))
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(group.fallbackStrategy == .always ? CodyColors.statusWarningText : CodyColors.textSecondary)
+                    }
                     Text("·")
-                        .font(.caption)
-                        .foregroundStyle(.quaternary)
-                    Text(group.fallbackStrategy == .always ? AppLocalized("Always") : AppLocalized("Default"))
-                        .font(.caption)
-                        .foregroundStyle(group.fallbackStrategy == .always ? .orange : .secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textTertiary)
+                    Text(AppLocalized("\(group.memberEntryIds.count) models"))
+                        .font(CodyTypography.bodySmall.monospacedDigit())
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
-                Text("·")
-                    .font(.caption)
-                    .foregroundStyle(.quaternary)
-                Text(AppLocalized("\(group.memberEntryIds.count) models"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                Text(memberSummary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textTertiary)
+                    .lineLimit(1)
             }
-
-            Text(memberSummary)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
         }
-        .padding(.vertical, 2)
-    }
-
-    private func badge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12))
-            .clipShape(Capsule())
+        .padding(.vertical, CodySpacing.xxs)
     }
 }

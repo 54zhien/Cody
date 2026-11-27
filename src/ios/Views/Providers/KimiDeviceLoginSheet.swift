@@ -31,12 +31,13 @@ struct KimiDeviceLoginSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            VStack(spacing: CodySpacing.xxl) {
                 switch phase {
                 case .starting:
                     ProgressView()
                     Text(AppLocalized("Contacting Kimi…"))
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
 
                 case let .awaitingUser(userCode, url):
                     awaitingBody(userCode: userCode, url: url)
@@ -44,24 +45,29 @@ struct KimiDeviceLoginSheet: View {
                 case .success:
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 44))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(CodyColors.connectionReady)
+                        .accessibilityHidden(true)
                     Text(AppLocalized("Signed in to Kimi Code"))
-                        .font(.headline)
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
 
                 case let .failed(message):
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 44))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CodyColors.statusWarningText)
+                        .accessibilityHidden(true)
                     Text(message)
+                        .font(CodyTypography.bodyMedium)
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .padding(.horizontal, CodySpacing.lg)
                     Button(AppLocalized("Try Again")) { start() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
+            .padding(CodySpacing.lg)
+            .background(CodyColors.bgGrouped)
             .navigationTitle(AppLocalized("Kimi Code Login"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -88,42 +94,52 @@ struct KimiDeviceLoginSheet: View {
     @ViewBuilder
     private func awaitingBody(userCode: String, url: String) -> some View {
         Text(AppLocalized("1. Open the verification page\n2. Enter this code to authorize Cody"))
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .font(CodyTypography.bodyMedium)
+            .foregroundStyle(CodyColors.textSecondary)
             .multilineTextAlignment(.center)
 
         // The user code — tap to copy.
+        let codeShape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
         Button {
             UIPasteboard.general.string = userCode
             copied = true
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: CodySpacing.sm) {
                 Text(userCode)
                     .font(.system(.title, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(CodyColors.textPrimary)
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(copied ? CodyColors.connectionReady : CodyColors.iconSecondary)
+                    .accessibilityHidden(true)
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 20)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, CodySpacing.md)
+            .padding(.horizontal, CodySpacing.xl)
+            .background(codeShape.fill(CodyColors.bgCodeBlock))
+            .overlay {
+                codeShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(copied ? AppLocalized("Copied") : AppLocalized("Copy"))
 
         Button {
             if let u = URL(string: url) { presentSafari(u) }
         } label: {
             Label(AppLocalized("Open verification page"), systemImage: "safari")
+                .font(CodyTypography.titleSmall)
+                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
 
-        HStack(spacing: 6) {
+        HStack(spacing: CodySpacing.xsPlus) {
             ProgressView().controlSize(.small)
             Text(AppLocalized("Waiting for authorization…"))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.sectionHeader)
+                .foregroundStyle(CodyColors.textSecondary)
         }
-        .padding(.top, 4)
+        .padding(.top, CodySpacing.xs)
     }
 
     private func start() {

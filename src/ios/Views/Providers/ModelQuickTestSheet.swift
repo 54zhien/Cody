@@ -46,15 +46,16 @@ struct ModelQuickTestSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: CodySpacing.mdPlus) {
                     header
                     ForEach(model.runs) { run in
                         TestCard(run: run, onPlay: playAudio)
                     }
                 }
-                .padding()
+                .padding(CodySpacing.lg)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .background(CodyColors.bgGrouped)
             .navigationTitle("Quick Test")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -75,16 +76,16 @@ struct ModelQuickTestSheet: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "bolt.badge.checkmark")
-                .font(.title3)
-                .foregroundStyle(.tint)
-                .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.model.displayName).font(.headline)
-                Text(entry.model.id).font(.caption2).foregroundStyle(.secondary)
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: "bolt.badge.checkmark", tint: .orange)
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                Text(entry.model.displayName)
+                    .font(CodyTypography.titleMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
+                Text(entry.model.id)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .lineLimit(1)
             }
             Spacer()
         }
@@ -374,19 +375,27 @@ private struct TestCard: View {
     @State private var autoPlayed = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: run.kind.icon).foregroundStyle(.tint)
-                Text(run.kind.title).font(.subheadline.weight(.semibold))
+        let cardShape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+        VStack(alignment: .leading, spacing: CodySpacing.smPlus) {
+            HStack(spacing: CodySpacing.sm) {
+                Image(systemName: run.kind.icon)
+                    .foregroundStyle(CodyCategoryTint.blue.color)
+                    .accessibilityHidden(true)
+                Text(run.kind.title)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 statusBadge
             }
             content
         }
-        .padding(12)
+        .padding(CodySpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(cardShape.fill(CodyColors.bgGroupedSurface))
+        .overlay {
+            cardShape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                .allowsHitTesting(false)
+        }
         // Auto-play the speech result the moment it arrives, so a voice Quick Test
         // speaks on its own (no manual Play tap) — matching the "tap Quick Test →
         // hear the voice" expectation. The Play button remains for replays. A
@@ -410,14 +419,20 @@ private struct TestCard: View {
         switch run.state {
         case .running:
             ProgressView()
+                .controlSize(.small)
         case .failure:
-            Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+            Image(systemName: "xmark.octagon.fill")
+                .foregroundStyle(CodyColors.statusErrorText)
+                .accessibilityLabel(Text("Failed"))
         default:
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+            HStack(spacing: CodySpacing.xs) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(CodyColors.connectionReady)
+                    .accessibilityHidden(true)
                 if run.elapsed > 0 {
                     Text(String(format: "%.1fs", run.elapsed))
-                        .font(.caption2).foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall.monospacedDigit())
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
             }
         }
@@ -426,43 +441,80 @@ private struct TestCard: View {
     @ViewBuilder private var content: some View {
         switch run.state {
         case .running:
-            Text("Testing…").font(.caption).foregroundStyle(.secondary)
+            Text("Testing…")
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
 
         case .text(let reply):
-            Text(reply).font(.subheadline).textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            codeStyledBlock {
+                Text(reply)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
         case .image(let data):
             if let img = UIImage(data: data) {
                 Image(uiImage: img).resizable().scaledToFit()
                     .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous))
             } else {
                 Text("Received \(data.count) bytes (couldn't decode preview)")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
 
         case .audio(let data):
             Button {
                 onPlay(data)
             } label: {
-                Label("Play", systemImage: "play.circle.fill").font(.title3)
+                Label("Play", systemImage: "play.circle.fill")
+                    .font(CodyTypography.labelLarge)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(CodyPrimaryCapsuleButtonStyle())
 
         case .transcript(let spoken, let heard):
-            labeled("Spoken (test clip)", spoken)
-            labeled("Transcribed", heard)
+            codeStyledBlock {
+                VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                    labeled("Spoken (test clip)", spoken)
+                    labeled("Transcribed", heard)
+                }
+            }
 
         case .failure(let message):
-            Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            let shape = RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+            Text(message)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusErrorText)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(CodySpacing.md)
+                .background(shape.fill(CodyColors.statusErrorBg))
         }
     }
 
+    private func codeStyledBlock<Content: View>(@ViewBuilder body: () -> Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+        return body()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(CodySpacing.md)
+            .background(shape.fill(CodyColors.bgCodeBlock))
+            .overlay {
+                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+    }
+
     private func labeled(_ title: LocalizedStringKey, _ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
-            Text(text).font(.subheadline).textSelection(.enabled)
+        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+            Text(title)
+                .font(CodyTypography.labelSmall.weight(.medium))
+                .foregroundStyle(CodyColors.textSecondary)
+            Text(text)
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textPrimary)
+                .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

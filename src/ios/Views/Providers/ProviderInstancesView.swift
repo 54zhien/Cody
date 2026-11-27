@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 /// Replaces the old ProvidersView for the new multi-instance model.
 struct ProviderInstancesView: View {
     @ObservedObject private var store = ProviderConfigStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddProvider = false
     @State private var showImportFile = false
     @State private var importMessage: String?
@@ -30,13 +31,14 @@ struct ProviderInstancesView: View {
             ForEach(ProviderType.allCases, id: \.self) { type in
                 let instancesOfType = store.instances.filter { $0.providerType == type }
                 if !instancesOfType.isEmpty {
-                    Section(type.displayName) {
+                    Section {
                         ForEach(instancesOfType) { instance in
                             NavigationLink {
                                 ProviderInstanceDetailView(instanceId: instance.id)
                             } label: {
                                 InstanceRow(instance: instance)
                             }
+                            .codyGroupedRow()
                             // [T-provider-group-swipe-actions] Swipe actions and
                             // `.onMove` coexist without extra work: UIKit routes a
                             // horizontal drag to the row's swipe actions and a
@@ -59,12 +61,15 @@ struct ProviderInstancesView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(.blue)
+                                .tint(CodyColors.textAccent)
                             }
                         }
                         .onMove { source, destination in
                             moveInstances(in: type, from: source, to: destination)
                         }
+                    } header: {
+                        Text(type.displayName)
+                            .codySectionHeaderText()
                     }
                 }
             }
@@ -75,17 +80,19 @@ struct ProviderInstancesView: View {
             // + a "disable this voice row" toggle).
             let shadows = store.shadowVoiceProviders()
             if !shadows.isEmpty {
-                Section("Voice Services") {
+                Section {
                     if store.hasFoldedShadowDuplicates() {
                         // Non-destructive hint: same MiMo service configured twice.
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: CodySpacing.sm) {
                             Image(systemName: "info.circle")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CodyColors.iconSecondary)
+                                .accessibilityHidden(true)
                             Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
                                  comment: "Duplicate voice provider hint")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
+                        .codyGroupedRow()
                     }
                     ForEach(shadows) { shadow in
                         NavigationLink {
@@ -93,28 +100,34 @@ struct ProviderInstancesView: View {
                         } label: {
                             ShadowVoiceRow(shadow: shadow)
                         }
+                        .codyGroupedRow()
                     }
+                } header: {
+                    Text("Voice Services")
+                        .codySectionHeaderText()
                 }
             }
 
             if store.instances.isEmpty {
                 Section {
-                    VStack(spacing: 8) {
-                        Image(systemName: "key.slash")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.quaternary)
-                        Text("No providers configured")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("Add a provider to get started.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                    CodyEmptyStateCard(
+                        systemImage: "key.slash",
+                        title: "No providers configured",
+                        subtitle: "Add a provider to get started."
+                    ) {
+                        Button {
+                            showAddProvider = true
+                        } label: {
+                            Label(AppLocalized("Add Provider"), systemImage: "plus")
+                                .font(CodyTypography.labelLarge)
+                        }
+                        .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
+                    .codyGroupedRow()
                 }
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle("Providers")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -147,6 +160,7 @@ struct ProviderInstancesView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel(AppLocalized("Add Provider"))
             }
         }
         .sheet(isPresented: $showAddProvider) {
@@ -223,16 +237,22 @@ struct ProviderInstancesView: View {
         .overlay(alignment: .top) {
             if let msg = forceSyncToast {
                 Text(msg)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor, in: Capsule())
-                    .padding(.top, 8)
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.interactivePrimaryLabel)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.vertical, CodySpacing.smPlus)
+                    .background(CodyColors.interactivePrimaryBg, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                            .allowsHitTesting(false)
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                    .padding(.top, CodySpacing.sm)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3), value: forceSyncToast)
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: forceSyncToast)
     }
 
     @available(iOS 17.0, *)
@@ -427,47 +447,59 @@ private struct InstanceRow: View {
 
     var body: some View {
         let _ = store.authRevision  // subscribe to OAuth state changes
-        HStack(spacing: 12) {
-            Circle()
-                .fill(credentialDisplay.needsReauth ? Color.red
-                      : isConfigured && instance.isEnabled ? Color.green : Color(UIColor.quaternaryLabel))
-                .frame(width: 8, height: 8)
+        let visual = CodyProviderVisuals.icon(for: instance.providerType)
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: visual.systemImage, tint: visual.tint)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(instance.label)
-                    .font(.body.weight(.medium))
-                HStack(spacing: 6) {
+                    .font(CodyTypography.titleMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .lineLimit(1)
+                HStack(spacing: CodySpacing.xsPlus) {
                     Text(instance.credentialType == .apiKey ? "API Key" : "OAuth")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                     Text("·")
-                        .font(.caption)
-                        .foregroundStyle(.quaternary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textTertiary)
                     Text(credentialSummary)
-                        .font(.caption)
-                        .foregroundStyle(credentialDisplay.needsReauth ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
+                        .font(CodyTypography.bodySmall.monospacedDigit())
+                        .foregroundStyle(credentialDisplay.needsReauth ? CodyColors.statusErrorText : CodyColors.textSecondary)
                         .lineLimit(1)
                 }
                 if modelCount > 0 {
                     Text(AppLocalized("\(modelCount) models"))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall.monospacedDigit())
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: CodySpacing.sm)
 
-            if !instance.isEnabled {
-                Text("Disabled")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color(UIColor.quaternarySystemFill))
-                    .clipShape(Capsule())
-            }
+            statusBadge
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, CodySpacing.xxs)
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        if !instance.isEnabled {
+            CodyStatusPill("Disabled", tone: .neutral)
+        } else if credentialDisplay.needsReauth {
+            CodyStatusPill(localized: AppLocalized("Sign-in expired"), tone: .error, dotColor: CodyColors.statusErrorText)
+        } else if isConfigured {
+            if instance.credentialType == .oauth {
+                CodyStatusPill(localized: "OAuth", tone: .success, dotColor: CodyColors.connectionReady)
+            } else {
+                CodyStatusPill("Active", tone: .success, dotColor: CodyColors.connectionReady)
+            }
+        } else {
+            Circle()
+                .fill(CodyColors.iconTertiary.opacity(0.45))
+                .frame(width: CodySpacing.sm, height: CodySpacing.sm)
+                .accessibilityHidden(true)
+        }
     }
 
     /// `static` (was an instance method) so the credential-cache probe closure can
@@ -485,22 +517,22 @@ private struct ShadowVoiceRow: View {
     let shadow: ProviderConfigStore.ShadowVoiceProvider
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "waveform")
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: "waveform", tint: .purple)
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(shadow.displayName)
-                    .font(.body)
+                    .font(CodyTypography.titleMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                 let asr = shadow.inputModels.count
                 let tts = shadow.outputModels.count
                 Text(voiceSummary(asr: asr, tts: tts))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textTertiary)
             }
-            Spacer()
+            Spacer(minLength: CodySpacing.sm)
+            CodyStatusPill("Voice", tone: .neutral)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, CodySpacing.xxs)
     }
 
     private func voiceSummary(asr: Int, tts: Int) -> String {
@@ -508,5 +540,218 @@ private struct ShadowVoiceRow: View {
         if asr > 0 { parts.append(AppLocalized("\(asr) speech-to-text", comment: "ASR model count")) }
         if tts > 0 { parts.append(AppLocalized("\(tts) text-to-speech", comment: "TTS model count")) }
         return parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Shared Provider UI Design System Helpers
+
+extension View {
+    func codyGroupedListCanvas() -> some View {
+        self
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(CodyColors.bgGrouped)
+    }
+
+    func codyGroupedFormCanvas() -> some View {
+        self
+            .scrollContentBackground(.hidden)
+            .background(CodyColors.bgGrouped)
+    }
+
+    func codyGroupedRow() -> some View {
+        self
+            .listRowBackground(CodyColors.bgGroupedSurface)
+            .listRowSeparatorTint(CodyColors.separator)
+    }
+
+    func codySectionHeaderText() -> some View {
+        self
+            .font(CodyTypography.sectionHeader)
+            .foregroundStyle(CodyColors.textSecondary)
+    }
+}
+
+struct CodyStatusPill: View {
+    enum Tone {
+        case neutral, success, warning, error, accent
+    }
+
+    private let titleKey: LocalizedStringKey?
+    private let localizedText: String?
+    let tone: Tone
+    var dotColor: Color? = nil
+
+    init(_ title: LocalizedStringKey, tone: Tone = .neutral, dotColor: Color? = nil) {
+        self.titleKey = title
+        self.localizedText = nil
+        self.tone = tone
+        self.dotColor = dotColor
+    }
+
+    init(localized: String, tone: Tone = .neutral, dotColor: Color? = nil) {
+        self.titleKey = nil
+        self.localizedText = localized
+        self.tone = tone
+        self.dotColor = dotColor
+    }
+
+    private var backgroundColor: Color {
+        switch tone {
+        case .neutral, .accent: return CodyColors.bgSecondary
+        case .success: return CodyColors.statusSuccessBg
+        case .warning: return CodyColors.statusWarningBg
+        case .error: return CodyColors.statusErrorBg
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch tone {
+        case .neutral: return CodyColors.textSecondary
+        case .accent: return CodyColors.textAccent
+        case .success: return CodyColors.statusSuccessText
+        case .warning: return CodyColors.statusWarningText
+        case .error: return CodyColors.statusErrorText
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: CodySpacing.xs) {
+            if let dotColor {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 6, height: 6)
+                    .accessibilityHidden(true)
+            }
+            if let titleKey {
+                Text(titleKey)
+                    .lineLimit(1)
+            } else if let localizedText {
+                Text(localizedText)
+                    .lineLimit(1)
+            }
+        }
+        .font(CodyTypography.labelSmall.weight(.semibold))
+        .foregroundStyle(foregroundColor)
+        .padding(.horizontal, CodySpacing.sm)
+        .padding(.vertical, CodySpacing.xxs)
+        .background(backgroundColor, in: Capsule())
+        .fixedSize()
+    }
+}
+
+enum CodyProviderVisuals {
+    static func icon(for type: ProviderType) -> (systemImage: String, tint: CodyCategoryTint) {
+        switch type {
+        case .anthropic: return ("sparkles", .purple)
+        case .gemini: return ("diamond", .blue)
+        case .openAI: return ("circle.hexagongrid", .green)
+        case .antigravity: return ("ant", .orange)
+        case .openRouter: return ("arrow.triangle.branch", .blue)
+        case .openAIResponses: return ("arrow.trianglehead.2.counterclockwise", .green)
+        case .xAI: return ("x.circle", .neutral)
+        case .kimiCode: return ("moon.stars", .purple)
+        case .githubCopilot: return ("chevron.left.forwardslash.chevron.right", .neutral)
+        case .unsupported: return ("questionmark.circle", .neutral)
+        }
+    }
+
+    static func tint(forProviderName provider: String) -> CodyCategoryTint {
+        switch provider {
+        case "Anthropic": return .purple
+        case "Google", "Google Gemini": return .blue
+        case "OpenAI": return .green
+        case "Antigravity": return .orange
+        case "OpenRouter": return .blue
+        default: return .neutral
+        }
+    }
+
+    static func tint(forVoiceTemplateId id: String) -> CodyCategoryTint {
+        switch id {
+        case "elevenlabs": return .neutral
+        case "deepgram": return .green
+        case "azure-tts", "doubao": return .blue
+        case "minimax": return .red
+        case "alibaba", "mimo": return .orange
+        case "xunfei": return .purple
+        default: return .neutral
+        }
+    }
+
+    static func modalityBadges(for model: LLMModel) -> [String] {
+        let m = model.capabilities.supportedModalities
+        var badges: [String] = []
+        if m.contains(.imageInput)  { badges.append("img") }
+        if m.contains(.audioInput)  { badges.append("audio") }
+        if m.contains(.videoInput)  { badges.append("video") }
+        if m.contains(.pdfInput)    { badges.append("pdf") }
+        if m.contains(.imageOutput) { badges.append("img-out") }
+        if m.contains(.audioOutput) { badges.append("audio-out") }
+        if m.contains(.videoOutput) { badges.append("video-out") }
+        return badges
+    }
+}
+
+struct CodyModalityCapsule: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(CodyTypography.labelSmall.weight(.medium))
+            .foregroundStyle(CodyColors.textSecondary)
+            .padding(.horizontal, CodySpacing.xsPlus)
+            .padding(.vertical, 1)
+            .background(CodyColors.bgSecondary, in: Capsule())
+            .fixedSize()
+    }
+}
+
+struct CodyEmptyStateCard<Action: View>: View {
+    let systemImage: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    @ViewBuilder let action: () -> Action
+
+    init(
+        systemImage: String,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey,
+        @ViewBuilder action: @escaping () -> Action = { EmptyView() }
+    ) {
+        self.systemImage = systemImage
+        self.title = title
+        self.subtitle = subtitle
+        self.action = action
+    }
+
+    var body: some View {
+        VStack(spacing: CodySpacing.md) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(CodyColors.iconTertiary)
+                .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                .background(CodyColors.bgListIcon, in: RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                        .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
+                .accessibilityHidden(true)
+
+            VStack(spacing: CodySpacing.xs) {
+                Text(title)
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                Text(subtitle)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textTertiary)
+                    .multilineTextAlignment(.center)
+            }
+
+            action()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, CodySpacing.xl)
     }
 }

@@ -9,31 +9,37 @@ private let aiDataSharingConsentKey = "aiDataSharingConsentAccepted"
 struct AIDataSharingConsentView: View {
     var onAccept: () -> Void
     var onDecline: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("AI Data Sharing Notice", systemImage: "hand.raised.fill")
-                            .font(.title2.bold())
+                VStack(alignment: .leading, spacing: CodySpacing.xl) {
+                    VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                        HStack(spacing: CodySpacing.smPlus) {
+                            CodySettingsIconBadge(systemImage: "hand.raised.fill", tint: .blue)
+                            Text("AI Data Sharing Notice")
+                                .font(CodyTypography.headlineSmall)
+                                .foregroundStyle(CodyColors.textPrimary)
+                        }
                         Text("Please review how your data is handled before adding an AI provider.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
 
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
+                    consentCard {
+                        VStack(alignment: .leading, spacing: CodySpacing.md) {
                             Text("We Do Not Collect Your Data")
-                                .font(.headline)
+                                .font(CodyTypography.titleMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text("Cody does not operate any server and does not collect, store, or process any of your personal data. All data stays on your device.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
                             Text("However, when you add a third-party AI provider and use it for conversations, the following data may be sent directly from your device to that provider's servers:")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
 
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
                                 dataItem("Your chat messages and conversation history")
                                 dataItem("Files, images, and documents you attach or share")
                                 dataItem("System information you authorize (calendar, health, contacts, etc.) when using agent features")
@@ -41,34 +47,36 @@ struct AIDataSharingConsentView: View {
                         }
                     }
 
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
+                    consentCard {
+                        VStack(alignment: .leading, spacing: CodySpacing.md) {
                             Text("Third-Party AI Providers")
-                                .font(.headline)
+                                .font(CodyTypography.titleMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text("Depending on which provider you configure, your data will be sent directly to one or more of the following third-party services:")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodyMedium)
+                                .foregroundStyle(CodyColors.textSecondary)
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                providerRow("Anthropic", description: "Claude models (anthropic.com)", color: .purple)
-                                providerRow("OpenAI", description: "GPT and o-series models (openai.com)", color: .green)
-                                providerRow("Google", description: "Gemini models (google.com)", color: .blue)
-                                providerRow("OpenRouter", description: "Multi-provider routing (openrouter.ai)", color: .cyan)
-                                providerRow("Custom Endpoints", description: "Self-hosted or third-party compatible APIs you configure", color: .gray)
+                            VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                                providerRow("Anthropic", description: "Claude models (anthropic.com)", color: CodyCategoryTint.purple.color)
+                                providerRow("OpenAI", description: "GPT and o-series models (openai.com)", color: CodyCategoryTint.green.color)
+                                providerRow("Google", description: "Gemini models (google.com)", color: CodyCategoryTint.blue.color)
+                                providerRow("OpenRouter", description: "Multi-provider routing (openrouter.ai)", color: CodyCategoryTint.blue.color)
+                                providerRow("Custom Endpoints", description: "Self-hosted or third-party compatible APIs you configure", color: CodyCategoryTint.neutral.color)
                             }
 
                             Text("Each provider has its own privacy policy and terms of service that govern how they handle your data.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                     }
 
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
+                    consentCard {
+                        VStack(alignment: .leading, spacing: CodySpacing.md) {
                             Text("Your Control")
-                                .font(.headline)
+                                .font(CodyTypography.titleMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
 
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
                                 dataItem("API keys and tokens are stored only in the iOS Keychain on your device and are never sent to us")
                                 dataItem("Data is sent only to the specific provider you choose for each conversation")
                                 dataItem("You can remove any provider and its credentials at any time from Settings")
@@ -78,56 +86,82 @@ struct AIDataSharingConsentView: View {
                     }
 
                     Link("Read our full Privacy Policy", destination: URL(string: "https://54zhien.github.io/Cody/privacy-policy.html")!)
-                        .font(.footnote)
+                        .font(CodyTypography.sectionHeader)
+                        .foregroundStyle(CodyColors.textLink)
 
-                    Spacer(minLength: 80)
+                    Spacer(minLength: CodySpacing.s64)
                 }
-                .padding()
+                .padding(CodySpacing.lg)
             }
+            .background(CodyColors.bgGrouped)
             .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 10) {
+                VStack(spacing: CodySpacing.smPlus) {
                     Button {
                         UserDefaults.standard.set(true, forKey: aiDataSharingConsentKey)
                         onAccept()
                     } label: {
                         Text("I Understand & Agree")
-                            .font(.body.weight(.semibold))
+                            .font(CodyTypography.titleMedium)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
 
                     Button("Cancel", role: .cancel) {
                         onDecline()
                     }
-                    .font(.body)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textSecondary)
                 }
-                .padding()
-                .background(.bar)
+                .padding(CodySpacing.lg)
+                .background {
+                    if reduceTransparency {
+                        CodyColors.bgGroupedSurface
+                    } else {
+                        Rectangle().fill(.bar)
+                    }
+                }
+                .overlay(alignment: .top) {
+                    CodyColors.separator.frame(height: CodySpacing.px)
+                }
             }
         }
     }
 
+    private func consentCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+        return content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(CodySpacing.lg)
+            .background(shape.fill(CodyColors.bgGroupedSurface))
+            .overlay {
+                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+    }
+
     private func dataItem(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: CodySpacing.sm) {
             Text("•")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CodyColors.textTertiary)
             Text(text)
-                .font(.subheadline)
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textPrimary)
         }
     }
 
     private func providerRow(_ name: String, description: String, color: Color) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Circle()
                 .fill(color)
-                .frame(width: 8, height: 8)
+                .frame(width: CodySpacing.sm, height: CodySpacing.sm)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)
-                    .font(.subheadline.weight(.medium))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
     }
@@ -137,6 +171,7 @@ struct AIDataSharingConsentView: View {
 struct AddProviderView: View {
     @ObservedObject private var store = ProviderConfigStore.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selectedType: ProviderType?
     @State private var selectedCredential: ProviderCredential?
@@ -211,10 +246,14 @@ struct AddProviderView: View {
                 configureSection
             }
         }
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
-        ))
+        .transition(
+            reduceMotion
+                ? .opacity
+                : .asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                )
+        )
         .id(currentStep)
     }
 
@@ -283,7 +322,8 @@ struct AddProviderView: View {
         List {
             steppedContent
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.88), value: currentStep)
+        .codyGroupedListCanvas()
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: currentStep)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -470,6 +510,7 @@ struct AddProviderView: View {
     private var typePickerSection: some View {
         Section {
             ForEach(visibleProviderTypes, id: \.self) { type in
+                let visual = CodyProviderVisuals.icon(for: type)
                 Button {
                     selectedType = type
                     // Only seed the label when the user hasn't typed
@@ -485,33 +526,33 @@ struct AddProviderView: View {
                         labelInput = defaultLabel(for: type)
                     }
                 } label: {
-                    HStack(spacing: 12) {
-                        providerIcon(type)
-                            .frame(width: 32, height: 32)
-                            .background(providerColor(type).opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: visual.systemImage, tint: visual.tint)
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                             Text(providerPickerLabel(type))
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(Color(UIColor.label))
+                                .font(CodyTypography.titleMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text(type.pickerSubtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
 
-                        Spacer()
+                        Spacer(minLength: CodySpacing.sm)
 
                         Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                            .foregroundStyle(CodyColors.iconDisclosure)
+                            .accessibilityHidden(true)
                     }
                 }
+                .codyGroupedRow()
             }
         } header: {
             Text("Choose Provider")
+                .codySectionHeaderText()
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 Text("You can add multiple instances of the same provider (e.g. work and personal accounts).")
                 Text("OpenAI and Anthropic also work with compatible third-party endpoints — set a custom API Base URL after choosing the matching protocol.")
             }
@@ -523,25 +564,22 @@ struct AddProviderView: View {
             Button {
                 showImportFile = true
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.body)
-                        .frame(width: 32, height: 32)
-                        .foregroundStyle(Color.accentColor)
-                        .background(Color.accentColor.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                HStack(spacing: CodySpacing.md) {
+                    CodySettingsIconBadge(systemImage: "square.and.arrow.down", tint: .blue)
 
                     Text("Or Import Provider from File")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color(UIColor.label))
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
 
-                    Spacer()
+                    Spacer(minLength: CodySpacing.sm)
 
                     Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                        .foregroundStyle(CodyColors.iconDisclosure)
+                        .accessibilityHidden(true)
                 }
             }
+            .codyGroupedRow()
         } footer: {
             Text("Import a provider configuration that was exported from another device.")
         }
@@ -558,35 +596,36 @@ struct AddProviderView: View {
                 Button {
                     applyVoiceTemplate(template)
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: template.symbol)
-                            .font(.body)
-                            .foregroundStyle(template.tint)
-                            .frame(width: 32, height: 32)
-                            .background(template.tint.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(
+                            systemImage: template.symbol,
+                            tint: CodyProviderVisuals.tint(forVoiceTemplateId: template.id)
+                        )
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                             Text(template.name)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(Color(UIColor.label))
+                                .font(CodyTypography.titleMedium)
+                                .foregroundStyle(CodyColors.textPrimary)
                             Text(template.capability)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
 
-                        Spacer()
+                        Spacer(minLength: CodySpacing.sm)
 
                         Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                            .foregroundStyle(CodyColors.iconDisclosure)
+                            .accessibilityHidden(true)
                     }
                 }
+                .codyGroupedRow()
             }
         } header: {
             Text("Voice Chat Providers")
+                .codySectionHeaderText()
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 Text("Speech-to-text and text-to-speech vendors. The provider type and base URL are prefilled — just add your API key.")
                 ForEach(notes, id: \.self) { note in
                     Text(note)
@@ -625,32 +664,35 @@ struct AddProviderView: View {
                         Button {
                             selectedCredential = cred
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: cred == .apiKey ? "key" : "person.badge.shield.checkmark")
-                                    .font(.body)
-                                    .frame(width: 28)
-                                    .foregroundStyle(Color(UIColor.label))
+                            HStack(spacing: CodySpacing.md) {
+                                CodySettingsIconBadge(
+                                    systemImage: cred == .apiKey ? "key" : "person.badge.shield.checkmark",
+                                    tint: cred == .apiKey ? .blue : .purple
+                                )
 
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                                     Text(cred == .apiKey ? "API Key" : "OAuth")
-                                        .font(.body.weight(.medium))
-                                        .foregroundStyle(Color(UIColor.label))
+                                        .font(CodyTypography.titleMedium)
+                                        .foregroundStyle(CodyColors.textPrimary)
                                     Text(credentialDescription(type: type, credential: cred))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(CodyTypography.bodySmall)
+                                        .foregroundStyle(CodyColors.textSecondary)
                                 }
 
-                                Spacer()
+                                Spacer(minLength: CodySpacing.sm)
 
                                 Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
+                                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                                    .foregroundStyle(CodyColors.iconDisclosure)
+                                    .accessibilityHidden(true)
                             }
                         }
+                        .codyGroupedRow()
                     }
                 }
             } header: {
                 Text("Authentication")
+                    .codySectionHeaderText()
             }
 
             // "Responses API" is now integrated as API Format picker in Step 3
@@ -661,7 +703,7 @@ struct AddProviderView: View {
 
     private var configureSection: some View {
         Group {
-            Section("Label") {
+            Section {
                 TextField("Provider label", text: $labelInput)
                     // [T-provider-label-keyboard] Declare the keyboard EXPLICITLY.
                     // A TextField that sets no keyboardType does not get a
@@ -719,6 +761,10 @@ struct AddProviderView: View {
                         }
                         labelEdited = true
                     }
+                    .codyGroupedRow()
+            } header: {
+                Text("Label")
+                    .codySectionHeaderText()
             }
 
             if selectedCredential == .apiKey {
@@ -730,9 +776,10 @@ struct AddProviderView: View {
             if let error = errorMessage {
                 Section {
                     Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
                         .textSelection(.enabled)
+                        .listRowBackground(CodyColors.statusErrorBg)
                 }
             }
         }
@@ -744,7 +791,7 @@ struct AddProviderView: View {
                     HStack {
                         if showApiKeyPlaintext {
                             TextField(keyPlaceholder, text: $apiKeyInput)
-                                .font(.system(.body, design: .monospaced))
+                                .font(CodyTypography.code)
                                 // [T-provider-label-keyboard] Same opt-out as the
                                 // SecureField below — the plaintext branch is the
                                 // SAME field, so leaving it undeclared would let
@@ -783,12 +830,15 @@ struct AddProviderView: View {
                             showApiKeyPlaintext.toggle()
                         } label: {
                             Image(systemName: showApiKeyPlaintext ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CodyColors.iconSecondary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(showApiKeyPlaintext ? AppLocalized("Hide") : AppLocalized("Show"))
                     }
+                    .codyGroupedRow()
                 } header: {
                     Text("API Key")
+                        .codySectionHeaderText()
                 } footer: {
                     Text("Your key is stored securely in the iOS Keychain and never leaves the device.")
                 }
@@ -804,6 +854,7 @@ struct AddProviderView: View {
                         Text("Chat Completions").tag(false)
                         Text("Responses API").tag(true)
                     }
+                    .codyGroupedRow()
                 } footer: {
                     Text(useResponsesAPI
                         ? "Uses /v1/responses endpoint format. Required for some Responses-API-only services."
@@ -820,14 +871,18 @@ struct AddProviderView: View {
                         if isSaving {
                             ProgressView()
                                 .controlSize(.small)
+                                .tint(CodyColors.interactivePrimaryLabel)
                         } else {
                             Text("Add Provider")
-                                .font(.body.weight(.semibold))
+                                .font(CodyTypography.titleMedium)
                         }
                         Spacer()
                     }
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 .disabled((apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !emptyKeyAllowedForCurrentInput) || isSaving)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: CodySpacing.xs, leading: 0, bottom: CodySpacing.xs, trailing: 0))
             }
         }
     }
@@ -836,37 +891,47 @@ struct AddProviderView: View {
     private var oauthSection: some View {
         Section {
             if pendingOAuthDone {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Authenticated")
-                        .font(.body.weight(.medium))
+                HStack(spacing: CodySpacing.sm) {
+                    CodyStatusPill(localized: AppLocalized("Authenticated"), tone: .success, dotColor: CodyColors.connectionReady)
+                    Spacer()
                 }
+                .codyGroupedRow()
 
                 if let masked = oauthMaskedToken {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: CodySpacing.xs) {
                         Text("Token")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                         Text(masked)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textPrimary)
+                            .padding(.horizontal, CodySpacing.md)
+                            .padding(.vertical, CodySpacing.sm)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(CodyColors.bgCodeBlock, in: RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
+                                    .strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                                    .allowsHitTesting(false)
+                            }
                     }
+                    .codyGroupedRow()
                 }
 
                 if let authTime = oauthAuthTime {
                     HStack {
                         Text("Authorized")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                         Spacer()
                         Text(authTime, style: .date)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textSecondary)
                         Text(authTime, style: .time)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
+                    .codyGroupedRow()
                 }
             } else {
                 Button {
@@ -883,13 +948,17 @@ struct AddProviderView: View {
                     HStack {
                         Spacer()
                         Text(oauthSignInLabel)
-                            .font(.body.weight(.semibold))
+                            .font(CodyTypography.titleMedium)
                         Spacer()
                     }
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: CodySpacing.xs, leading: 0, bottom: CodySpacing.xs, trailing: 0))
             }
         } header: {
             Text("OAuth")
+                .codySectionHeaderText()
         }
 
         // Manual OAuth entry — available for all providers (supports proxy services, Coding Plan tokens, etc.)
@@ -905,19 +974,21 @@ struct AddProviderView: View {
         if selectedType != .antigravity && selectedType != .githubCopilot && !pendingOAuthDone {
             Section {
                 TextField(defaultBaseURL, text: $customBaseURLInput)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.code)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
+                    .codyGroupedRow()
 
                 SecureField("Bearer Token", text: $manualOAuthTokenInput)
-                    .font(.system(.body, design: .monospaced))
+                    .font(CodyTypography.code)
                     // [T-provider-label-keyboard] Same AutoFill opt-out as the
                     // API Key field — this SecureField is in the same form as
                     // the Label field and would otherwise trigger the identical
                     // username/password pairing.
                     .textContentType(.oneTimeCode)
+                    .codyGroupedRow()
 
                 Button {
                     saveManualOAuthInstance()
@@ -925,13 +996,17 @@ struct AddProviderView: View {
                     HStack {
                         Spacer()
                         Text("Add Provider")
-                            .font(.body.weight(.semibold))
+                            .font(CodyTypography.titleMedium)
                         Spacer()
                     }
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 .disabled(manualOAuthTokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: CodySpacing.sm, leading: 0, bottom: CodySpacing.xs, trailing: 0))
             } header: {
                 Text("Or Configure Manually")
+                    .codySectionHeaderText()
             } footer: {
                 Text("For third-party Coding Plans (e.g. MiniMax, Kimi) or compatible proxy endpoints, enter the API base URL and bearer token manually.")
             }
@@ -945,10 +1020,13 @@ struct AddProviderView: View {
                     HStack {
                         Spacer()
                         Text("Save Provider")
-                            .font(.body.weight(.semibold))
+                            .font(CodyTypography.titleMedium)
                         Spacer()
                     }
                 }
+                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: CodySpacing.xs, leading: 0, bottom: CodySpacing.xs, trailing: 0))
             }
         }
     }
@@ -958,17 +1036,20 @@ struct AddProviderView: View {
     private var customBaseURLSection: some View {
         Section {
             TextField(defaultBaseURL, text: $customBaseURLInput)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.code)
+                .foregroundStyle(CodyColors.textSecondary)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
+                .codyGroupedRow()
 
             if !enteredViaVoiceTemplate, selectedType != .gemini {
                 Toggle("Auto Append \"/v1\"", isOn: $appendV1SuffixInput)
+                    .codyGroupedRow()
             }
         } header: {
             Text("Custom API Base (Optional)")
+                .codySectionHeaderText()
         } footer: {
             if enteredViaVoiceTemplate {
                 Text("The voice service endpoint URL.")
@@ -1295,57 +1376,6 @@ struct AddProviderView: View {
             return AppLocalized("Unofficial integration. Using it may get your GitHub Copilot account restricted — use at your own risk.")
         case (.unsupported, _):
             return AppLocalized("This provider isn't supported in this app version.")
-        }
-    }
-
-    @ViewBuilder
-    private func providerIcon(_ type: ProviderType) -> some View {
-        switch type {
-        case .anthropic:
-            Image(systemName: "sparkles")
-                .foregroundStyle(.purple)
-        case .gemini:
-            Image(systemName: "diamond")
-                .foregroundStyle(.blue)
-        case .openAI:
-            Image(systemName: "circle.hexagongrid")
-                .foregroundStyle(.green)
-        case .antigravity:
-            Image(systemName: "ant")
-                .foregroundStyle(.orange)
-        case .openRouter:
-            Image(systemName: "arrow.triangle.branch")
-                .foregroundStyle(.cyan)
-        case .openAIResponses:
-            Image(systemName: "arrow.trianglehead.2.counterclockwise")
-                .foregroundStyle(.mint)
-        case .xAI:
-            Image(systemName: "x.circle")
-                .foregroundStyle(.gray)
-        case .kimiCode:
-            Image(systemName: "moon.stars")
-                .foregroundStyle(.indigo)
-        case .githubCopilot:
-            Image(systemName: "chevron.left.forwardslash.chevron.right")
-                .foregroundStyle(.primary)
-        case .unsupported:
-            Image(systemName: "questionmark.circle")
-                .foregroundStyle(.gray)
-        }
-    }
-
-    private func providerColor(_ type: ProviderType) -> Color {
-        switch type {
-        case .anthropic: return .purple
-        case .gemini: return .blue
-        case .openAI: return .green
-        case .antigravity: return .orange
-        case .openRouter: return .cyan
-        case .openAIResponses: return .mint
-        case .xAI: return .gray
-        case .kimiCode: return .indigo
-        case .githubCopilot: return .primary
-        case .unsupported: return .gray
         }
     }
 }

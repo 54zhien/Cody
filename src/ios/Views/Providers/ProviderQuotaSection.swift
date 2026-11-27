@@ -33,6 +33,7 @@ struct ProviderQuotaSection: View {
                 content(display)
                 if let url = QuotaConsoleLink.url(for: QuotaStore.descriptor(for: instance)) {
                     QuotaConsoleLinkRow(url: url) { consoleURL = url }
+                        .codyGroupedRow()
                 }
             } header: {
                 header(display)
@@ -51,6 +52,7 @@ struct ProviderQuotaSection: View {
     private func header(_ display: QuotaInstanceDisplay) -> some View {
         HStack {
             Text("Quota")
+                .codySectionHeaderText()
             Spacer()
             if canRefresh(display) {
                 if quota.isRefreshing(instance.id) {
@@ -60,6 +62,7 @@ struct ProviderQuotaSection: View {
                         Task { await manualRefresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
+                            .foregroundStyle(CodyColors.iconSecondary)
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel(Text("Refresh quota"))
@@ -70,7 +73,7 @@ struct ProviderQuotaSection: View {
 
     @ViewBuilder
     private func footer(_ display: QuotaInstanceDisplay) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
             if case .pools(let sid) = display, let subject = quota.subject(sid) {
                 let pools = quota.pools(of: sid)
                 if let newest = pools.map(\.observedAt).max(), let source = pools.first?.provenance.source {
@@ -79,7 +82,7 @@ struct ProviderQuotaSection: View {
                 }
                 if let err = subject.lastRefresh?.error {
                     Text(String(format: String(localized: "Last refresh failed: %@"), Self.message(for: err)))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CodyColors.statusWarningText)
                 }
                 let sharing = quota.sharingInstanceIds(for: instance.id)
                     .compactMap { ProviderConfigStore.shared.instance(for: $0)?.label }
@@ -114,26 +117,31 @@ struct ProviderQuotaSection: View {
             EmptyView()
         case .unsupported(let reason):
             Text(Self.message(for: reason))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
+                .codyGroupedRow()
         case .loading:
-            HStack(spacing: 8) {
+            HStack(spacing: CodySpacing.sm) {
                 ProgressView().controlSize(.small)
                 Text("Checking balance…")
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
+            .codyGroupedRow()
         case .empty:
             Text("The provider reported no balance or quota for this key.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
+                .codyGroupedRow()
         case .failed(let err):
             Label {
                 Text(Self.message(for: err))
             } icon: {
                 Image(systemName: "exclamationmark.triangle")
             }
-            .font(.footnote)
-            .foregroundStyle(.orange)
+            .font(CodyTypography.bodySmall)
+            .foregroundStyle(CodyColors.statusWarningText)
+            .codyGroupedRow()
         case .pools(let sid):
             let pools = quota.pools(of: sid)
             let sharedKeys = Set(quota.bindings(of: sid).filter { $0.target == .subject }.map(\.poolKey))
@@ -143,11 +151,13 @@ struct ProviderQuotaSection: View {
                 } icon: {
                     Image(systemName: "person.2")
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
+                .codyGroupedRow()
             }
             ForEach(pools) { pool in
                 QuotaPoolRow(pool: pool, status: quota.poolStatus(pool))
+                    .codyGroupedRow()
             }
         }
     }
@@ -242,18 +252,47 @@ extension QuotaTone {
     /// is fine); an unmeasured balance stays neutral.
     var color: Color {
         switch self {
-        case .normal: return .secondary
-        case .healthy: return .green
-        case .caution: return .orange
-        case .critical: return .red
-        case .muted: return Color(UIColor.tertiaryLabel)
+        case .normal: return CodyColors.textSecondary
+        case .healthy: return CodyColors.connectionReady
+        case .caution: return CodyColors.statusWarningText
+        case .critical: return CodyColors.statusErrorText
+        case .muted: return CodyColors.textTertiary
+        }
+    }
+
+    /// Semantic fill for progress bars.
+    var barFillColor: Color {
+        switch self {
+        case .normal, .healthy: return CodyColors.interactiveProgressFill
+        case .caution: return CodyColors.statusWarningText
+        case .critical: return CodyColors.statusErrorText
+        case .muted: return CodyColors.iconTertiary
+        }
+    }
+
+    var pillBackground: Color {
+        switch self {
+        case .normal, .muted: return CodyColors.bgSecondary
+        case .healthy: return CodyColors.statusSuccessBg
+        case .caution: return CodyColors.statusWarningBg
+        case .critical: return CodyColors.statusErrorBg
+        }
+    }
+
+    var pillForeground: Color {
+        switch self {
+        case .normal: return CodyColors.textSecondary
+        case .muted: return CodyColors.textTertiary
+        case .healthy: return CodyColors.statusSuccessText
+        case .caution: return CodyColors.statusWarningText
+        case .critical: return CodyColors.statusErrorText
         }
     }
 
     /// Emphasised amount text: neutral stays primary, warnings keep their colour.
     var amountColor: Color {
         switch self {
-        case .normal, .healthy: return .primary
+        case .normal, .healthy: return CodyColors.textPrimary
         default: return color
         }
     }
@@ -271,20 +310,37 @@ extension QuotaStatus {
     }
 }
 
-/// A progress bar drawn ONLY from a reliable fraction (QuotaBarRules).
+/// A progress bar drawn ONLY from a reliable fraction (QuotaBarRules), aligned
+/// with CodyProgressBar metrics (`8pt` height, `4pt` radius, `bgProgressTrack`).
 struct QuotaUsageBar: View {
     let fraction: Double
     let tone: QuotaTone
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var clampedFraction: Double {
+        fraction.isNaN ? 0 : min(max(fraction, 0), 1)
+    }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: CodyMetrics.AgentCard.progressRadius, style: .continuous)
         GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color(UIColor.tertiarySystemFill))
-                Capsule().fill(tone.color)
-                    .frame(width: max(geo.size.width * fraction, fraction > 0 ? 4 : 0))
+            let fillWidth = clampedFraction > 0
+                ? max(CodyMetrics.AgentCard.progressHeight, geo.size.width * CGFloat(clampedFraction))
+                : 0
+            shape.fill(tone.barFillColor)
+                .frame(width: min(fillWidth, geo.size.width), alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(CodyMotion.resolved(CodyMotion.layout, reduceMotion: reduceMotion), value: clampedFraction)
+        }
+        .frame(height: CodyMetrics.AgentCard.progressHeight)
+        .background(shape.fill(CodyColors.bgProgressTrack))
+        .background {
+            if reduceTransparency {
+                shape.fill(CodyColors.bgPrimary)
             }
         }
-        .frame(height: 6)
+        .clipShape(shape)
         .accessibilityHidden(true)
     }
 }
@@ -298,15 +354,18 @@ struct QuotaStatusChip: View {
         let label = status.freshness == .stale && tone != .muted
             ? String(format: String(localized: "%@ · stale"), status.status.localizedName)
             : (status.freshness == .expired ? String(localized: "Expired") : status.status.localizedName)
-        HStack(spacing: 4) {
-            Circle().fill(tone.color).frame(width: 6, height: 6)
+        HStack(spacing: CodySpacing.xs) {
+            Circle()
+                .fill(tone.color)
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
             Text(label)
         }
-        .font(.caption2.weight(.medium))
-        .foregroundStyle(tone == .normal ? Color.secondary : tone.color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(tone.color.opacity(tone == .normal ? 0.08 : 0.12), in: Capsule())
+        .font(CodyTypography.labelSmall.weight(.semibold))
+        .foregroundStyle(tone.pillForeground)
+        .padding(.horizontal, CodySpacing.sm)
+        .padding(.vertical, CodySpacing.xxs)
+        .background(tone.pillBackground, in: Capsule())
         .fixedSize()
     }
 }
@@ -321,19 +380,20 @@ struct QuotaWindowLine: View {
         let fraction = QuotaBarRules.windowFraction(window, in: pool)
         let tone = QuotaToneRules.tone(status: util.map { QuotaStatusRules.status(for: $0, thresholds: QuotaThresholds()) } ?? .unknown,
                                        freshness: .fresh, reliablePercent: util != nil)
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
             HStack {
                 Text(QuotaFormat.windowLabel(window))
-                    .font(.caption.weight(.medium))
+                    .font(CodyTypography.labelMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 if let util {
                     Text(QuotaFormat.percentUsedText(util.percent))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(tone == .healthy ? Color.secondary : tone.color)
+                        .font(CodyTypography.bodySmall.monospacedDigit())
+                        .foregroundStyle(tone == .healthy ? CodyColors.textSecondary : tone.color)
                 } else if let r = window.amounts?.remaining {
                     Text(String(format: String(localized: "%@ left"), QuotaFormat.amount(r, unit: pool.unit)))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall.monospacedDigit())
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
             if let fraction {
@@ -341,8 +401,8 @@ struct QuotaWindowLine: View {
             }
             if let reset = window.resetsAt {
                 Text(String(format: String(localized: "Resets %@"), ProviderQuotaSection.relative(reset)))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
         .accessibilityElement(children: .combine)
@@ -360,10 +420,11 @@ struct QuotaPoolRow: View {
 
     var body: some View {
         let tone = QuotaToneRules.tone(status)
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: CodySpacing.xsPlus) {
             HStack(alignment: .firstTextBaseline) {
                 Text(ProviderQuotaSection.poolName(pool))
-                    .font(.subheadline)
+                    .font(CodyTypography.bodyMedium.weight(.medium))
+                    .foregroundStyle(CodyColors.textPrimary)
                 if detailed {
                     QuotaStatusChip(status: status)
                 }
@@ -376,13 +437,13 @@ struct QuotaPoolRow: View {
             }
             if status.freshness == .expired {
                 Text("Data expired — refresh to update")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             } else {
                 details(tone: tone)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, CodySpacing.xxs)
         .opacity(status.freshness == .stale ? 0.6 : 1)
         .accessibilityElement(children: .combine)
     }
@@ -395,27 +456,27 @@ struct QuotaPoolRow: View {
             }
             if detailed, pool.kind == .prepaidBalance {
                 Text("Prepaid balance — no total cap, so no percentage is shown.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
             if let parts = QuotaFormat.breakdown(amounts, unit: pool.unit) {
                 Text(parts)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
         if pool.verdict == .rejected {
             Text("The provider says this account can't serve requests right now.")
-                .font(.caption)
-                .foregroundStyle(.red)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.statusErrorText)
         }
         ForEach(pool.windows) { window in
             QuotaWindowLine(window: window, pool: pool)
         }
         if pool.unlimited {
             Text("No limit")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
         }
     }
 
@@ -432,15 +493,15 @@ struct QuotaPoolRow: View {
         let used = amounts.used ?? amounts.remaining.map { total - $0 }
         if let used {
             let util = amounts.computedUtilization(kind: pool.kind, unlimited: pool.unlimited)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 if let fraction = QuotaBarRules.poolFraction(pool) {
                     QuotaUsageBar(fraction: fraction, tone: tone)
                 }
                 Text(String(format: String(localized: "%@ of %@ used"),
                             QuotaFormat.amount(used, unit: pool.unit), QuotaFormat.amount(total, unit: pool.unit))
                      + (util.map { " · " + QuotaFormat.percent($0.percent) } ?? ""))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textSecondary)
             }
         }
     }
@@ -457,19 +518,21 @@ struct QuotaConsoleLinkRow: View {
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: 12) {
-                BackupActionIcon(systemName: "safari.fill", tint: .blue)
+            HStack(spacing: CodySpacing.md) {
+                CodySettingsIconBadge(systemImage: "safari.fill", tint: .blue)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Usage on the provider's website")
-                        .foregroundStyle(Color(UIColor.label))
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Text(url.host ?? url.absoluteString)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "arrow.up.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .accessibilityHidden(true)
             }
         }
         .buttonStyle(.plain)

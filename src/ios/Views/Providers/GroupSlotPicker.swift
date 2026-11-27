@@ -73,13 +73,16 @@ struct GroupSlotPicker: View {
         } label: {
             HStack {
                 Text(label)
-                    .foregroundStyle(Color(UIColor.label))
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 Text(selectedName)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .accessibilityHidden(true)
             }
         }
         .sheet(isPresented: $showCreate) {

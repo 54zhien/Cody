@@ -253,8 +253,10 @@ struct UnifiedModelPicker: View {
     /// changes (Enhanced/Premium pack download, Personal Voice creation).
     @ObservedObject private var systemVoiceRoster = SystemVoiceRoster.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var searchText = ""
+    @State private var capabilityFilter: CapabilityFilter = .all
     /// [T-picker-search-debounce] The query the LIST actually filters on (GH#271).
     ///
     /// `searchText` follows the keyboard; this trails it by `searchDebounce`.
@@ -347,6 +349,48 @@ struct UnifiedModelPicker: View {
     }
 
     private var isMulti: Bool { config.mode == .multi }
+
+    private enum CapabilityFilter: String, CaseIterable, Identifiable {
+        case all
+        case thinking
+        case vision
+        case imageGen
+        case audio
+
+        var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .all: return "All models"
+            case .thinking: return "Thinking"
+            case .vision: return "Image input"
+            case .imageGen: return "Image generation"
+            case .audio: return "Audio"
+            }
+        }
+
+        func matches(_ entry: ModelEntry) -> Bool {
+            let m = entry.model.modalityOverride ?? entry.model.capabilities.supportedModalities
+            switch self {
+            case .all: return true
+            case .thinking: return entry.model.supportsReasoning == true
+            case .vision: return m.contains(.imageInput)
+            case .imageGen: return m.contains(.imageOutput)
+            case .audio: return m.contains(.audioInput) || m.contains(.audioOutput)
+            }
+        }
+    }
+
+    private var availableCapabilityFilters: [CapabilityFilter] {
+        guard config.effectivePreferModality == nil, let sections, !sections.isEmpty else {
+            return []
+        }
+        let allEntries = sections.flatMap(\.entries)
+        let matching = CapabilityFilter.allCases.filter { filter in
+            filter == .all || allEntries.contains(where: { filter.matches($0) })
+        }
+        return matching.count > 1 ? matching : []
+    }
 
     // MARK: - Candidate Filtering
 
@@ -486,7 +530,14 @@ struct UnifiedModelPicker: View {
     /// over the raw store: it is a cheap substring pass on an already-built list,
     /// and keeping it out of the cache means typing never rebuilds the pool.
     private var filteredEntriesByInstance: [InstanceSection] {
-        let base = sections ?? []
+        let base: [InstanceSection] = {
+            let raw = sections ?? []
+            guard capabilityFilter != .all else { return raw }
+            return raw.compactMap { item in
+                let matched = item.entries.filter { capabilityFilter.matches($0) }
+                return matched.isEmpty ? nil : (item.instance, matched)
+            }
+        }()
         // [T-picker-search-debounce] Filter on the DEBOUNCED query, not on
         // `searchText` — that is what keeps a keystroke from triggering this
         // whole pass during view evaluation.
@@ -578,33 +629,70 @@ struct UnifiedModelPicker: View {
 
     var body: some View {
         List {
+            if !availableCapabilityFilters.isEmpty {
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: CodySpacing.sm) {
+                            ForEach(availableCapabilityFilters) { filter in
+                                let isSelected = capabilityFilter == filter
+                                Button {
+                                    withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                                        capabilityFilter = filter
+                                    }
+                                } label: {
+                                    Text(filter.title)
+                                        .font(CodyTypography.labelMedium)
+                                        .foregroundStyle(isSelected ? CodyColors.interactivePrimaryLabel : CodyColors.textSecondary)
+                                        .padding(.horizontal, CodySpacing.md)
+                                        .frame(minHeight: CodyControlHeight.sm)
+                                        .background(
+                                            isSelected ? CodyColors.interactivePrimaryBg : CodyColors.bgSecondary,
+                                            in: Capsule()
+                                        )
+                                }
+                                .buttonStyle(CodyPressableButtonStyle())
+                            }
+                        }
+                        .padding(.vertical, CodySpacing.xxs)
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowSeparator(.hidden)
+                }
+            }
+
             if let note = config.headerNote {
                 Section {
-                    HStack(alignment: .top, spacing: 8) {
+                    HStack(alignment: .top, spacing: CodySpacing.sm) {
                         Image(systemName: "info.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.iconSecondary)
+                            .accessibilityHidden(true)
                         Text(note)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.bodySmall)
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
+                    .codyGroupedRow()
                 }
             }
 
             // System now renders through the generic instanceSection loop below
             // (its synthetic instance leads entriesByInstance) — no parallel section.
 
-            if config.showGroups && !visibleGroups.isEmpty {
+            if config.showGroups && !visibleGroups.isEmpty && capabilityFilter == .all {
                 Section {
                     ForEach(visibleGroups) { group in
                         groupRow(group)
+                            .codyGroupedRow()
                         if expandedGroupIds.contains(group.id) {
                             groupMemberRows(group)
+                                .codyGroupedRow()
                         }
                     }
                 } header: {
                     HStack {
                         Text("Model Groups")
+                            .codySectionHeaderText()
                         Spacer()
                         Button {
                             showGroupsManager = true
@@ -642,9 +730,10 @@ struct UnifiedModelPicker: View {
                     // catalog lookup and never resolve.
                     Text(String(format: AppLocalized("Showing the %d best matches of %d. Type more to narrow the search."),
                                 Self.maxSearchResults, totalSearchMatches))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall.monospacedDigit())
+                        .foregroundStyle(CodyColors.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
+                        .codyGroupedRow()
                 }
             }
 
@@ -654,15 +743,16 @@ struct UnifiedModelPicker: View {
                 Section {
                     HStack {
                         Spacer()
-                        VStack(spacing: 8) {
+                        VStack(spacing: CodySpacing.sm) {
                             ProgressView()
                             Text("Loading models...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                         Spacer()
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, CodySpacing.sm)
+                    .codyGroupedRow()
                 }
             } else if visibleGroups.isEmpty && cappedEntriesByInstance.isEmpty {
                 emptySection
@@ -674,11 +764,14 @@ struct UnifiedModelPicker: View {
                         showCreateGroupSheet = true
                     } label: {
                         Label("Create group from models…", systemImage: "plus.rectangle.on.folder")
-                            .font(.subheadline)
+                            .font(CodyTypography.bodyMedium.weight(.medium))
+                            .foregroundStyle(CodyColors.textAccent)
                     }
+                    .codyGroupedRow()
                 }
             }
         }
+        .codyGroupedListCanvas()
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search models")
         // [T-picker-search-debounce] Drive the debounced query (GH#271).
         //
@@ -774,14 +867,7 @@ struct UnifiedModelPicker: View {
     /// ids wrap. `fixedSize` keeps the capsule whole, so a long name wraps
     /// beside it exactly as it did before rather than squeezing it.
     private var activeBadge: some View {
-        Text("Active")
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(.green)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(Color.green.opacity(0.1))
-            .clipShape(Capsule())
-            .fixedSize()
+        CodyStatusPill("Active", tone: .success)
     }
 
     /// Compact per-row Quick Test button — opens the SAME ModelQuickTestSheet used
@@ -794,7 +880,7 @@ struct UnifiedModelPicker: View {
         } label: {
             Image(systemName: "bolt.badge.checkmark")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.tint)
+                .foregroundStyle(CodyColors.iconSecondary)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
@@ -893,18 +979,21 @@ struct UnifiedModelPicker: View {
     private func groupRow(_ group: ModelGroup) -> some View {
         let isSelected = isGroupSelected(group)
 
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 20))
-                .foregroundStyle(isSelected ? Color.accentColor : Color(UIColor.tertiaryLabel))
+                .foregroundStyle(isSelected ? CodyColors.interactivePrimaryBg : CodyColors.iconTertiary)
+                .accessibilityHidden(true)
             Image(systemName: "square.stack.3d.up.fill")
-                .font(.caption).foregroundStyle(.blue)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyCategoryTint.blue.color)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Text(group.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color(UIColor.label))
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
                     strategyBadge(group.strategy)
                 }
                 groupSubtitle(group)
@@ -920,18 +1009,18 @@ struct UnifiedModelPicker: View {
                 // the full word. One line, never squeezed: a long translation
                 // narrows the group name beside it instead of wrapping here.
                 Text("Default (badge)", comment: "Short tag on the default model group in the model picker; keep it as short as possible")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.blue)
+                    .font(CodyTypography.labelSmall.weight(.semibold))
+                    .foregroundStyle(CodyColors.textAccent)
                     .lineLimit(1)
-                    .padding(.horizontal, 5)
+                    .padding(.horizontal, CodySpacing.xsPlus)
                     .padding(.vertical, 1)
-                    .background(Color.blue.opacity(0.1))
+                    .background(CodyColors.bgSecondary)
                     .clipShape(Capsule())
                     .fixedSize()
             }
 
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
                     if expandedGroupIds.contains(group.id) {
                         _ = expandedGroupIds.remove(group.id)
                     } else {
@@ -940,13 +1029,14 @@ struct UnifiedModelPicker: View {
                 }
             } label: {
                 Image(systemName: expandedGroupIds.contains(group.id) ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconSecondary)
                     .frame(width: 28, height: 28)
-                    .background(Color(UIColor.tertiarySystemFill))
+                    .background(CodyColors.bgSecondary)
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(expandedGroupIds.contains(group.id) ? AppLocalized("Hide") : AppLocalized("Show"))
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -971,29 +1061,29 @@ struct UnifiedModelPicker: View {
     private func groupSubtitle(_ group: ModelGroup) -> some View {
         if group.memberEntryIds.isEmpty {
             Text(AppLocalized("No models"))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textTertiary)
         } else if isGroupSelected(group),
                   let eid = config.currentEntryId?(),
                   let entry = store.entry(for: eid) {
             Text("→ \(entry.model.displayName)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
         } else {
             let available = availableMemberEntryIds(group).count
             let total = group.memberEntryIds.count
             if available == total {
                 Text(AppLocalized("\(total) models"))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(CodyTypography.bodySmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.textTertiary)
             } else if available == 0 {
                 Text(AppLocalized("\(total) models · all unavailable"))
-                    .font(.caption)
-                    .foregroundStyle(.red.opacity(0.7))
+                    .font(CodyTypography.bodySmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.statusErrorText)
             } else {
                 Text(AppLocalized("\(available)/\(total) available"))
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                    .font(CodyTypography.bodySmall.monospacedDigit())
+                    .foregroundStyle(CodyColors.statusWarningText)
             }
         }
     }
@@ -1002,13 +1092,14 @@ struct UnifiedModelPicker: View {
         HStack(spacing: 2) {
             Image(systemName: strategy == .fallback ? "arrow.down.circle" : "arrow.triangle.branch")
                 .font(.system(size: 8))
+                .accessibilityHidden(true)
             Text(strategy == .fallback ? "FB" : "LB")
-                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
         }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 4)
+        .foregroundStyle(CodyColors.textSecondary)
+        .padding(.horizontal, CodySpacing.xsPlus)
         .padding(.vertical, 1)
-        .background(Color(UIColor.quaternarySystemFill))
+        .background(CodyColors.bgSecondary)
         .clipShape(Capsule())
     }
 
@@ -1139,10 +1230,11 @@ struct UnifiedModelPicker: View {
             || (isSystem && VoiceProviderResolver.isSystemEntry(config.currentEntryId?()))
         let disabled = config.isDisabled?(entry) ?? false
 
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 17))
-                .foregroundStyle(isActive ? Color.accentColor : Color(UIColor.quaternaryLabel))
+                .foregroundStyle(isActive ? CodyColors.interactivePrimaryBg : CodyColors.iconTertiary)
+                .accessibilityHidden(true)
 
             providerDot(entry.model.provider)
                 .opacity(disabled ? 0.4 : 1)
@@ -1155,30 +1247,30 @@ struct UnifiedModelPicker: View {
                 // [Active]"), and a wrapped text is only as wide as its longest
                 // line, which left the unused space on the right.
                 ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .quotaCapCenter, spacing: 4) {
+                    HStack(alignment: .quotaCapCenter, spacing: CodySpacing.xs) {
                         memberRowName(entry, disabled: disabled)
                             .fixedSize(horizontal: true, vertical: false)
                         memberRowTags(entry, isSystem: isSystem, isActive: isActive, disabled: disabled)
                     }
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                         memberRowName(entry, disabled: disabled)
-                        HStack(alignment: .center, spacing: 4) {
+                        HStack(alignment: .center, spacing: CodySpacing.xs) {
                             memberRowTags(entry, isSystem: isSystem, isActive: isActive, disabled: disabled)
                         }
                     }
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: CodySpacing.xs) {
                     if let instanceLabel = store.instance(for: entry.providerInstanceId)?.label {
                         Text(instanceLabel)
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.labelSmall.weight(.medium))
+                            .foregroundStyle(CodyColors.textSecondary)
                         Text("·")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.textTertiary)
                     }
                     Text(entry.model.id)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
             }
             // [T-model-row-premature-wrap] The column takes the free width
@@ -1212,8 +1304,8 @@ struct UnifiedModelPicker: View {
     /// Model name on a group member row.
     private func memberRowName(_ entry: ModelEntry, disabled: Bool) -> some View {
         Text(entry.model.displayName)
-            .font(.subheadline)
-            .foregroundStyle(disabled ? Color(UIColor.tertiaryLabel) : Color(UIColor.label))
+            .font(CodyTypography.bodyMedium)
+            .foregroundStyle(disabled ? CodyColors.textTertiary : CodyColors.textPrimary)
             .alignmentGuide(.quotaCapCenter) { $0.quotaCapCenter }
     }
 
@@ -1234,8 +1326,11 @@ struct UnifiedModelPicker: View {
         }
         if disabled {
             Text("unavailable", comment: "Modality-incompatible model tag")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.orange)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(CodyColors.statusWarningText)
+                .padding(.horizontal, CodySpacing.xs)
+                .padding(.vertical, 1)
+                .background(CodyColors.statusWarningBg, in: Capsule())
         }
     }
 
@@ -1271,10 +1366,11 @@ struct UnifiedModelPicker: View {
     @ViewBuilder
     private func unavailableMemberRow(entryId: String, reason: String, group: ModelGroup) -> some View {
         let entry = store.entry(for: entryId)
-        HStack(spacing: 10) {
+        HStack(spacing: CodySpacing.smPlus) {
             Image(systemName: "circle")
                 .font(.system(size: 17))
-                .foregroundStyle(Color(UIColor.quaternaryLabel))
+                .foregroundStyle(CodyColors.iconTertiary.opacity(0.45))
+                .accessibilityHidden(true)
 
             if let entry {
                 providerDot(entry.model.provider)
@@ -1282,30 +1378,30 @@ struct UnifiedModelPicker: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.model.displayName)
-                        .font(.subheadline)
-                        .foregroundStyle(Color(UIColor.tertiaryLabel))
-                    HStack(spacing: 4) {
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textTertiary)
+                    HStack(spacing: CodySpacing.xs) {
                         if let instanceLabel = store.instance(for: entry.providerInstanceId)?.label {
                             Text(instanceLabel)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.tertiary)
+                                .font(CodyTypography.labelSmall.weight(.medium))
+                                .foregroundStyle(CodyColors.textTertiary)
                         }
                         Text("·")
-                            .font(.caption2)
-                            .foregroundStyle(.quaternary)
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.textTertiary)
                         Text(reason)
-                            .font(.caption2)
-                            .foregroundStyle(.red.opacity(0.7))
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.statusErrorText)
                     }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entryId.components(separatedBy: "/").last ?? entryId)
-                        .font(.subheadline)
-                        .foregroundStyle(Color(UIColor.tertiaryLabel))
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textTertiary)
                     Text(reason)
-                        .font(.caption2)
-                        .foregroundStyle(.red.opacity(0.7))
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.statusErrorText)
                 }
             }
 
@@ -1325,7 +1421,7 @@ struct UnifiedModelPicker: View {
                 } label: {
                     Image(systemName: "minus.circle.fill")
                         .font(.system(size: 17))
-                        .foregroundStyle(.red.opacity(0.8))
+                        .foregroundStyle(CodyColors.statusErrorText)
                 }
                 // The row sits inside a tappable list; without this the button's
                 // tap would also fall through to the row behind it.
@@ -1339,7 +1435,7 @@ struct UnifiedModelPicker: View {
 
     @ViewBuilder
     private func instanceSection(_ item: (instance: ProviderInstance, entries: [ModelEntry])) -> some View {
-        let isCollapsed = searchText.isEmpty && collapsedInstanceIds.contains(item.instance.id)
+        let isCollapsed = searchText.isEmpty && capabilityFilter == .all && collapsedInstanceIds.contains(item.instance.id)
         // When collapsed, surface the currently-selected entry (if it lives in
         // this section) rather than blindly the first — so the active model stays
         // visible with its checkmark even while the section is folded.
@@ -1360,21 +1456,24 @@ struct UnifiedModelPicker: View {
         Section {
             ForEach(visibleEntries) { entry in
                 entryRow(entry)
+                    .codyGroupedRow()
             }
             if isCollapsed && item.entries.count > 1 {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
                         _ = collapsedInstanceIds.remove(item.instance.id)
                     }
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: CodySpacing.xsPlus) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 11, weight: .semibold))
+                            .accessibilityHidden(true)
                         Text(AppLocalized("Show \(item.entries.count) models"))
-                            .font(.caption)
+                            .font(CodyTypography.bodySmall.monospacedDigit())
                     }
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(CodyColors.textAccent)
                 }
+                .codyGroupedRow()
             }
         } header: {
             HStack(spacing: 8) {
@@ -1383,6 +1482,7 @@ struct UnifiedModelPicker: View {
                 Text(item.instance.label)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .codySectionHeaderText()
                 // [T-provider-quota P2] The account's balance / quota, the only
                 // place a shared pool is shown in the picker. Empty without data.
                 QuotaSectionHeaderBadge(instanceId: item.instance.id) {
@@ -1411,10 +1511,10 @@ struct UnifiedModelPicker: View {
                     .fixedSize()
                     .accessibilityLabel(Text("Edit \(item.instance.label)"))
                 }
-                if searchText.isEmpty && item.entries.count > 1 {
+                if searchText.isEmpty && capabilityFilter == .all && item.entries.count > 1 {
                     let collapsed = collapsedInstanceIds.contains(item.instance.id)
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
                             if collapsed {
                                 _ = collapsedInstanceIds.remove(item.instance.id)
                             } else {
@@ -1423,14 +1523,15 @@ struct UnifiedModelPicker: View {
                         }
                     } label: {
                         Image(systemName: collapsed ? "chevron.down" : "chevron.up")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(CodyColors.iconSecondary)
                             .frame(width: 28, height: 28)
-                            .background(Color(UIColor.tertiarySystemFill))
+                            .background(CodyColors.bgSecondary)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .textCase(nil)
+                    .accessibilityLabel(collapsed ? AppLocalized("Show") : AppLocalized("Hide"))
                 }
             }
         }
@@ -1457,21 +1558,27 @@ struct UnifiedModelPicker: View {
         // Tap-gesture pattern (not a Button wrapper) so the trailing Quick Test
         // Button nests correctly — a Button inside a Button's label doesn't route
         // taps in SwiftUI.
-        return HStack(spacing: 10) {
+        return HStack(spacing: CodySpacing.smPlus) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color(UIColor.tertiaryLabel))
+                    .foregroundStyle(isSelected ? CodyColors.interactivePrimaryBg : CodyColors.iconTertiary)
+                    .accessibilityHidden(true)
 
                 Image(systemName: traits.iconSymbol)
                     .font(.system(size: 11))
-                    .foregroundStyle(traits.tint)
+                    .foregroundStyle(
+                        VoiceProviderResolver.isSystemEntry(entry.providerInstanceId)
+                            ? CodyCategoryTint.blue.color
+                            : CodyProviderVisuals.tint(forProviderName: entry.model.provider).color
+                    )
                     .frame(width: 14)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: CodySpacing.xs) {
                         Text(entry.model.displayName)
-                            .font(.subheadline)
-                            .foregroundStyle(disabled ? Color(UIColor.tertiaryLabel) : Color(UIColor.label))
+                            .font(CodyTypography.bodyMedium)
+                            .foregroundStyle(disabled ? CodyColors.textTertiary : CodyColors.textPrimary)
                         if !isMulti, config.currentGroupId?() != nil,
                            config.currentEntryId?() == entry.id {
                             activeBadge
@@ -1490,8 +1597,8 @@ struct UnifiedModelPicker: View {
                                 .fixedSize(horizontal: true, vertical: false)
                             if !badges.isEmpty {
                                 Text("·")
-                                    .font(.caption2)
-                                    .foregroundStyle(.quaternary)
+                                    .font(CodyTypography.labelSmall)
+                                    .foregroundStyle(CodyColors.textTertiary)
                             }
                             entryRowTags(badges, disabled: disabled)
                         }
@@ -1535,7 +1642,7 @@ struct UnifiedModelPicker: View {
     /// Quota hint + the subtitle (built-ins) or raw model id (cloud models).
     @ViewBuilder
     private func entryRowSubtitle(_ entry: ModelEntry, traits: ModelDisplayTraits) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: CodySpacing.xs) {
             // [T-provider-quota P2] Only a warning on a pool bound to
             // THIS model; the shared account is on the section header.
             ModelQuotaHintView(instanceId: entry.providerInstanceId,
@@ -1543,8 +1650,8 @@ struct UnifiedModelPicker: View {
             // Subtitle from traits (e.g. "iOS built-in, works offline")
             // for built-ins; the raw model id for cloud models.
             Text(traits.subtitle ?? entry.model.id)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(CodyTypography.labelSmall)
+                .foregroundStyle(CodyColors.textTertiary)
         }
     }
 
@@ -1552,41 +1659,31 @@ struct UnifiedModelPicker: View {
     @ViewBuilder
     private func entryRowTags(_ badges: [String], disabled: Bool) -> some View {
         ForEach(badges, id: \.self) { badge in
-            Text(badge)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color(UIColor.tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+            CodyModalityCapsule(text: badge)
         }
         if disabled {
             Text("unavailable", comment: "Modality-incompatible model tag")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.orange)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(CodyColors.statusWarningText)
+                .padding(.horizontal, CodySpacing.xs)
+                .padding(.vertical, 1)
+                .background(CodyColors.statusWarningBg, in: Capsule())
         }
     }
 
     // MARK: - Empty State
 
     private var emptySection: some View {
-        Section {
-            VStack(spacing: 8) {
-                Image(systemName: searchText.isEmpty ? "cpu" : "magnifyingglass")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.quaternary)
-                Text(searchText.isEmpty ? "No models available" : "No results")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(searchText.isEmpty
-                     ? "Configure providers in Settings to see models here."
-                     : "Try a different search term.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+        let isUnfiltered = searchText.isEmpty && capabilityFilter == .all
+        return Section {
+            CodyEmptyStateCard(
+                systemImage: isUnfiltered ? "cpu" : "magnifyingglass",
+                title: isUnfiltered ? "No models available" : "No results",
+                subtitle: isUnfiltered
+                    ? "Configure providers in Settings to see models here."
+                    : "Try a different search term."
+            )
+            .codyGroupedRow()
         }
     }
 
@@ -1599,25 +1696,13 @@ struct UnifiedModelPicker: View {
     @ViewBuilder
     private func providerDot(_ provider: String) -> some View {
         Circle()
-            .fill(providerColor(provider))
+            .fill(CodyProviderVisuals.tint(forProviderName: provider).color)
             .frame(width: 6, height: 6)
-    }
-
-    private func providerColor(_ provider: String) -> Color {
-        ModelEntry.providerTint(provider)
+            .accessibilityHidden(true)
     }
 
     private func modalityBadges(_ model: LLMModel) -> [String] {
-        let m = model.capabilities.supportedModalities
-        var badges: [String] = []
-        if m.contains(.imageInput)  { badges.append("img") }
-        if m.contains(.audioInput)  { badges.append("audio") }
-        if m.contains(.videoInput)  { badges.append("video") }
-        if m.contains(.pdfInput)    { badges.append("pdf") }
-        if m.contains(.imageOutput) { badges.append("img-out") }
-        if m.contains(.audioOutput) { badges.append("audio-out") }
-        if m.contains(.videoOutput) { badges.append("video-out") }
-        return badges
+        CodyProviderVisuals.modalityBadges(for: model)
     }
 
     private func toggleSelection(_ entryId: String) {

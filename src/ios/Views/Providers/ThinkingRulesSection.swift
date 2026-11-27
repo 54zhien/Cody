@@ -82,15 +82,18 @@ struct ThinkingRulesSection: View {
     /// explains that thinking parameters here are maintained by Cody by design.
     private var unsupportedNoticeSection: some View {
         Section {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: CodySpacing.sm) {
                 Image(systemName: "info.circle")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.iconSecondary)
+                    .accessibilityHidden(true)
                 Text("This provider uses an official protocol, so its thinking parameters are maintained by Cody. Custom rules apply to OpenAI-compatible providers on the Chat Completions API.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.sectionHeader)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
+            .codyGroupedRow()
         } header: {
             Text("Thinking Rules")
+                .codySectionHeaderText()
         }
     }
 
@@ -103,6 +106,7 @@ struct ThinkingRulesSection: View {
                     ruleRow(rule, isBuiltIn: false)
                 }
                 .buttonStyle(.plain)
+                .codyGroupedRow()
             }
             .onDelete(perform: deleteUserRules)
             .onMove(perform: moveUserRules)
@@ -117,49 +121,58 @@ struct ThinkingRulesSection: View {
                         ruleRow(rule, isBuiltIn: true)
                     }
                     .buttonStyle(.plain)
+                    .codyGroupedRow()
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Image(systemName: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.iconSecondary)
+                        .accessibilityHidden(true)
                     Text("Default rules")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     Text("\(builtInRules.count)")
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.15), in: Capsule())
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodySmall.monospacedDigit())
+                        .padding(.horizontal, CodySpacing.xsPlus)
+                        .padding(.vertical, CodySpacing.xxs)
+                        .background(CodyColors.bgSecondary, in: Capsule())
+                        .foregroundStyle(CodyColors.textSecondary)
                 }
             }
+            .codyGroupedRow()
 
             Button {
                 editorRequest = .init(rule: nil, isNew: true)
             } label: {
                 Label("Add Rule", systemImage: "plus.circle")
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textAccent)
             }
+            .codyGroupedRow()
         } header: {
             HStack {
                 Text("Thinking Rules")
+                    .codySectionHeaderText()
                 Spacer()
                 if !userRules.isEmpty {
-                    EditButton().font(.caption)
+                    EditButton().font(CodyTypography.bodySmall)
                 }
             }
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 Text("Rules are evaluated top to bottom. The first rule matching the model decides which thinking parameters are sent.")
                 if let hit = resolvedHitDescription() {
                     // Design §8.2 — the minimum useful trace: which rule actually wins for
                     // a real model. Without it the rule list is another hidden variable.
                     Label(hit, systemImage: "scope")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textAccent)
                 }
                 Text("Default rules are built in and cannot be deleted. Add a rule above them to override one.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
-            .font(.caption)
+            .font(CodyTypography.bodySmall)
         }
         .task(id: instanceId) {
             guard !didLoad else { return }
@@ -179,31 +192,33 @@ struct ThinkingRulesSection: View {
 
     @ViewBuilder
     private func ruleRow(_ rule: ThinkingRule, isBuiltIn: Bool) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+        HStack(spacing: CodySpacing.smPlus) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                HStack(spacing: CodySpacing.xsPlus) {
                     Text(rule.label)
-                        .font(isBuiltIn ? .callout : .body)
-                        .foregroundStyle(.primary)
+                        .font(isBuiltIn ? CodyTypography.bodyMedium : CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                     if isBuiltIn {
                         Image(systemName: "lock.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .font(CodyTypography.labelSmall)
+                            .foregroundStyle(CodyColors.iconTertiary)
+                            .accessibilityHidden(true)
                     }
                 }
                 Text(rule.scope.displayText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                 if let fmt = rule.wireFormat {
                     Text(fmt.displaySummary)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(CodyTypography.labelSmall)
+                        .foregroundStyle(CodyColors.textTertiary)
                 }
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
+                .foregroundStyle(CodyColors.iconDisclosure)
+                .accessibilityHidden(true)
         }
         .contentShape(Rectangle())
     }

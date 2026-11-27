@@ -23,28 +23,33 @@ struct ShadowVoiceProviderDetailView: View {
             Section {
                 LabeledContent {
                     Text(instance?.label ?? "—")
-                        .foregroundStyle(.secondary)
+                        .font(CodyTypography.bodyMedium)
+                        .foregroundStyle(CodyColors.textSecondary)
                 } label: {
-                    Label {
+                    HStack(spacing: CodySpacing.md) {
+                        CodySettingsIconBadge(systemImage: "key.fill", tint: .blue)
                         Text("Credential from", comment: "Shadow voice credential label")
-                    } icon: {
-                        styledIcon("key.fill", color: .blue)
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
                     }
                 }
+                .codyGroupedRow()
                 if let base = instance?.effectiveCustomBaseURL {
                     LabeledContent {
                         Text(base)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .font(CodyTypography.code)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     } label: {
-                        Label {
+                        HStack(spacing: CodySpacing.md) {
+                            CodySettingsIconBadge(systemImage: "link", tint: .blue)
                             Text("Endpoint", comment: "Shadow voice endpoint label")
-                        } icon: {
-                            styledIcon("link", color: .teal)
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
                         }
                     }
+                    .codyGroupedRow()
                 }
             } footer: {
                 Text("This voice service shares the API key and endpoint of its provider. To change them, edit that provider.",
@@ -52,18 +57,26 @@ struct ShadowVoiceProviderDetailView: View {
             }
 
             if let asr = shadow?.inputModels, !asr.isEmpty {
-                Section(AppLocalized("Speech to Text", comment: "ASR section")) {
+                Section {
                     ForEach(asr) { entry in
-                        modelRow(entry, systemImage: "waveform.and.mic", color: .purple)
+                        modelRow(entry, systemImage: "waveform.and.mic", tint: .purple)
+                            .codyGroupedRow()
                     }
+                } header: {
+                    Text(AppLocalized("Speech to Text", comment: "ASR section"))
+                        .codySectionHeaderText()
                 }
             }
 
             if let tts = shadow?.outputModels, !tts.isEmpty {
-                Section(AppLocalized("Text to Speech", comment: "TTS section")) {
+                Section {
                     ForEach(tts) { entry in
-                        modelRow(entry, systemImage: "speaker.wave.2.fill", color: .green)
+                        modelRow(entry, systemImage: "speaker.wave.2.fill", tint: .green)
+                            .codyGroupedRow()
                     }
+                } header: {
+                    Text(AppLocalized("Text to Speech", comment: "TTS section"))
+                        .codySectionHeaderText()
                 }
             }
 
@@ -73,12 +86,16 @@ struct ShadowVoiceProviderDetailView: View {
                     set: { store.setVoiceShadowDisabled(!$0, for: instanceId) }
                 )) {
                     Text("Show in Voice Services", comment: "Shadow voice enable toggle")
+                        .font(CodyTypography.bodyLarge)
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
+                .codyGroupedRow()
             } footer: {
                 Text("Turn off to hide this voice service. The provider's text models are unaffected.",
                      comment: "Shadow voice toggle note")
             }
         }
+        .codyGroupedListCanvas()
         .navigationTitle(shadow?.displayName ?? instance?.label ?? AppLocalized("Voice Service"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $quickTestEntry) { entry in
@@ -91,26 +108,20 @@ struct ShadowVoiceProviderDetailView: View {
         }
     }
 
-    private func styledIcon(_ systemName: String, color: Color) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 9))
-            .foregroundStyle(.white)
-            .frame(width: 21, height: 21)
-            .background(color, in: Circle())
-    }
-
-    private func modelRow(_ entry: ModelEntry, systemImage: String, color: Color) -> some View {
+    private func modelRow(_ entry: ModelEntry, systemImage: String, tint: CodyCategoryTint) -> some View {
         Button {
             quickTestEntry = entry
         } label: {
-            HStack(spacing: 10) {
-                styledIcon(systemImage, color: color)
+            HStack(spacing: CodySpacing.md) {
+                CodySettingsIconBadge(systemImage: systemImage, tint: tint)
                 Text(entry.baseModel.displayName)
-                    .foregroundStyle(ChatColors.primaryText)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
                 Spacer()
                 Image(systemName: "bolt.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyCategoryTint.orange.color)
+                    .accessibilityHidden(true)
             }
         }
     }
