@@ -76,6 +76,7 @@ struct NavBarStyleModifier: ViewModifier {
             // edge. Automatic content insets keep the first row below the bar.
             content
                 .ignoresSafeArea(.container, edges: .top)
+                .scrollEdgeEffectStyle(.soft, for: .top)
                 .modifier(MacOS27OpaqueNavigationBar(background: ChatColors.background))
         } else {
             // iOS 16–18: opaque navbar background

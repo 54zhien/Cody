@@ -1082,6 +1082,19 @@ final class MessageListViewController: UIViewController {
     var collectionView: UICollectionView!
     var messageListLayout: MessageListLayout!
 
+    /// Extra vertical distance below the navigation bar that Apple's native
+    /// iOS 26 `.soft` scroll-edge host covers (at least the default extension
+    /// below the top bar controls, expanding further if top banners are taller).
+    var topScrollEdgeExtensionHeight: CGFloat = CodyMetrics.Conversation.topFadeExtraHeight {
+        didSet {
+            guard abs(oldValue - topScrollEdgeExtensionHeight) > 0.5 else { return }
+            updateTopScrollEdgeHostFrame()
+        }
+    }
+
+    private var topScrollEdgeHostView: UIView?
+    private var topScrollEdgeHostSpacer: UIView?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
@@ -1110,6 +1123,63 @@ final class MessageListViewController: UIViewController {
         // 44x44pt HIG minimum so a normal tap lands on the button rather than
         // slipping onto the status bar above it.
         view.addSubview(collectionView)
+
+        installTopScrollEdgeHostIfAvailable()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateTopScrollEdgeHostFrame()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        updateTopScrollEdgeHostFrame()
+    }
+
+    /// Extends Apple's native iOS 26 `.soft` top scroll-edge effect past the
+    /// 44pt navigation bar into the band below the top controls by registering
+    /// a pass-through `UIScrollEdgeElementContainerInteraction` host view.
+    private func installTopScrollEdgeHostIfAvailable() {
+        guard #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive else { return }
+        collectionView.topEdgeEffect.style = .soft
+        collectionView.bottomEdgeEffect.isHidden = true
+        setContentScrollView(collectionView, for: .top)
+
+        let host = UIView(frame: .zero)
+        host.backgroundColor = .clear
+        host.isUserInteractionEnabled = false
+        host.accessibilityElementsHidden = true
+
+        // Keep a concrete non-empty child frame inside the container so UIKit's
+        // edge-element interaction tracks the extended top region reliably.
+        let spacer = UIView(frame: .zero)
+        spacer.backgroundColor = .clear
+        spacer.isUserInteractionEnabled = false
+        spacer.accessibilityElementsHidden = true
+        host.addSubview(spacer)
+
+        let interaction = UIScrollEdgeElementContainerInteraction()
+        interaction.scrollView = collectionView
+        interaction.edge = .top
+        host.addInteraction(interaction)
+
+        view.insertSubview(host, aboveSubview: collectionView)
+        topScrollEdgeHostView = host
+        topScrollEdgeHostSpacer = spacer
+        updateTopScrollEdgeHostFrame()
+    }
+
+    private func updateTopScrollEdgeHostFrame() {
+        guard let host = topScrollEdgeHostView else { return }
+        let extra = max(CodyMetrics.Conversation.topFadeExtraHeight, topScrollEdgeExtensionHeight)
+        let height = view.safeAreaInsets.top + extra
+        let frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: max(0, height))
+        if host.frame != frame {
+            host.frame = frame
+            topScrollEdgeHostSpacer?.frame = host.bounds
+        }
+        host.isHidden = frame.isEmpty
     }
 
     /// [RotationFix] Rotation handler — without this, on rotation the
