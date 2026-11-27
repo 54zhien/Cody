@@ -48,6 +48,10 @@ final class AppGroupChangeWatcher {
         started = true
 
         let fm = FileManager.default
+        guard fm.containerURL(forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID) != nil else {
+            logger.info("[FPWatcher] App Group container unavailable — skipping FileProvider directory watches")
+            return
+        }
         let roots: [(URL, String)] = [
             (AIChatViewModel.codySharedPersistentDir, "shared"),
             (AIChatViewModel.codySkillsPersistentDir, "skills"),

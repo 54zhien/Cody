@@ -13,11 +13,14 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
 
     /// Root directory for all FileProvider-visible files in the App Group container.
     static var providerRoot: URL {
-        let container = FileManager.default.containerURL(
+        let fm = FileManager.default
+        let container = fm.containerURL(
             forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody"
-        )!
+        ) ?? (fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+              ?? fm.urls(for: .libraryDirectory, in: .userDomainMask).first!)
+            .appendingPathComponent("CodyAppGroupFallback", isDirectory: true)
         let url = container.appendingPathComponent("CodyFileProvider", isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
 

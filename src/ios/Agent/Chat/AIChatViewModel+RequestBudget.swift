@@ -414,23 +414,37 @@ extension AIChatViewModel {
             .appendingPathComponent("browser", isDirectory: true)
     }
 
+    /// Resolved base directory for App Group storage. Uses the real App Group
+    /// container when the binary is entitled for `SharedContainerStore.appGroupID`,
+    /// and falls back to an app-sandbox persistent directory when sideloaded or
+    /// re-signed without that App Group entitlement (preventing a launch crash).
+    nonisolated static var resolvedAppGroupContainerURL: URL {
+        let fm = FileManager.default
+        if let container = fm.containerURL(
+            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
+        ) {
+            return container
+        }
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
+        let fallback = base.appendingPathComponent("CodyAppGroupFallback", isDirectory: true)
+        try? fm.createDirectory(at: fallback, withIntermediateDirectories: true)
+        return fallback
+    }
+
     /// App Group container root for FileProvider-visible directories.
     /// Everything under this path is exposed to iOS Files via the replicated
     /// FileProvider extension. Keep ONLY user-facing subdirs (shared, skills,
     /// memory) here — anything else leaks into "On My iPhone → Cody".
     nonisolated static var codyAppGroupRoot: URL {
-        FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("CodyFileProvider", isDirectory: true)
+        resolvedAppGroupContainerURL.appendingPathComponent("CodyFileProvider", isDirectory: true)
     }
 
     /// App Group subdirectory for private metadata that must NOT be exposed
     /// to iOS Files (mounted-folders.json, FileProvider extension logs, etc).
     /// Sibling of `codyAppGroupRoot` inside the same App Group container.
     nonisolated static var codyConfigRoot: URL {
-        let url = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("CodyConfig", isDirectory: true)
+        let url = resolvedAppGroupContainerURL.appendingPathComponent("CodyConfig", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

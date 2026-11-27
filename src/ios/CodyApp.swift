@@ -881,6 +881,11 @@ struct CodyApp: App {
             lifecycleLog.info("[FileProvider] cleaned up stale workingSet directory")
         }
 
+        guard fm.containerURL(forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID) != nil else {
+            lifecycleLog.warning("[FileProvider] App Group container '\(SharedContainerStore.appGroupID)' unavailable — skipping FileProvider domain registration (using local sandbox fallback)")
+            return
+        }
+
         let defaults = UserDefaults.standard
         let lastReset = defaults.integer(forKey: fileProviderResetKey)
         let needsForceReset = lastReset < fileProviderResetGeneration
@@ -1178,9 +1183,9 @@ struct CodyApp: App {
     private static func migrateSharedDirToAppGroup() {
         let fm = FileManager.default
         let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.imzhien.cody")!
+        let container = fm.containerURL(forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID)
 
-        let migrations: [(source: URL, dest: URL, label: String)] = [
+        var migrations: [(source: URL, dest: URL, label: String)] = [
             // Legacy Library/CodyChat/shared → new shared
             (library.appendingPathComponent("CodyChat/shared", isDirectory: true),
              AIChatViewModel.codySharedPersistentDir, "shared"),
@@ -1190,10 +1195,14 @@ struct CodyApp: App {
             // Legacy Library/CodyChat/skills → new skills
             (library.appendingPathComponent("CodyChat/skills", isDirectory: true),
              AIChatViewModel.codySkillsPersistentDir, "skills"),
-            // Old App Group CodyShared → new shared
-            (container.appendingPathComponent("CodyShared", isDirectory: true),
-             AIChatViewModel.codySharedPersistentDir, "CodyShared→shared"),
         ]
+        if let container {
+            // Old App Group CodyShared → new shared
+            migrations.append(
+                (container.appendingPathComponent("CodyShared", isDirectory: true),
+                 AIChatViewModel.codySharedPersistentDir, "CodyShared→shared")
+            )
+        }
 
         for migration in migrations {
             guard fm.fileExists(atPath: migration.source.path) else { continue }
