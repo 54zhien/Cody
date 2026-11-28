@@ -62,6 +62,7 @@ extension ContentView {
                                       ? CodyColors.interactiveSecondaryBg : .clear)
                                 .padding(.horizontal, isWideLayout ? CodySpacing.xsPlus : 0)
                         )
+                        .contentShape(.contextMenuPreview, Capsule())
                         .contextMenu {
                             Button {
                                 // [T-ios-state-publish-offmain-crash] @MainActor

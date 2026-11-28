@@ -72,9 +72,6 @@ struct SessionStackRow: View {
         }
         .buttonStyle(SessionRowPressStyle())
         .accessibilityAddTraits(isHighlighted ? .isSelected : [])
-        // Entry D: long-press then move drags the session id; the system
-        // arbitrates against .contextMenu on the same press.
-        .draggable(session.id)
         .overlay {
             if isRegeneratingTitle {
                 ProgressView()
@@ -86,6 +83,7 @@ struct SessionStackRow: View {
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+        .contentShape(.contextMenuPreview, Capsule())
         .contextMenu {
             // [T-ios-crash-contextmenu-uaf] Value-only menu view, no closure captures.
             SessionContextMenu(
@@ -126,7 +124,6 @@ struct SessionSplitRow: View {
             matchSnippet: matchSnippet
         )
         .equatable()
-        .draggable(session.id)
         .overlay {
             if isRegeneratingTitle {
                 ZStack {
@@ -137,6 +134,7 @@ struct SessionSplitRow: View {
         }
         // [T-ios-selected-session-contextmenu] On the row CONTENT, below the
         // selection layer, so it fires on the selected row too (GH#30).
+        .contentShape(.contextMenuPreview, Capsule())
         .contextMenu {
             if let menuSid {
                 SessionContextMenu(
@@ -199,7 +197,7 @@ struct SessionRowPressStyle: ButtonStyle {
             .contentShape(Rectangle())
             .background {
                 if configuration.isPressed {
-                    RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                    Capsule()
                         .fill(CodyColors.bgSecondary)
                         .padding(.horizontal, CodySpacing.xsPlus)
                         .allowsHitTesting(false)
