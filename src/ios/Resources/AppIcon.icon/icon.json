@@ -6,7 +6,7 @@
           "glass": true,
           "hidden": false,
           "image-name": "LadySerene-Light.svg",
-          "name": "Lady Serene",
+          "name": "Lady Serene (Light)",
           "position": {
             "scale": 1,
             "translation-in-points": [
@@ -15,10 +15,50 @@
             ]
           },
           "opacity": 1,
-          "image-name-specializations": [
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.14509804,0.13725490,0.15686275,1.00000000"
+              }
+            },
             {
               "appearance": "dark",
-              "value": "LadySerene-Dark.svg"
+              "value": {
+                "solid": "srgb:0.14509804,0.13725490,0.15686275,1.00000000"
+              }
+            }
+          ],
+          "hidden-specializations": [
+            {
+              "appearance": "dark",
+              "value": true
+            }
+          ]
+        },
+        {
+          "glass": true,
+          "hidden": true,
+          "image-name": "LadySerene-Dark.svg",
+          "name": "Lady Serene (Dark)",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "opacity": 1,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:1.00000000,1.00000000,1.00000000,1.00000000"
+              }
+            }
+          ],
+          "hidden-specializations": [
+            {
+              "appearance": "dark",
+              "value": false
             }
           ]
         }

@@ -6,7 +6,7 @@
           "glass": true,
           "hidden": false,
           "image-name": "LadySerene-Dark.svg",
-          "name": "Lady Serene",
+          "name": "Lady Serene (Dark)",
           "position": {
             "scale": 1,
             "translation-in-points": [
@@ -14,7 +14,20 @@
               0
             ]
           },
-          "opacity": 1
+          "opacity": 1,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:1.00000000,1.00000000,1.00000000,1.00000000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:1.00000000,1.00000000,1.00000000,1.00000000"
+              }
+            }
+          ]
         }
       ],
       "shadow": {
