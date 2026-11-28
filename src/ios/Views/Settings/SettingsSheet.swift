@@ -3,7 +3,7 @@
 //  Cody - home screen (session list, navigation, settings entry)
 //
 //  The settings screen presented from the home toolbar: its navigation
-//  destinations and the top-level list linking to every settings page.
+//  destinations and the top-level cards linking to every settings page.
 //
 //  Map of the ContentView files: ContentView/ContentView.swift.
 //
@@ -43,332 +43,22 @@ struct SettingsSheet: View {
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
+    @ObservedObject private var providers = ProviderConfigStore.shared
+    @State private var soul = SoulStore.cachedMetadata
     @State private var navPath = NavigationPath()
     @State private var showFeedbackDialog = false
 
     var body: some View {
         NavigationStack(path: $navPath) {
-            List {
-                Section {
-                    NavigationLink {
-                        ProviderInstancesView()
-                    } label: {
-                        Label {
-                            Text("Manage Providers")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "key", tint: .blue)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-
-                    NavigationLink {
-                        ModelGroupsView()
-                    } label: {
-                        Label {
-                            Text("Model Groups")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "gearshape", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-
-                    NavigationLink {
-                        UsageStatsView()
-                    } label: {
-                        Label {
-                            Text("Token Usage")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "chart.line.uptrend.xyaxis", tint: .green)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                } header: {
-                    Text("LLM Providers")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("Configure which models the agent uses, manage API keys & OAuth for each provider, and create model groups for fallback or load balancing.")
-                        .settingsSectionFooter()
-                }
-
-                Section {
-                    NavigationLink {
-                        AppearanceSettingsView()
-                    } label: {
-                        Label {
-                            Text("Appearance")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "paintbrush.fill", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                } header: {
-                    Text("Appearance")
-                        .settingsSectionHeading()
-                }
-
-                Section {
-                    // [T-tools-granular-switches] First row: per-tool switches.
-                    NavigationLink {
-                        ToolsSettingsView()
-                    } label: {
-                        Label {
-                            Text(AppLocalized("Agent Tools"))
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "wrench.and.screwdriver.fill", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    // [T-sub-agents-v1] Directly under Agent Tools: the two pages
-                    // are the tool surface (which tools exist) and the delegation
-                    // surface (who runs a delegated task), so they read as a pair.
-                    NavigationLink {
-                        HelperSettingsView()
-                    } label: {
-                        Label {
-                            Text(AppLocalized("Sub Agents"))
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: HelperAccent.glyph, tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        SkillsManagementView()
-                    } label: {
-                        Label {
-                            Text("Skills")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "puzzlepiece.extension", tint: .blue)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        SoulSettingsView()
-                    } label: {
-                        Label {
-                            Text("Soul")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "sparkles", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        MemoryManagementView()
-                    } label: {
-                        Label {
-                            Text("Memory")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "brain.head.profile", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        MCPIntegrationsView()
-                    } label: {
-                        Label {
-                            Text("MCP Integrations")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "square.stack.3d.up", tint: .green)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        EnvironmentVariablesView()
-                    } label: {
-                        Label {
-                            Text("Environment Variables")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "terminal", tint: .green)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                } header: {
-                    Text("Agent Runtime")
-                        .settingsSectionHeading()
-                }
-
-                Section {
-                    NavigationLink {
-                        StorageManagementView()
-                    } label: {
-                        Label {
-                            Text("Storage")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "archivebox", tint: .blue)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        SharedFoldersSettingsView()
-                    } label: {
-                        Label {
-                            Text("Shared Folders")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "folder.fill.badge.person.crop", tint: .green)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    NavigationLink {
-                        MountedFoldersSettingsView()
-                    } label: {
-                        Label {
-                            Text("Mount External Folders")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "externaldrive.badge.plus", tint: .orange)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    if #available(iOS 17.0, *) {
-                        NavigationLink {
-                            // v2 is the default sync engine; legacy v1
-                            // settings page is unreachable from here.
-                            CloudSyncSettingsV2View()
-                        } label: {
-                            Label {
-                                Text("iCloud Sync")
-                            } icon: {
-                                CodySettingsIconBadge(systemImage: "icloud", tint: .blue)
-                            }
-                            .settingsNavigationLabel()
-                        }
-                        .settingsNavigationRow()
-                    }
-                    NavigationLink {
-                        BackupAndRestoreView()
-                    } label: {
-                        Label {
-                            // Not just "Backup": this screen is both halves of
-                            // the feature, and on a new device restore is the
-                            // only one the user is looking for.
-                            Text("Backup & Restore")
-                        } icon: {
-                            // arrow.triangle.2.circlepath reads as a round trip
-                            // rather than a one-way export.
-                            CodySettingsIconBadge(systemImage: "arrow.triangle.2.circlepath", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                } header: {
-                    Text("Storage")
-                        .settingsSectionHeading()
-                }
-
-                Section {
-                    NavigationLink {
-                        OffloadPermissionSettingsView()
-                    } label: {
-                        Label {
-                            Text("Permissions")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "lock.shield", tint: .red)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    if BiometricAuth.isAvailable {
-                        NavigationLink {
-                            FaceIDProtectionSettingsView()
-                        } label: {
-                            Label {
-                                Text("\(BiometricAuth.biometryDisplayName) Protection")
-                            } icon: {
-                                // Match SF Symbol to the device's actual sensor — Touch ID
-                                // devices showed a Face ID glyph here before.
-                                CodySettingsIconBadge(systemImage: BiometricAuth.biometryIconName, tint: .green)
-                            }
-                            .settingsNavigationLabel()
-                        }
-                        .settingsNavigationRow()
-                    }
-                } header: {
-                    Text("Permissions")
-                        .settingsSectionHeading()
-                }
-
-                Section {
-                    NavigationLink {
-                        LogManagementView()
-                    } label: {
-                        Label {
-                            Text("Logs")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "doc.text", tint: .neutral)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                } header: {
-                    Text("Logs")
-                        .settingsSectionHeading()
-                }
-
-                Section {
-                    NavigationLink {
-                        AboutView()
-                    } label: {
-                        Label {
-                            Text("About Cody")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "info", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    Link(destination: URL(string: "https://54zhien.github.io/Cody/privacy-policy.html")!) {
-                        Label {
-                            Text("Privacy Policy")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "hand.raised", tint: .green)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    Button {
-                        showFeedbackDialog = true
-                    } label: {
-                        Label {
-                            Text("Feedback")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "bubble.left.and.bubble.right.fill", tint: .purple)
-                        }
-                        .settingsNavigationLabel()
-                    }
-                    .settingsNavigationRow()
-                    .buttonStyle(CodyPressableButtonStyle())
-                    .confirmationDialog("Feedback", isPresented: $showFeedbackDialog, titleVisibility: .visible) {
-                        Button("Report a Bug (GitHub)") {
-                            if let url = Self.makeBugReportURL() { UIApplication.shared.open(url) }
-                        }
-                        Button("Feedback (Telegram)") {
-                            if let url = URL(string: "https://t.me/+2NzhOJuzRyI1YmM1") { UIApplication.shared.open(url) }
-                        }
-                        Button("Feedback (Email)") {
-                            if let url = Self.makeFeedbackEmailURL() { UIApplication.shared.open(url) }
-                        }
-                        Button("Cancel", role: .cancel) {}
-                    }
-                } header: {
-                    Text("About")
-                        .settingsSectionHeading()
-                }
-
+            CodySettingsScrollPage {
+                profileCard
+                modelsSection
+                capabilitiesSection
+                dataSection
+                preferencesSection
+                diagnosticsSection
+                aboutSection
             }
-            .listStyle(.insetGrouped)
-            .settingsGroupedCanvas()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -456,12 +146,198 @@ struct SettingsSheet: View {
                     }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
+                soul = SoulStore.cachedMetadata
+            }
             .onChange(of: deepLink.pendingSettingsTarget) { _ in
                 applyPendingDeepLink()
             }
         }
         .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
         .appFontScale()
+    }
+
+    private var profileCard: some View {
+        CodySettingsProfileCard(name: soul.name.isEmpty ? "Cody" : soul.name, subtitle: modelSummary) {
+            SoulIconView(icon: soul.icon, size: SoulIconImage.renderPoints)
+                .accessibilityHidden(true)
+        } destination: {
+            SoulSettingsView()
+        }
+        .accessibilityHint(Text("Opens Soul settings"))
+    }
+
+    private var modelSummary: String {
+        guard let groupID = providers.defaultPrimaryGroupId,
+              let group = providers.group(for: groupID) else {
+            return AppLocalized("No model configured")
+        }
+        let available = group.memberEntryIds.compactMap { id -> (ModelEntry, ProviderInstance)? in
+            guard let entry = providers.entry(for: id), !entry.isHidden,
+                  let provider = providers.instance(for: entry.providerInstanceId),
+                  provider.isEnabled, provider.hasAnyCredential else { return nil }
+            return (entry, provider)
+        }
+        guard let (entry, provider) = available.first,
+              group.strategy == .fallback || available.count == 1 else { return group.name }
+        return "\(provider.label) · \(entry.model.displayName)"
+    }
+
+    private var modelsSection: some View {
+        CodySettingsNovaSection(
+            "Models & Usage",
+            footer: "Configure which models the agent uses, manage API keys & OAuth for each provider, and create model groups for fallback or load balancing."
+        ) {
+            CodySettingsNovaNavRow("Manage Providers", systemImage: "key", tint: .blue) {
+                value(Text(providers.instances.count, format: .number))
+                    .accessibilityLabel(Text("\(providers.instances.count) providers"))
+            } destination: {
+                ProviderInstancesView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Model Groups", systemImage: "gearshape", tint: .purple) {
+                ModelGroupsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Token Usage", systemImage: "chart.line.uptrend.xyaxis", tint: .green) {
+                UsageStatsView()
+            }
+        }
+    }
+
+    private var capabilitiesSection: some View {
+        CodySettingsNovaSection("Agent & Capabilities") {
+            CodySettingsNovaNavRow("Agent Tools", systemImage: "wrench.and.screwdriver.fill", tint: .purple) {
+                ToolsSettingsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Sub Agents", systemImage: HelperAccent.glyph, tint: .purple) {
+                HelperSettingsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Skills", systemImage: "puzzlepiece.extension", tint: .blue) {
+                SkillsManagementView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Memory", systemImage: "brain.head.profile", tint: .purple) {
+                MemoryManagementView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("MCP Integrations", systemImage: "square.stack.3d.up", tint: .green) {
+                MCPIntegrationsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Environment Variables", systemImage: "terminal", tint: .green) {
+                EnvironmentVariablesView()
+            }
+        }
+    }
+
+    private var dataSection: some View {
+        CodySettingsNovaSection("Data & Sync") {
+            if #available(iOS 17.0, *) {
+                CodySettingsNovaNavRow("iCloud Sync", systemImage: "icloud", tint: .blue) {
+                    CloudSyncSettingsV2View()
+                }
+                CodySettingsNovaDivider()
+            }
+            CodySettingsNovaNavRow("Backup & Restore", systemImage: "arrow.triangle.2.circlepath", tint: .purple) {
+                BackupAndRestoreView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Storage", systemImage: "archivebox", tint: .blue) {
+                StorageManagementView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Shared Folders", systemImage: "folder.fill.badge.person.crop", tint: .green) {
+                SharedFoldersSettingsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Mount External Folders", systemImage: "externaldrive.badge.plus", tint: .orange) {
+                MountedFoldersSettingsView()
+            }
+        }
+    }
+
+    private var preferencesSection: some View {
+        CodySettingsNovaSection("Preferences") {
+            CodySettingsNovaNavRow("Appearance", systemImage: "paintbrush.fill", tint: .purple) {
+                value(Text(appearanceLabel))
+            } destination: {
+                AppearanceSettingsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Background & Awake", systemImage: "moon.zzz", tint: .blue) {
+                EnhancedBackgroundSettingsView()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Permissions", systemImage: "lock.shield", tint: .red) {
+                OffloadPermissionSettingsView()
+            }
+        }
+    }
+
+    private var diagnosticsSection: some View {
+        CodySettingsNovaSection("System & Diagnostics") {
+            CodySettingsNovaActionRow("Linux Terminal", systemImage: "terminal", tint: .neutral) {
+                showTerminal = true
+                dismiss()
+            }
+            CodySettingsNovaDivider()
+            CodySettingsNovaNavRow("Diagnostic Logs", systemImage: "doc.text", tint: .neutral) {
+                LogManagementView()
+            }
+        }
+    }
+
+    private var aboutSection: some View {
+        CodySettingsNovaSection("About") {
+            CodySettingsNovaNavRow("About Cody", systemImage: "info", tint: .purple) {
+                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                    value(Text(version))
+                }
+            } destination: {
+                AboutView()
+            }
+            CodySettingsNovaDivider()
+            Link(destination: URL(string: "https://54zhien.github.io/Cody/privacy-policy.html")!) {
+                CodySettingsNovaRowContent(title: "Privacy Policy", subtitle: nil, systemImage: "hand.raised", tint: .green) {
+                    EmptyView()
+                }
+            }
+            .buttonStyle(CodyPressableButtonStyle())
+            CodySettingsNovaDivider()
+            CodySettingsNovaActionRow("Feedback", systemImage: "bubble.left.and.bubble.right.fill", tint: .purple) {
+                showFeedbackDialog = true
+            }
+            .confirmationDialog("Feedback", isPresented: $showFeedbackDialog, titleVisibility: .visible) {
+                Button("Report a Bug (GitHub)") {
+                    if let url = Self.makeBugReportURL() { UIApplication.shared.open(url) }
+                }
+                Button("Feedback (Telegram)") {
+                    if let url = URL(string: "https://t.me/+2NzhOJuzRyI1YmM1") { UIApplication.shared.open(url) }
+                }
+                Button("Feedback (Email)") {
+                    if let url = Self.makeFeedbackEmailURL() { UIApplication.shared.open(url) }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+        }
+    }
+
+    private var appearanceLabel: LocalizedStringKey {
+        switch appearanceMode {
+        case 1: "Light"
+        case 2: "Dark"
+        default: "System"
+        }
+    }
+
+    private func value(_ text: Text) -> some View {
+        text
+            .font(CodyTypography.bodySmall)
+            .foregroundStyle(CodyColors.textSecondary)
+            .multilineTextAlignment(.trailing)
     }
 
     /// Translate `DeepLinkCoordinator.pendingSettingsTarget` into a
@@ -630,27 +506,36 @@ struct SettingsSheet: View {
     }
 }
 
-private extension View {
-    func settingsNavigationRow() -> some View {
+extension View {
+    /// Inset a native control or custom label inside a Nova section.
+    func settingsNovaControlRow(minHeight: CGFloat = CodyMetrics.Settings.rowMinHeight) -> some View {
         self
-            .listRowInsets(EdgeInsets(
-                top: 0, leading: CodyMetrics.Settings.rowPaddingH,
-                bottom: 0, trailing: CodyMetrics.Settings.rowPaddingH
-            ))
-            .listRowSeparator(.hidden)
-            .settingsRowSurface()
-    }
-
-    func settingsNavigationLabel() -> some View {
-        self
+            .padding(.horizontal, CodyMetrics.Settings.rowPaddingH)
+            .padding(.vertical, CodySpacing.sm)
             .font(CodyTypography.bodyLarge)
-            .foregroundStyle(CodyColors.textPrimary)
-            .frame(maxWidth: .infinity, minHeight: CodyMetrics.Settings.rowMinHeight, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
             .contentShape(Rectangle())
     }
-}
 
-extension View {
+    /// Card surface for rows that still need SwiftUI's native List gestures.
+    func settingsNovaListCardRow(minHeight: CGFloat = CodyMetrics.Settings.rowMinHeight) -> some View {
+        CodySettingsNovaSection {
+            settingsNovaControlRow(minHeight: minHeight)
+        }
+        .listRowInsets(EdgeInsets(top: CodySpacing.xs, leading: CodySpacing.lg,
+                                 bottom: CodySpacing.xs, trailing: CodySpacing.lg))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+
+    func settingsNovaFooter() -> some View {
+        self
+            .font(CodyTypography.bodySmall)
+            .foregroundStyle(CodyColors.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
+    }
+
     func settingsGroupedCanvas() -> some View {
         self
             .scrollContentBackground(.hidden)
@@ -678,6 +563,22 @@ extension View {
 
     func settingsRowSurface() -> some View {
         listRowBackground(CodyColors.bgGroupedSurface)
+    }
+}
+
+struct SettingsNovaRowMenu<Actions: View>: View {
+    let title: LocalizedStringKey
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        Menu(content: actions) {
+            Image(systemName: "ellipsis")
+                .font(CodyTypography.titleMedium)
+                .foregroundStyle(CodyColors.iconSecondary)
+                .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text(title))
     }
 }
 

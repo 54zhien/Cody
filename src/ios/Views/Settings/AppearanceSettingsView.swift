@@ -208,12 +208,6 @@ struct AppearanceSettingsView: View {
     @AppStorage("toolPreviewEnabled") private var toolPreviewEnabled: Bool = true
     /// 0 = Return inserts a newline (default), 1 = Return sends the message.
     @AppStorage("returnKeyBehavior") private var returnKeyBehavior: Int = 0
-    /// When true, holds `UIApplication.isIdleTimerDisabled` while any session
-    /// is running a task. See `KeepScreenAwakeController`.
-    @AppStorage("keepScreenAwakeDuringTasks") private var keepScreenAwakeDuringTasks: Bool = false
-    /// [T-always-on-idle-setting] Screen Saver: seconds without a touch before
-    /// the black screen, 0 = Off (default). See `AlwaysOnController.idleDelay`.
-    @AppStorage(AlwaysOnController.idleSecondsKey) private var alwaysOnIdleSeconds: Int = 0
     /// [T-keyboard-auto-pop default flip] When true, the input field becomes
     /// the first responder ~1.5 s after the model finishes a reply (the
     /// historical behavior). ON by default — most users want the composer
@@ -233,6 +227,7 @@ struct AppearanceSettingsView: View {
     /// [T-fold-consecutive-tools] Mirrors `ToolFoldPlanner.settingsKey`.
     @AppStorage("chat.foldConsecutiveTools") private var foldConsecutiveTools: Bool = false
     @ObservedObject private var fontSettings = FontSettings.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let iconOptions: [AppIconOption] = [
         AppIconOption(id: 0, title: "Automatic", subtitle: "Follows system", iconName: nil, imageName: "AlternateIcons/AppIcon-Light"),
@@ -241,6 +236,278 @@ struct AppearanceSettingsView: View {
         AppIconOption(id: 3, title: "Light (Legacy)", subtitle: "Classic light icon", iconName: "AppIcon-LegacyLight", imageName: "AlternateIcons/AppIcon-LegacyLight"),
         AppIconOption(id: 4, title: "Dark (Legacy)", subtitle: "Classic dark icon", iconName: "AppIcon-LegacyDark", imageName: "AlternateIcons/AppIcon-LegacyDark"),
     ]
+
+    var body: some View {
+        CodySettingsScrollPage {
+            themeSection
+            if UIApplication.shared.supportsAlternateIcons {
+                iconSection
+            }
+            languageSection
+            fontSection
+            launchSection
+            chatSections
+            SettingsKeepAwakeSection()
+        }
+        .navigationTitle("Appearance")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(InteractivePopGestureDisabler())
+    }
+
+    private var themeSection: some View {
+        CodySettingsNovaSection("Theme", footer: "Override the system appearance for this app.") {
+            if dynamicTypeSize.isAccessibilitySize {
+                themePicker
+                    .pickerStyle(.menu)
+                    .settingsNovaControlRow()
+            } else {
+                themePicker
+                    .pickerStyle(.segmented)
+                    .settingsNovaControlRow()
+            }
+        }
+        .onChange(of: appearanceMode) { _ in
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+            windowScene.windows.forEach { window in
+                window.overrideUserInterfaceStyle = appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : .unspecified
+            }
+        }
+    }
+
+    private var themePicker: some View {
+        Picker("Theme", selection: $appearanceMode) {
+            Text("System").tag(0)
+            Text("Light").tag(1)
+            Text("Dark").tag(2)
+        }
+    }
+
+    private var iconSection: some View {
+        CodySettingsNovaSection(
+            "App Icon",
+            footer: "\"Automatic\" uses the system icon which adapts to Dark Mode on iOS 18+."
+        ) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: CodySpacing.sm) {
+                    ForEach(iconOptions) { option in
+                        iconButton(option)
+                    }
+                }
+                .padding(CodySpacing.lg)
+            }
+        }
+    }
+
+    private func iconButton(_ option: AppIconOption) -> some View {
+        let isSelected = appIconMode == option.id
+        let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+        return Button {
+            guard !isSelected else { return }
+            appIconMode = option.id
+            UIApplication.shared.setAlternateIconName(option.iconName) { error in
+                if let error {
+                    print("[AppIcon] Failed to set icon: \(error.localizedDescription)")
+                }
+            }
+        } label: {
+            VStack(spacing: CodySpacing.xs) {
+                if let image = UIImage(named: option.imageName) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: CodySpacing.s56, height: CodySpacing.s56)
+                        .clipShape(shape)
+                        .accessibilityHidden(true)
+                }
+                Text(LocalizedStringKey(option.title))
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
+                Text(LocalizedStringKey(option.subtitle))
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+            }
+            .multilineTextAlignment(.center)
+            .padding(CodySpacing.md)
+            .frame(minWidth: 112)
+            .background(isSelected ? CodyColors.interactiveSecondaryBg : Color.clear, in: shape)
+            .overlay {
+                shape.strokeBorder(isSelected ? CodyColors.iconAccent : CodyColors.borderLight, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(CodyTypography.labelMedium)
+                        .foregroundStyle(CodyColors.iconAccent)
+                        .padding(CodySpacing.sm)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityElement(children: .combine)
+    }
+
+    private var languageSection: some View {
+        CodySettingsNovaSection(
+            "Language",
+            footer: "Override the display language for this app. \"System\" follows your device language."
+        ) {
+            Menu {
+                Picker("Language", selection: Binding(get: { appLanguage }, set: changeLanguage)) {
+                    ForEach(supportedLanguages) { lang in
+                        if lang.flag.isEmpty {
+                            Text("System").tag(lang.id)
+                        } else {
+                            Text("\(lang.flag) \(lang.name)").tag(lang.id)
+                        }
+                    }
+                }
+            } label: {
+                CodySettingsNovaRowContent(title: "Language", subtitle: nil, systemImage: "globe", tint: .neutral) {
+                    Text(languageLabel)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
+                }
+            }
+            .buttonStyle(CodyPressableButtonStyle())
+        }
+    }
+
+    private var languageLabel: String {
+        guard let language = supportedLanguages.first(where: { $0.id == appLanguage }),
+              !language.id.isEmpty else { return AppLocalized("System") }
+        return language.name
+    }
+
+    private func changeLanguage(_ id: String) {
+        guard appLanguage != id else { return }
+        // Save the return destination and keep active agents alive across the root language remount.
+        UserDefaults.standard.set("appearance", forKey: "pendingSettingsReopen")
+        ViewModelCache.shared.suspendAllForTreeRemount()
+        appLanguage = id
+        Bundle.setLanguage(id.isEmpty ? nil : id)
+    }
+
+    private var fontSection: some View {
+        CodySettingsNovaSection(
+            "Font Size",
+            footer: "Scale fonts for chat input, message content, and general app text. Changes apply immediately."
+        ) {
+            FontScaleRow(label: "Chat Input", level: $fontSettings.chatInputScale)
+                .settingsNovaControlRow()
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            FontScaleRow(label: "Message Text", level: $fontSettings.messageBaseScale)
+                .settingsNovaControlRow()
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            FontScaleRow(label: "App Base", level: $fontSettings.appBaseScale)
+                .settingsNovaControlRow()
+            if fontSettings.isModified {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaActionRow("Reset to Defaults", isDestructive: true) {
+                    fontSettings.resetToDefaults()
+                }
+            }
+        }
+    }
+
+    private var launchSection: some View {
+        CodySettingsNovaSection(
+            "Launch Session",
+            footer: "Choose what to show when the app starts. \"Auto\" opens a new chat if the last session is older than 15 minutes."
+        ) {
+            Picker("Launch Session", selection: $launchScreen) {
+                Text("Auto").tag(0)
+                Text("Last Session").tag(1)
+                Text("New Chat").tag(2)
+                Text("Home").tag(3)
+            }
+            .pickerStyle(.menu)
+            .settingsNovaControlRow()
+        }
+    }
+
+    @ViewBuilder
+    private var chatSections: some View {
+        CodySettingsNovaSection(
+            "Grouping",
+            footer: "When a chat's title is first generated, also file it into a matching existing group. Runs once per chat, only uses groups you already created, and leaves the chat ungrouped when nothing matches."
+        ) {
+            Toggle("Auto-Grouping", isOn: autoGroupingBinding)
+                .settingsNovaControlRow()
+        }
+
+        CodySettingsNovaSection(
+            "Return Key",
+            footer: "Choose whether the Return key in the chat input inserts a newline or sends the message. Hardware Shift+Return always inserts a newline."
+        ) {
+            Picker(AppLocalized("Return Key"), selection: $returnKeyBehavior) {
+                Text(AppLocalized("Newline")).tag(0)
+                Text(AppLocalized("Send")).tag(1)
+            }
+            .pickerStyle(.segmented)
+            .settingsNovaControlRow()
+        }
+
+        CodySettingsNovaSection("Chat Display") {
+            displayToggle(description: "When on, the keyboard pops up automatically after the model finishes replying so the input is ready for a follow-up. On by default; turn off if you prefer to read the response without an unexpected keyboard.") {
+                Toggle(AppLocalized("Auto-Focus Input After Reply"), isOn: $autoFocusAfterReply)
+            }
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            displayToggle(description: "Ask for confirmation when you tap the stop button while a task is running, so an accidental tap does not end a long run. Off by default. You can also long-press the stop button to switch.") {
+                Toggle(AppLocalized("Confirm Before Stopping"), isOn: $confirmBeforeStopping)
+            }
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            displayToggle(description: "Show a live preview thumbnail alongside the tool status bar during agent execution.") {
+                Toggle(AppLocalized("Tool Preview Window"), isOn: $toolPreviewEnabled)
+            }
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            displayToggle(description: "When on, a new thinking block expands automatically while the model is reasoning and collapses when it finishes. When off, thinking blocks stay collapsed — tap one to read it.") {
+                Toggle(AppLocalized("Expand Thinking While Streaming"), isOn: $autoExpandThinking)
+            }
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            displayToggle(description: "Consecutive tool calls are shown as one line. Tap it to see each call.") {
+                Toggle(AppLocalized("Fold Consecutive Tool Calls"), isOn: $foldConsecutiveTools)
+                    .onChange(of: foldConsecutiveTools) { _ in
+                        NotificationCenter.default.post(name: .messageListNeedsResnapshot, object: nil)
+                    }
+            }
+        }
+    }
+
+    private func displayToggle<Control: View>(
+        description: LocalizedStringKey,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
+            control()
+            Text(description)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
+        }
+        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+    }
+
+    /// UserDefaults-backed binding (not @AppStorage: the key is read at
+    /// title-generation time in AIChatViewModel, so a plain defaults write is
+    /// the single source of truth).
+    private var autoGroupingBinding: Binding<Bool> {
+        Binding(
+            get: { UserDefaults.standard.bool(forKey: "autoGroupingEnabled") },
+            set: { UserDefaults.standard.set($0, forKey: "autoGroupingEnabled") }
+        )
+    }
+}
+
+struct SettingsKeepAwakeSection: View {
+    /// When true, holds `UIApplication.isIdleTimerDisabled` while any session
+    /// is running a task. See `KeepScreenAwakeController`.
+    @AppStorage("keepScreenAwakeDuringTasks") private var keepScreenAwakeDuringTasks: Bool = false
+    /// [T-always-on-idle-setting] Screen Saver: seconds without a touch before
+    /// the black screen, 0 = Off (default). See `AlwaysOnController.idleDelay`.
+    @AppStorage(AlwaysOnController.idleSecondsKey) private var alwaysOnIdleSeconds: Int = 0
 
     /// Settings' choices, plus a value set from `cody-config` that is not one
     /// of them, so the picker never shows an empty selection.
@@ -261,338 +528,29 @@ struct AppearanceSettingsView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                Picker("Theme", selection: $appearanceMode) {
-                    Text("System").tag(0)
-                    Text("Light").tag(1)
-                    Text("Dark").tag(2)
-                }
-                .pickerStyle(.segmented)
-                    .settingsRowSurface()
-            } header: {
-                Text("Theme")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Override the system appearance for this app.")
-                    .settingsSectionFooter()
-            }
-            .onChange(of: appearanceMode) { _ in
-                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-                windowScene.windows.forEach { window in
-                    window.overrideUserInterfaceStyle = appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : .unspecified
-                }
-            }
-
-            Section {
-                Picker("Launch Session", selection: $launchScreen) {
-                    Text("Auto").tag(0)
-                    Text("Last Session").tag(1)
-                    Text("New Chat").tag(2)
-                    Text("Home").tag(3)
-                }
-                    .settingsRowSurface()
-            } header: {
-                Text("Launch Session")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Choose what to show when the app starts. \"Auto\" opens a new chat if the last session is older than 15 minutes.")
-                    .settingsSectionFooter()
-            }
-
-            // Auto-grouping default is OFF on principle: it costs nothing
-            // extra (it rides the title-generation call), but it moves user
-            // data without being asked — a behavior the user must opt into.
-            // No pendingSettingsReopen dance here: that exists only because
-            // appLanguage rebuilds the root via .id(); a plain toggle has no
-            // such side effect.
-            Section {
-                Toggle("Auto-Grouping", isOn: autoGroupingBinding)
-                    .settingsRowSurface()
-            } header: {
-                Text("Grouping")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("When a chat's title is first generated, also file it into a matching existing group. Runs once per chat, only uses groups you already created, and leaves the chat ungrouped when nothing matches.")
-                    .settingsSectionFooter()
-            }
-
-            Section {
-                Picker(AppLocalized("Return Key"), selection: $returnKeyBehavior) {
-                    Text(AppLocalized("Newline")).tag(0)
-                    Text(AppLocalized("Send")).tag(1)
-                }
-                .pickerStyle(.segmented)
-                    .settingsRowSurface()
-            } header: {
-                Text("Return Key")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Choose whether the Return key in the chat input inserts a newline or sends the message. Hardware Shift+Return always inserts a newline.")
-                    .settingsSectionFooter()
-            }
-
-            Section {
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            CodySettingsNovaSection("Keep Screen Awake") {
                 Toggle(AppLocalized("Keep Screen Awake"), isOn: $keepScreenAwakeDuringTasks)
-                    .settingsRowSurface()
-                // [T-always-on-idle-setting] One picker instead of a toggle plus a
-                // duration: "Off" is the toggle. Shown only with the switch on —
-                // it has no effect otherwise (a chat's … menu override still
-                // uses it, which the footer says).
+                    .settingsNovaControlRow()
                 if keepScreenAwakeDuringTasks {
                     Picker(AppLocalized("Screen Saver"), selection: $alwaysOnIdleSeconds) {
                         ForEach(screenSaverChoices, id: \.self) { seconds in
                             Text(Self.screenSaverLabel(seconds)).tag(seconds)
                         }
                     }
-                        .settingsRowSurface()
-                }
-            } header: {
-                Text("Keep Screen Awake")
-                    .settingsSectionHeading()
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Prevent the screen from sleeping while any session is running a task. May increase battery drain.")
-                    // [T-always-on] Kept as a second line so the sentence above
-                    // keeps its existing translations.
-                    Text("Screen Saver: after the chosen time without a touch, the chat on screen turns black and shows only the current step; tap anywhere to return. Staying in the foreground helps tasks run faster. Use “Keep Screen On” in a chat's … menu to turn it on or off for that chat only.")
-                }
-                    .settingsSectionFooter()
-            }
-
-            Section {
-                Toggle(AppLocalized("Auto-Focus Input After Reply"), isOn: $autoFocusAfterReply)
-                    .settingsRowSurface()
-            } header: {
-                Text("Auto-Focus Input After Reply")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("When on, the keyboard pops up automatically after the model finishes replying so the input is ready for a follow-up. On by default; turn off if you prefer to read the response without an unexpected keyboard.")
-                    .settingsSectionFooter()
-            }
-
-            Section {
-                Toggle(AppLocalized("Confirm Before Stopping"), isOn: $confirmBeforeStopping)
-                    .settingsRowSurface()
-            } header: {
-                Text("Confirm Before Stopping")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Ask for confirmation when you tap the stop button while a task is running, so an accidental tap does not end a long run. Off by default. You can also long-press the stop button to switch.")
-                    .settingsSectionFooter()
-            }
-
-            Section {
-                Toggle(AppLocalized("Tool Preview Window"), isOn: $toolPreviewEnabled)
-                    .settingsRowSurface()
-            } header: {
-                Text("Tool Status Bar")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Show a live preview thumbnail alongside the tool status bar during agent execution.")
-                    .settingsSectionFooter()
-            }
-
-            // [T-thinking-auto-expand-toggle] Whether a NEW streaming thinking
-            // block opens expanded (historical behavior, default) or stays
-            // collapsed. Only affects the streaming auto-expand; manual taps
-            // always work either way.
-            Section {
-                Toggle(AppLocalized("Expand Thinking While Streaming"), isOn: $autoExpandThinking)
-                    .settingsRowSurface()
-            } header: {
-                Text("Deep Thinking")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("When on, a new thinking block expands automatically while the model is reasoning and collapses when it finishes. When off, thinking blocks stay collapsed — tap one to read it.")
-                    .settingsSectionFooter()
-            }
-
-            // [T-fold-consecutive-tools] Fold a run of 3+ tool calls that a
-            // reply follows into one "Ran N tools" line.
-            Section {
-                Toggle(AppLocalized("Fold Consecutive Tool Calls"), isOn: $foldConsecutiveTools)
-                    .onChange(of: foldConsecutiveTools) { _ in
-                        // Re-lay out an open chat (iPad split view) right away.
-                        NotificationCenter.default.post(name: .messageListNeedsResnapshot, object: nil)
+                    .pickerStyle(.menu)
+                    .settingsNovaControlRow()
+                    .overlay(alignment: .top) {
+                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                     }
-                    .settingsRowSurface()
-            } header: {
-                Text("Tool Calls")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Consecutive tool calls are shown as one line. Tap it to see each call.")
-                    .settingsSectionFooter()
-            }
-
-            Section {
-                FontScaleRow(
-                    label: "Chat Input",
-                    level: $fontSettings.chatInputScale
-                )
-                    .settingsRowSurface()
-                FontScaleRow(
-                    label: "Message Text",
-                    level: $fontSettings.messageBaseScale
-                )
-                    .settingsRowSurface()
-                FontScaleRow(
-                    label: "App Base",
-                    level: $fontSettings.appBaseScale
-                )
-                    .settingsRowSurface()
-                if fontSettings.isModified {
-                    Button("Reset to Defaults") {
-                        fontSettings.resetToDefaults()
-                    }
-                    .foregroundStyle(CodyColors.statusErrorText)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                        .settingsRowSurface()
-                }
-            } header: {
-                Text("Font Size")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Scale fonts for chat input, message content, and general app text. Changes apply immediately.")
-                    .settingsSectionFooter()
-            }
-
-            if UIApplication.shared.supportsAlternateIcons {
-                Section {
-                    ForEach(iconOptions) { option in
-                        Button {
-                            guard appIconMode != option.id else { return }
-                            appIconMode = option.id
-                            UIApplication.shared.setAlternateIconName(option.iconName) { error in
-                                if let error = error {
-                                    print("[AppIcon] Failed to set icon: \(error.localizedDescription)")
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: CodySpacing.mdPlus) {
-                                if let img = UIImage(named: option.imageName) {
-                                    Image(uiImage: img)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: CodySpacing.s56, height: CodySpacing.s56)
-                                        .clipShape(RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
-                                                .strokeBorder(CodyColors.borderDefault, lineWidth: CodySpacing.px)
-                                        )
-                                        .accessibilityHidden(true)
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    // `option.title` / `option.subtitle` are fixed English
-                                    // keys ("Automatic", "Light", "Always light", etc.).
-                                    // Wrap in LocalizedStringKey so the catalog lookup kicks
-                                    // in — Text(String) would render them verbatim.
-                                    Text(LocalizedStringKey(option.title))
-                                        .font(CodyTypography.titleMedium)
-                                        .foregroundStyle(CodyColors.textPrimary)
-                                    Text(LocalizedStringKey(option.subtitle))
-                                        .font(CodyTypography.bodySmall)
-                                        .foregroundStyle(CodyColors.textSecondary)
-                                }
-                                Spacer()
-                                if appIconMode == option.id {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(CodyColors.iconAccent)
-                                        .font(.title3)
-                                        .accessibilityHidden(true)
-                                }
-                            }
-                            .padding(.vertical, CodySpacing.xs)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(CodyPressableButtonStyle())
-                        .accessibilityAddTraits(appIconMode == option.id ? .isSelected : [])
-                            .settingsRowSurface()
-                    }
-                } header: {
-                    Text("App Icon")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("\"Automatic\" uses the system icon which adapts to Dark Mode on iOS 18+.")
-                        .settingsSectionFooter()
                 }
             }
-
-            Section {
-                ForEach(supportedLanguages) { lang in
-                    Button {
-                        // Persist a reopen-hint BEFORE flipping appLanguage —
-                        // the @AppStorage write triggers the root
-                        // `.id(appLanguage)` rebuild in CodyApp.swift, which
-                        // drops the entire view tree including the Settings
-                        // sheet. ContentView/SettingsSheet read this flag on
-                        // re-mount and reopen the sheet + push back to the
-                        // Appearance page so the user lands where they were
-                        // with all strings rendered in the new language.
-                        UserDefaults.standard.set("appearance", forKey: "pendingSettingsReopen")
-                        // [T-ios-stacknav-transition-attributegraph-race] The
-                        // `.id(appLanguage)` re-key below is the app's only
-                        // unconditional WHOLE-TREE teardown, and a chat can be
-                        // streaming underneath this sheet while it happens —
-                        // the same hosting-subgraph race the push/pop observers
-                        // guard, with every mounted vm outgoing at once. Pin
-                        // them all across the re-mount. No-ops when nothing is
-                        // processing, which is the overwhelmingly common case.
-                        ViewModelCache.shared.suspendAllForTreeRemount()
-                        appLanguage = lang.id
-                        Bundle.setLanguage(lang.id.isEmpty ? nil : lang.id)
-                    } label: {
-                        HStack(spacing: CodySpacing.md) {
-                            if !lang.flag.isEmpty {
-                                Text(lang.flag)
-                                    .font(CodyTypography.titleLarge)
-                                    .frame(width: CodyMetrics.Sidebar.iconSize)
-                                    .accessibilityHidden(true)
-                            } else {
-                                CodySettingsIconBadge(systemImage: "globe", tint: .neutral)
-                            }
-                            Text(lang.name)
-                                .font(CodyTypography.bodyLarge)
-                                .foregroundStyle(CodyColors.textPrimary)
-                            Spacer()
-                            if appLanguage == lang.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(CodyColors.iconAccent)
-                                    .fontWeight(.semibold)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .frame(minHeight: CodyControlHeight.standard)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(CodyPressableButtonStyle())
-                    .accessibilityAddTraits(appLanguage == lang.id ? .isSelected : [])
-                        .settingsRowSurface()
-                }
-            } header: {
-                Text("Language")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Override the display language for this app. \"System\" follows your device language.")
-                    .settingsSectionFooter()
+            VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                Text("Prevent the screen from sleeping while any session is running a task. May increase battery drain.")
+                Text("Screen Saver: after the chosen time without a touch, the chat on screen turns black and shows only the current step; tap anywhere to return. Staying in the foreground helps tasks run faster. Use “Keep Screen On” in a chat's … menu to turn it on or off for that chat only.")
             }
-
+            .settingsNovaFooter()
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
-        .navigationTitle("Appearance")
-        .navigationBarTitleDisplayMode(.inline)
-        .background(InteractivePopGestureDisabler())
-    }
-
-    /// UserDefaults-backed binding (not @AppStorage: the key is read at
-    /// title-generation time in AIChatViewModel, so a plain defaults write is
-    /// the single source of truth).
-    private var autoGroupingBinding: Binding<Bool> {
-        Binding(
-            get: { UserDefaults.standard.bool(forKey: "autoGroupingEnabled") },
-            set: { UserDefaults.standard.set($0, forKey: "autoGroupingEnabled") }
-        )
     }
 }
 

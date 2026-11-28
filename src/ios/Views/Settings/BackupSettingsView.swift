@@ -106,19 +106,6 @@ struct BackupSettingsView: View {
     @State private var didPresentFinishedTransfer = false
     /// Configured rclone remotes, mirrored for redraw.
     @State private var remotes: [RcloneRemoteStore.Remote] = []
-    /// Server destination whose detail screen should be pushed. Drives an
-    /// explicit navigationDestination so the row can be tappable without a
-    /// NavigationLink drawing a chevron next to the row's switch.
-    ///
-    /// Holds the remote's NAME rather than the struct: navigationDestination
-    /// wants Hashable, and making a shared model type conform just to satisfy
-    /// a navigation detail is the wrong direction. Re-looking the remote up on
-    /// push also means the pushed screen sees current data rather than a copy
-    /// captured when the row was tapped.
-    @State private var openedRemoteName: String?
-    /// Folder destination whose detail screen should be pushed — see above.
-    @State private var openedFolderId: UUID?
-
     /// [T-backup-device-name-setting] Working copy of the user's device name.
     ///
     /// Held in @State and committed on change rather than bound straight to
@@ -127,313 +114,29 @@ struct BackupSettingsView: View {
     /// string through immediately would clear the override and make the
     /// placeholder jump to the automatic name mid-keystroke.
     @State private var deviceNameDraft = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Form {
+        CodySettingsScrollPage {
             deviceNameSection
-            Section {
-                ForEach(BackupCategory.backupable, id: \.self) { category in
-                    Toggle(isOn: binding(for: category)) {
-                        HStack(spacing: 12) {
-                            SettingsBackupCategoryBadge(category: category)
-                            Text(displayName(category))
-                        }
-                    }
-                        .settingsRowSurface()
-                }
-
-                // §3.4's cap, surfaced. Only meaningful when a category that
-                // actually carries files is selected — with only DB-backed
-                // categories on, nothing would ever hit it.
-                if selected.contains(where: \.carriesFileTree) {
-                    // Ordered smallest to largest, with "no files at all" at
-                    // the top as the extreme of the same axis.
-                    Picker(selection: $maxFileSizeMB) {
-                        Text("Don't back up files").tag(BackupSettingsView.noFilesTag)
-                        Text("1 MB").tag(1)
-                        Text("2 MB").tag(2)
-                        Text("5 MB").tag(5)
-                        Text("10 MB").tag(10)
-                        Text("50 MB").tag(50)
-                        Text("100 MB").tag(100)
-                        Text("500 MB").tag(500)
-                        Text("Unlimited").tag(BackupSettingsView.unlimitedTag)
-                    } label: {
-                        HStack(spacing: 12) {
-                            CodySettingsIconBadge(systemImage: "doc.zipper", tint: .neutral)
-                            Text("Max Per-File Size")
-                        }
-                    }
-                    .pickerStyle(.menu)
-                        .settingsRowSurface()
-                }
-            } header: {
-                Text("Include")
-                    .settingsSectionHeading()
-            } footer: {
-                // The cap's consequence is stated, because §3.4's whole point is
-                // that a skipped file leaves a tombstone rather than silently
-                // vanishing — the user should know that before it happens, not
-                // discover it at restore time.
-                Group {
-                    if selected.contains(where: \.carriesFileTree),
-                       maxFileSizeMB == Self.noFilesTag {
-                        // Worth stating plainly: this is the one setting that makes
-                        // the backup unable to restore a conversation's files at
-                        // all, so it should not read like just another size.
-                        Text("Chats includes every file in each conversation, not just the messages. File contents are not being backed up — the backup lists which files existed, but restoring won't bring them back.")
-                    } else if selected.contains(where: \.carriesFileTree),
-                              maxFileSizeMB != Self.unlimitedTag {
-                        Text("Chats includes every file in each conversation, not just the messages. Files larger than \(maxFileSizeMB) MB are listed in the backup but not included.")
-                    } else {
-                        Text("Chats includes every file in each conversation, not just the messages.")
-                    }
-                }
-                .settingsSectionFooter()
-            }
-
-            // Encryption is a CHOICE; the passphrase only appears once it's on.
-            //
-            // The constraint that actually exists is narrower than "always
-            // encrypt": credentials must never ship in the clear, because
-            // secrets.json is base64 — an encoding, not protection. So
-            // encryption is optional, and turning it OFF drops credentials from
-            // the package rather than exposing them. The exporter enforces the
-            // same rule independently (it refuses credentials without a
-            // passphrase), so this is the UI expressing a real invariant, not
-            // inventing one.
-            Section {
-                Toggle(isOn: $encryptBackup.animation()) {
-                    HStack(spacing: 12) {
-                        CodySettingsIconBadge(
-                            systemImage: encryptBackup ? "lock.fill" : "lock.open.fill",
-                            tint: encryptBackup ? .green : .neutral
-                        )
-                        Text("Encrypt Backup")
-                    }
-                }
-                    .settingsRowSurface()
-                if encryptBackup {
-                    SecureField("Passphrase", text: $passphrase)
-                        .textContentType(.newPassword)
-                        .settingsRowSurface()
-                    if !passphrase.isEmpty {
-                        SecureField("Confirm passphrase", text: $confirmPassphrase)
-                            .textContentType(.newPassword)
-                            .settingsRowSurface()
-                        if passphrase != confirmPassphrase {
-                            Text("Passphrases don't match.")
-                                .font(CodyTypography.sectionHeader)
-                                .foregroundStyle(CodyColors.statusErrorText)
-                                .settingsRowSurface()
-                        }
-                    }
-                }
-            } header: {
-                Text("Encryption")
-                    .settingsSectionHeading()
-            } footer: {
-                Group {
-                    if encryptBackup {
-                        // Both halves are load-bearing: what the passphrase covers,
-                        // and that losing it is final. A user who doesn't
-                        // understand the second can lose everything.
-                        Text("This passphrase encrypts the entire backup, including chats, files, and credentials. There is no way to recover a forgotten passphrase — the backup cannot be opened without it.")
-                    } else if selected.contains(where: Self.credentialCarryingCategories.contains) {
-                        // [T-backup-credentials-without-encryption] This used to
-                        // read "API keys are left out", which was the old
-                        // behaviour. Now they are IN, so the footer has to say the
-                        // opposite — and say it as a warning, because the risk has
-                        // moved from "my backup is useless" to "my keys are
-                        // readable by anyone holding this file".
-                        Label("This backup contains your API keys, OAuth tokens and environment variable values, and it is NOT encrypted — anyone with the file can read them. Turn on encryption to protect it.",
-                              systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(CodyColors.statusWarningText)
-                    } else {
-                        Text("Without encryption the backup is not protected — anyone with the file can read its contents.")
-                    }
-                }
-                .settingsSectionFooter()
-            }
-
+            includeSection
+            encryptionSection
             destinationSection
 
             if !embedded {
-                Section {
-                    NavigationLink {
+                CodySettingsNovaSection(footer: "Restoring merges a backup into your existing data. Nothing is deleted.") {
+                    CodySettingsNovaNavRow("Restore from Backup…", systemImage: "arrow.down.doc", tint: .purple) {
                         BackupRestoreView()
-                    } label: {
-                        Label {
-                            Text("Restore from Backup…")
-                        } icon: {
-                            CodySettingsIconBadge(systemImage: "arrow.down.doc", tint: .purple)
-                        }
                     }
-                        .settingsRowSurface()
-                } footer: {
-                    Text("Restoring merges a backup into your existing data. Nothing is deleted.")
-                        .settingsSectionFooter()
                 }
             }
 
-            Section {
-                backupActionRow
-                    .settingsRowSurface()
-                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-
-                // A disabled button with no explanation is a dead end — say
-                // which requirement is unmet rather than leaving the user to
-                // guess why nothing happens when they tap.
-                if !isExporting {
-                    // Same centred-row separator fix as the buttons above:
-                    // without the guide these hint rows inherit a mid-card
-                    // separator start.
-                    if !hasDestination {
-                        // First, because it is the requirement a new user is
-                        // most likely to be missing — the categories arrive
-                        // already selected.
-                        Text("Add a storage destination to continue.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                            .settingsRowSurface()
-                    } else if selected.isEmpty {
-                        Text("Choose at least one thing to include.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                            .settingsRowSurface()
-                    } else if encryptBackup && passphrase.isEmpty {
-                        Text("Set a passphrase to encrypt this backup.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                            .settingsRowSurface()
-                    } else if encryptBackup && passphrase != confirmPassphrase {
-                        Text("Confirm the passphrase to continue.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                            .settingsRowSurface()
-                    }
-                }
-
-                transferRows
-
-                if let errorText {
-                    Text(errorText)
-                        .font(CodyTypography.sectionHeader)
-                        .foregroundStyle(CodyColors.statusErrorText)
-                        .settingsRowSurface()
-                }
-            }
-
+            actionSection
             historySection
 
-            if let result {
-                Section {
-                    LabeledContent("Size", value: byteText(result.totalBytes))
-                        .settingsRowSurface()
-                    if result.skippedFiles > 0 {
-                        // §3.4: a size-capped export has gaps, and the user is
-                        // told here rather than discovering it at restore time.
-                        // "too large" would be wrong when files were left out
-                        // on purpose — nothing exceeded anything.
-                        LabeledContent(maxFileSizeMB == Self.noFilesTag
-                                       ? "Files not included"
-                                       : "Excluded (too large)",
-                                       value: "\(result.skippedFiles) file(s)")
-                            .settingsRowSurface()
-                    }
-                    // [T-backup-share-when-undelivered] Offer Share / Save only
-                    // when the user still has to move the package themselves.
-                    //
-                    // Two conditions, and both matter:
-                    //
-                    //  * `shareURL != nil` — the local file must still exist.
-                    //    It is deleted once every destination reports a
-                    //    VERIFIED copy, and a button that opens a share sheet
-                    //    on a missing file is worse than no button.
-                    //
-                    //  * `deliveryResults.isEmpty` — nothing carried it away.
-                    //    This is the half that was missing. A run WITH
-                    //    destinations that partially failed keeps its local
-                    //    copy, so the old `shareURL != nil` test showed both
-                    //    buttons — exactly the "已经选了备份位置，这两个按钮
-                    //    不该出现" the report describes. Reading the results
-                    //    rather than `hasDestination` is deliberate: what
-                    //    matters is whether THIS run had somewhere to go, not
-                    //    whether a destination happens to be configured now.
-                    //
-                    // A failed delivery is not left without an exit: the
-                    // per-destination rows below name what went wrong, and the
-                    // footer states the local copy was kept, so the package is
-                    // still reachable from Files (Cody ▸ Backups).
-                    if shareURL != nil, deliveryResults.isEmpty {
-                        Button {
-                            showShare = true
-                        } label: {
-                            SettingsIconLabel(title: Text("Share…"), systemImage: "square.and.arrow.up", tint: .blue)
-                        }
-                            .settingsRowSurface()
-                        Button {
-                            showSaveToFiles = true
-                        } label: {
-                            SettingsIconLabel(title: Text("Save to Files…"), systemImage: "folder", tint: .blue)
-                        }
-                            .settingsRowSurface()
-                    }
-
-                    // Per-destination outcome. Reported individually rather
-                    // than as one combined status: "2 of 3 saved" is only
-                    // actionable if the user can see WHICH one failed.
-                    ForEach(deliveryResults) { r in
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Image(systemName: r.succeeded
-                                  ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(r.succeeded ? CodyColors.statusSuccessText : CodyColors.statusWarningText)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(r.folderName)
-                                if let error = r.error {
-                                    Text(error)
-                                        .font(CodyTypography.bodySmall)
-                                        .foregroundStyle(CodyColors.textSecondary)
-                                }
-                            }
-                        }
-                        .font(CodyTypography.sectionHeader)
-                            .settingsRowSurface()
-                    }
-                } header: {
-                    Text("Backup Ready")
-                        .settingsSectionHeading()
-                } footer: {
-                    Group {
-                        if localCopyRemoved {
-                            Text("Delivered to all \(deliveryResults.count) destination(s) and verified. The copy on this iPhone was removed to save space.")
-                        } else if deliveryResults.isEmpty {
-                            Text("Saved in Cody ▸ Backups. Use Save to Files to copy it to iCloud Drive, a connected server, or another cloud provider.")
-                        } else {
-                            let ok = deliveryResults.filter(\.succeeded).count
-                            // The local copy is stated explicitly so a user whose
-                            // NAS was offline can see the backup still exists.
-                            Text("Saved in Cody ▸ Backups, and copied to \(ok) of \(deliveryResults.count) selected folder(s).")
-                        }
-                    }
-                    .settingsSectionFooter()
-                }
-            }
+            if let result { resultSection(result) }
         }
-        .settingsGroupedCanvas()
+        .scrollDismissesKeyboard(.interactively)
         .modifier(StandaloneTitle(title: AppLocalized("Backup"),
                                  active: !embedded))
         .onAppear {
@@ -449,7 +152,7 @@ struct BackupSettingsView: View {
             // they sit on it), and simply is not there next time they come
             // back. The same facts remain in Backup History.
             //
-            // Why not `onDisappear`: this screen is a Form inside a
+            // Why not `onDisappear`: this screen is inside a
             // UIKit-backed NavigationView, so pushing a history record or a
             // destination detail fires `onDisappear` on it too — clearing
             // there would yank the card out from under a user who just tapped
@@ -479,42 +182,6 @@ struct BackupSettingsView: View {
             // time this screen appears (and after a relaunch).
             RcloneRemoteStore.syncToRclone()
         }
-        // Destination rows push their details through these hidden links
-        // rather than wrapping the row in a visible NavigationLink, which would
-        // draw a disclosure chevron immediately left of the row's toggle.
-        //
-        // NavigationLink(isActive:) rather than navigationDestination(item:):
-        // the app target is iOS 16 and that modifier is 17+.
-        .background {
-            NavigationLink(isActive: Binding(
-                get: { openedRemoteName != nil },
-                set: { if !$0 { openedRemoteName = nil } }
-            )) {
-                // Resolved on push. If the remote vanished (removed by a swipe
-                // while this was open) show nothing rather than a stale
-                // snapshot of a destination that no longer exists.
-                if let name = openedRemoteName,
-                   let r = RcloneRemoteStore.remotes.first(where: { $0.name == name }) {
-                    BackupDestinationDetailView(target: .remote(r)) {
-                        remotes = RcloneRemoteStore.remotes
-                    }
-                }
-            } label: { EmptyView() }
-                .opacity(0)
-
-            NavigationLink(isActive: Binding(
-                get: { openedFolderId != nil },
-                set: { if !$0 { openedFolderId = nil } }
-            )) {
-                if let id = openedFolderId,
-                   let folder = BackupDestinations.eligibleFolders.first(where: { $0.id == id }) {
-                    BackupDestinationDetailView(target: .folder(folder)) {
-                        destinationIds = BackupDestinations.selectedIds
-                    }
-                }
-            } label: { EmptyView() }
-                .opacity(0)
-        }
         .sheet(isPresented: $showAddDestination) {
             BackupDestinationPicker {
                 destinationIds = BackupDestinations.selectedIds
@@ -537,6 +204,282 @@ struct BackupSettingsView: View {
         // .codybak from Files works from ANY screen — this view is the one
         // place the user is least likely to already be standing when they
         // migrate to a new device.
+    }
+
+    private var includeSection: some View {
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            CodySettingsNovaSection("Include") {
+                ForEach(BackupCategory.backupable, id: \.self) { category in
+                    if category != BackupCategory.backupable.first { CodySettingsNovaDivider() }
+                    Toggle(isOn: binding(for: category)) {
+                        HStack(spacing: 12) {
+                            SettingsBackupCategoryBadge(category: category)
+                            Text(displayName(category))
+                        }
+                    }
+                    .settingsNovaControlRow()
+                }
+
+                // §3.4's cap, surfaced. Only meaningful when a category that
+                // actually carries files is selected — with only DB-backed
+                // categories on, nothing would ever hit it.
+                if selected.contains(where: \.carriesFileTree) {
+                    CodySettingsNovaDivider()
+                    // Ordered smallest to largest, with "no files at all" at
+                    // the top as the extreme of the same axis.
+                    Picker(selection: $maxFileSizeMB) {
+                        Text("Don't back up files").tag(BackupSettingsView.noFilesTag)
+                        Text("1 MB").tag(1)
+                        Text("2 MB").tag(2)
+                        Text("5 MB").tag(5)
+                        Text("10 MB").tag(10)
+                        Text("50 MB").tag(50)
+                        Text("100 MB").tag(100)
+                        Text("500 MB").tag(500)
+                        Text("Unlimited").tag(BackupSettingsView.unlimitedTag)
+                    } label: {
+                        HStack(spacing: 12) {
+                            CodySettingsIconBadge(systemImage: "doc.zipper", tint: .neutral)
+                            Text("Max Per-File Size")
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .settingsNovaControlRow()
+                }
+            }
+            // The cap's consequence is stated, because §3.4's whole point is
+            // that a skipped file leaves a tombstone rather than silently
+            // vanishing — the user should know that before it happens, not
+            // discover it at restore time.
+            Group {
+                if selected.contains(where: \.carriesFileTree),
+                   maxFileSizeMB == Self.noFilesTag {
+                    // Worth stating plainly: this is the one setting that makes
+                    // the backup unable to restore a conversation's files at
+                    // all, so it should not read like just another size.
+                    Text("Chats includes every file in each conversation, not just the messages. File contents are not being backed up — the backup lists which files existed, but restoring won't bring them back.")
+                } else if selected.contains(where: \.carriesFileTree),
+                          maxFileSizeMB != Self.unlimitedTag {
+                    Text("Chats includes every file in each conversation, not just the messages. Files larger than \(maxFileSizeMB) MB are listed in the backup but not included.")
+                } else {
+                    Text("Chats includes every file in each conversation, not just the messages.")
+                }
+            }
+            .settingsNovaFooter()
+        }
+    }
+
+    private var encryptionSection: some View {
+        // Encryption is a CHOICE; the passphrase only appears once it's on.
+        //
+        // The constraint that actually exists is narrower than "always
+        // encrypt": credentials must never ship in the clear, because
+        // secrets.json is base64 — an encoding, not protection. So
+        // encryption is optional, and turning it OFF drops credentials from
+        // the package rather than exposing them. The exporter enforces the
+        // same rule independently (it refuses credentials without a
+        // passphrase), so this is the UI expressing a real invariant, not
+        // inventing one.
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            CodySettingsNovaSection("Encryption") {
+                Toggle(isOn: $encryptBackup.animation(reduceMotion ? nil : .default)) {
+                    HStack(spacing: 12) {
+                        CodySettingsIconBadge(
+                            systemImage: encryptBackup ? "lock.fill" : "lock.open.fill",
+                            tint: encryptBackup ? .green : .neutral
+                        )
+                        Text("Encrypt Backup")
+                    }
+                }
+                .settingsNovaControlRow()
+                if encryptBackup {
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    SecureField("Passphrase", text: $passphrase)
+                        .textContentType(.newPassword)
+                        .settingsNovaControlRow()
+                    if !passphrase.isEmpty {
+                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                        SecureField("Confirm passphrase", text: $confirmPassphrase)
+                            .textContentType(.newPassword)
+                            .settingsNovaControlRow()
+                        if passphrase != confirmPassphrase {
+                            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                            Text("Passphrases don't match.")
+                                .font(CodyTypography.sectionHeader)
+                                .foregroundStyle(CodyColors.statusErrorText)
+                                .settingsNovaControlRow()
+                        }
+                    }
+                }
+            }
+            Group {
+                if encryptBackup {
+                    // Both halves are load-bearing: what the passphrase covers,
+                    // and that losing it is final. A user who doesn't
+                    // understand the second can lose everything.
+                    Text("This passphrase encrypts the entire backup, including chats, files, and credentials. There is no way to recover a forgotten passphrase — the backup cannot be opened without it.")
+                } else if selected.contains(where: Self.credentialCarryingCategories.contains) {
+                    // [T-backup-credentials-without-encryption] This used to
+                    // read "API keys are left out", which was the old
+                    // behaviour. Now they are IN, so the footer has to say the
+                    // opposite — and say it as a warning, because the risk has
+                    // moved from "my backup is useless" to "my keys are
+                    // readable by anyone holding this file".
+                    Label("This backup contains your API keys, OAuth tokens and environment variable values, and it is NOT encrypted — anyone with the file can read them. Turn on encryption to protect it.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(CodyColors.statusWarningText)
+                } else {
+                    Text("Without encryption the backup is not protected — anyone with the file can read its contents.")
+                }
+            }
+            .settingsNovaFooter()
+        }
+    }
+
+    private var actionSection: some View {
+        CodySettingsNovaSection {
+            backupActionRow
+                .settingsNovaControlRow()
+
+            // A disabled button with no explanation is a dead end — say
+            // which requirement is unmet rather than leaving the user to
+            // guess why nothing happens when they tap.
+            if !isExporting {
+                if !hasDestination {
+                    // First, because it is the requirement a new user is
+                    // most likely to be missing — the categories arrive
+                    // already selected.
+                    Text("Add a storage destination to continue.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .settingsNovaControlRow()
+                } else if selected.isEmpty {
+                    Text("Choose at least one thing to include.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .settingsNovaControlRow()
+                } else if encryptBackup && passphrase.isEmpty {
+                    Text("Set a passphrase to encrypt this backup.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .settingsNovaControlRow()
+                } else if encryptBackup && passphrase != confirmPassphrase {
+                    Text("Confirm the passphrase to continue.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .settingsNovaControlRow()
+                }
+            }
+
+            transferRows
+
+            if let errorText {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                Text(errorText)
+                    .font(CodyTypography.sectionHeader)
+                    .foregroundStyle(CodyColors.statusErrorText)
+                    .settingsNovaControlRow()
+            }
+        }
+    }
+
+    private func resultSection(_ result: BackupExporter.Summary) -> some View {
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            CodySettingsNovaSection("Backup Ready") {
+                LabeledContent("Size", value: byteText(result.totalBytes))
+                    .settingsNovaControlRow()
+                if result.skippedFiles > 0 {
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    // §3.4: a size-capped export has gaps, and the user is
+                    // told here rather than discovering it at restore time.
+                    // "too large" would be wrong when files were left out
+                    // on purpose — nothing exceeded anything.
+                    LabeledContent(maxFileSizeMB == Self.noFilesTag
+                                   ? "Files not included"
+                                   : "Excluded (too large)",
+                                   value: "\(result.skippedFiles) file(s)")
+                        .settingsNovaControlRow()
+                }
+                // [T-backup-share-when-undelivered] Offer Share / Save only
+                // when the user still has to move the package themselves.
+                //
+                // Two conditions, and both matter:
+                //
+                //  * `shareURL != nil` — the local file must still exist.
+                //    It is deleted once every destination reports a
+                //    VERIFIED copy, and a button that opens a share sheet
+                //    on a missing file is worse than no button.
+                //
+                //  * `deliveryResults.isEmpty` — nothing carried it away.
+                //    This is the half that was missing. A run WITH
+                //    destinations that partially failed keeps its local
+                //    copy, so the old `shareURL != nil` test showed both
+                //    buttons — exactly the "已经选了备份位置，这两个按钮
+                //    不该出现" the report describes. Reading the results
+                //    rather than `hasDestination` is deliberate: what
+                //    matters is whether THIS run had somewhere to go, not
+                //    whether a destination happens to be configured now.
+                //
+                // A failed delivery is not left without an exit: the
+                // per-destination rows below name what went wrong, and the
+                // footer states the local copy was kept, so the package is
+                // still reachable from Files (Cody ▸ Backups).
+                if shareURL != nil, deliveryResults.isEmpty {
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    CodySettingsNovaActionRow("Share…", systemImage: "square.and.arrow.up", tint: .blue) {
+                        showShare = true
+                    }
+                    CodySettingsNovaDivider()
+                    CodySettingsNovaActionRow("Save to Files…", systemImage: "folder", tint: .blue) {
+                        showSaveToFiles = true
+                    }
+                }
+
+                // Per-destination outcome. Reported individually rather
+                // than as one combined status: "2 of 3 saved" is only
+                // actionable if the user can see WHICH one failed.
+                ForEach(deliveryResults) { r in
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Image(systemName: r.succeeded
+                              ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(r.succeeded ? CodyColors.statusSuccessText : CodyColors.statusWarningText)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r.folderName)
+                            if let error = r.error {
+                                Text(error)
+                                    .font(CodyTypography.bodySmall)
+                                    .foregroundStyle(CodyColors.textSecondary)
+                            }
+                        }
+                    }
+                    .font(CodyTypography.sectionHeader)
+                        .settingsNovaControlRow()
+                }
+            }
+            Group {
+                if localCopyRemoved {
+                    Text("Delivered to all \(deliveryResults.count) destination(s) and verified. The copy on this iPhone was removed to save space.")
+                } else if deliveryResults.isEmpty {
+                    Text("Saved in Cody ▸ Backups. Use Save to Files to copy it to iCloud Drive, a connected server, or another cloud provider.")
+                } else {
+                    let ok = deliveryResults.filter(\.succeeded).count
+                    // The local copy is stated explicitly so a user whose
+                    // NAS was offline can see the backup still exists.
+                    Text("Saved in Cody ▸ Backups, and copied to \(ok) of \(deliveryResults.count) selected folder(s).")
+                }
+            }
+            .settingsNovaFooter()
+        }
     }
 
     // MARK: - Validation
@@ -608,6 +551,7 @@ struct BackupSettingsView: View {
         // otherwise only move when the byte counter did.
         let _ = transfer.tick
         ForEach(transfer.destinations) { d in
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: d.error != nil ? "exclamationmark.triangle.fill"
@@ -636,10 +580,11 @@ struct BackupSettingsView: View {
                 }
             }
             .padding(.vertical, 2)
-                .settingsRowSurface()
+                .settingsNovaControlRow()
         }
 
         if let note = transfer.cleanupNote {
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
             Label {
                 Text(note).font(CodyTypography.bodySmall)
             } icon: {
@@ -647,7 +592,7 @@ struct BackupSettingsView: View {
                     .accessibilityHidden(true)
             }
             .foregroundStyle(CodyColors.textSecondary)
-                .settingsRowSurface()
+                .settingsNovaControlRow()
         }
 
     }
@@ -730,7 +675,7 @@ struct BackupSettingsView: View {
     }
 
     private var deviceNameSection: some View {
-        Section {
+        CodySettingsNovaSection("Device Name", footer: "Used to identify this device in backup filenames and in the iCloud sync device list. Leave empty to use “\(DeviceIdentity.automaticName)”.") {
             HStack(spacing: 12) {
                 CodySettingsIconBadge(systemImage: "iphone", tint: .blue)
                 // The placeholder is the automatic name, so an untouched field
@@ -750,16 +695,7 @@ struct BackupSettingsView: View {
                     // target is iOS 16 and the two-parameter overload is 17+.
                     .onChange(of: deviceNameDraft) { _ in commitDeviceName() }
             }
-                .settingsRowSurface()
-        } header: {
-            Text("Device Name")
-                .settingsSectionHeading()
-        } footer: {
-            // Says what the name is FOR — the whole point is the filename —
-            // and how to get back to the default, which an empty field does
-            // not otherwise advertise.
-            Text("Used to identify this device in backup filenames and in the iCloud sync device list. Leave empty to use “\(DeviceIdentity.automaticName)”.")
-                .settingsSectionFooter()
+            .settingsNovaControlRow()
         }
         // Seeded in onAppear rather than defaulted, so reopening the screen
         // shows what is actually stored instead of an empty field over a set
@@ -777,200 +713,138 @@ struct BackupSettingsView: View {
     @ViewBuilder
     private var historySection: some View {
         if !history.records.isEmpty {
-            Section {
-                ForEach(history.records) { r in
-                    NavigationLink {
-                        BackupHistoryDetailView(record: r)
-                    } label: {
-                        BackupHistoryRow(record: r)
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            BackupHistory.shared.remove(r.id)
+            CodySettingsNovaSection("Backup History", footer: "Records from the past month. Older ones are removed automatically.") {
+                ForEach(history.records) { record in
+                    if record.id != history.records.first?.id { CodySettingsNovaDivider() }
+                    HStack(spacing: 0) {
+                        NavigationLink {
+                            BackupHistoryDetailView(record: record)
                         } label: {
-                            Label("Remove", systemImage: "trash")
+                            BackupHistoryRow(record: record)
+                                .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                         }
-                        // Continuing an interrupted run is now an explicit act
-                        // on the run itself, so the user can see WHICH backup
-                        // they are continuing. Start Backup no longer adopts it
-                        // silently — that produced a package pinned to the old
-                        // run's snapshot, missing everything written since.
-                        if isResumable(r) {
-                            Button {
-                                let t = Task { await runExport(resuming: true) }
-                                BackupRunController.shared.started(task: t)
+                        .buttonStyle(CodyPressableButtonStyle())
+                        SettingsNovaRowMenu(title: "Backup history actions") {
+                            Button(role: .destructive) {
+                                BackupHistory.shared.remove(record.id)
                             } label: {
-                                Label("Resume", systemImage: "play.circle")
+                                Label("Remove", systemImage: "trash")
                             }
-                            .tint(.blue)
+                            if isResumable(record) {
+                                Button {
+                                    let task = Task { await runExport(resuming: true) }
+                                    BackupRunController.shared.started(task: task)
+                                } label: {
+                                    Label("Resume", systemImage: "play.circle")
+                                }
+                            }
                         }
+                        .padding(.trailing, CodySpacing.sm)
                     }
-                        .settingsRowSurface()
                 }
-            } header: {
-                Text("Backup History")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Records from the past month. Older ones are removed automatically.")
-                    .settingsSectionFooter()
             }
         }
     }
 
-    // MARK: - Destinations (§6.2 path 2)
-
-    /// Lets the user send every backup to one or more mounted folders.
-    ///
-    /// No networking lives behind this: an SMB / AFP / WebDAV / cloud folder
-    /// mounted in Files and authorised in Cody is just a directory, and
-    /// iOS's FileProvider does the protocol work. That is why the same list
-    /// covers a NAS and iCloud Drive without either being special-cased.
-    @ViewBuilder
     private var destinationSection: some View {
         let eligible = BackupDestinations.eligibleFolders
-        Section {
-            // Network drives added in-app (SMB / WebDAV / SFTP / S3 / FTP).
-            // Listed first: a user who went to the trouble of typing in a
-            // server address is more invested in it than in a folder they
-            // happened to pick from Files.
-            ForEach(remotes) { r in
-                // Toggle enables/disables delivery; the row itself opens the
-                // details. Disabling keeps the server and its credential, so
-                // skipping one destination for a while costs nothing to undo.
-                // A NavigationLink used to sit INSIDE the Toggle's label, which
-                // drew the link's disclosure chevron wedged between the text
-                // and the switch. Pinched there it read as a stray glyph rather
-                // than "there is more behind this row" — the position a
-                // chevron needs to mean that is the trailing edge, and the
-                // switch already owns it.
-                //
-                // The row is still tappable: navigation moves to an explicit
-                // hidden link driven by state, so the label area pushes the
-                // detail view and the switch keeps its own hit area.
-                HStack(spacing: 12) {
-                    CodySettingsIconBadge(systemImage: RcloneBackendCatalog.backend(for: r.backend)?.icon
-                          ?? "externaldrive.connected.to.line.below", tint: .blue)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(r.name)
-                        Text("\(r.backend.uppercased()) · /\(r.path)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    // Claims the gap between the text and the switch, so the
-                    // whole left side of the row opens the details.
-                    Spacer(minLength: 8)
-                        .contentShape(Rectangle())
-                    Toggle("", isOn: Binding(
-                        get: { r.enabled },
-                        set: { on in
-                            RcloneRemoteStore.setEnabled(r.name, on)
-                            remotes = RcloneRemoteStore.remotes
-                        }
-                    ))
-                    .labelsHidden()
-                    .accessibilityLabel(Text(r.name))
-                    .fixedSize()
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { openedRemoteName = r.name }
-                .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
-                        RcloneRemoteStore.remove(name: r.name)
-                        remotes = RcloneRemoteStore.remotes
-                    } label: {
-                        Label("Remove", systemImage: "trash")
-                    }
-                }
-                    .settingsRowSurface()
+        return CodySettingsNovaSection(
+            "Backup Destinations",
+            footer: eligible.isEmpty
+                ? "Add a folder to also copy each backup there — including a server connected in the Files app (SMB, WebDAV) or a cloud provider."
+                : "Each new backup is also copied to the selected folders — including servers connected in the Files app (SMB, WebDAV) and cloud providers. A folder that is offline is reported and skipped; the local copy is always kept."
+        ) {
+            ForEach(remotes) { remote in
+                remoteDestinationRow(remote)
+                CodySettingsNovaDivider()
             }
-
+            ForEach(eligible) { folder in
+                folderDestinationRow(folder)
+                CodySettingsNovaDivider()
+            }
             if eligible.isEmpty && remotes.isEmpty {
-                // Empty is the NORMAL starting state, so this reads as the
-                // next step rather than a problem to fix.
-                //
-                // It used to say the backup "is saved on this device", which
-                // offered the one outcome a backup must never have: the
-                // package lands in the app's own sandbox, so it dies with the
-                // app it is meant to protect — uninstall, a wiped device or a
-                // lost phone takes the backup with it. Presenting that as a
-                // working fallback invited the user to consider themselves
-                // backed up when nothing had left the device.
                 Text("No destinations yet — add one to back up.")
-                    .foregroundStyle(.secondary)
-                    .settingsRowSurface()
-            } else if !eligible.isEmpty {
-                // Same badge treatment as the category rows above, so the two
-                // lists read as one screen rather than two styles.
-                ForEach(eligible) { folder in
-                    // Same shape as the server rows above — no NavigationLink
-                    // inside the Toggle, so no chevron pinched against the
-                    // switch.
-                    HStack(spacing: 12) {
-                        CodySettingsIconBadge(systemImage: "folder.fill", tint: .purple)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(folder.name)
-                            Text(folder.sourceDisplayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
-                            .contentShape(Rectangle())
-                        Toggle("", isOn: destinationBinding(for: folder))
-                            .labelsHidden()
-                            .accessibilityLabel(Text(folder.name))
-                            .fixedSize()
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { openedFolderId = folder.id }
-                    .swipeActions(edge: .trailing) {
-                        // Removes it from THIS list only. The underlying mount
-                        // survives, because the user may also have added it for
-                        // the agent and deleting that from here would be a
-                        // surprise.
-                        Button(role: .destructive) {
-                            BackupDestinations.forget(folder.id)
-                            destinationIds = BackupDestinations.selectedIds
-                        } label: {
-                            Label("Remove", systemImage: "trash")
-                        }
-                    }
-                        .settingsRowSurface()
-                }
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
             }
-            // ONE entry point. Two buttons ("Add Folder" / "Add Server")
-            // asked the user to know which mechanism they wanted before they
-            // knew what was on offer — and a server they had already set up
-            // was invisible until they guessed correctly. The picker shows
-            // saved servers first and offers both ways to add a new one.
-            Button {
+            CodySettingsNovaActionRow("Add Backup Destination…", systemImage: "plus", tint: .green) {
                 showAddDestination = true
-            } label: {
-                HStack(spacing: 12) {
-                    CodySettingsIconBadge(systemImage: "plus", tint: .green)
-                    Text("Add Backup Destination…")
-                }
             }
-                .settingsRowSurface()
-
             if let destinationWarning {
+                CodySettingsNovaDivider()
                 Text(destinationWarning)
-                    .font(CodyTypography.sectionHeader)
+                    .font(CodyTypography.bodySmall)
                     .foregroundStyle(CodyColors.statusWarningText)
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
-        } header: {
-            Text("Backup Destinations")
-                .settingsSectionHeading()
-        } footer: {
-            Group {
-                if eligible.isEmpty {
-                    Text("Add a folder to also copy each backup there — including a server connected in the Files app (SMB, WebDAV) or a cloud provider.")
-                } else {
-                    Text("Each new backup is also copied to the selected folders — including servers connected in the Files app (SMB, WebDAV) and cloud providers. A folder that is offline is reported and skipped; the local copy is always kept.")
+        }
+    }
+
+    private func remoteDestinationRow(_ remote: RcloneRemoteStore.Remote) -> some View {
+        destinationRow(
+            remote.name,
+            subtitle: "\(remote.backend.uppercased()) · /\(remote.path)",
+            icon: RcloneBackendCatalog.backend(for: remote.backend)?.icon ?? "externaldrive.connected.to.line.below",
+            tint: .blue,
+            enabled: Binding(
+                get: { remote.enabled },
+                set: { on in
+                    RcloneRemoteStore.setEnabled(remote.name, on)
+                    remotes = RcloneRemoteStore.remotes
+                }
+            ),
+            remove: {
+                RcloneRemoteStore.remove(name: remote.name)
+                remotes = RcloneRemoteStore.remotes
+            }
+        ) {
+            BackupDestinationDetailView(target: .remote(remote)) {
+                remotes = RcloneRemoteStore.remotes
+            }
+        }
+    }
+
+    private func folderDestinationRow(_ folder: MountedFolderEntry) -> some View {
+        destinationRow(
+            folder.name,
+            subtitle: folder.sourceDisplayName,
+            icon: "folder.fill",
+            tint: .purple,
+            enabled: destinationBinding(for: folder),
+            remove: {
+                BackupDestinations.forget(folder.id)
+                destinationIds = BackupDestinations.selectedIds
+            }
+        ) {
+            BackupDestinationDetailView(target: .folder(folder)) {
+                destinationIds = BackupDestinations.selectedIds
+            }
+        }
+    }
+
+    private func destinationRow<Destination: View>(
+        _ name: String,
+        subtitle: String,
+        icon: String,
+        tint: CodyCategoryTint,
+        enabled: Binding<Bool>,
+        remove: @escaping () -> Void,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
+        HStack(spacing: CodySpacing.xs) {
+            CodySettingsNovaNavRow("\(name)", subtitle: "\(subtitle)", systemImage: icon, tint: tint, destination: destination)
+            Toggle(name, isOn: enabled)
+                .labelsHidden()
+                .accessibilityLabel(Text(name))
+                .fixedSize()
+            SettingsNovaRowMenu(title: "Actions for \(name)") {
+                Button(role: .destructive, action: remove) {
+                    Label("Remove", systemImage: "trash")
                 }
             }
-            .settingsSectionFooter()
         }
+        .padding(.trailing, CodySpacing.sm)
     }
 
     private func destinationBinding(for folder: MountedFolderEntry) -> Binding<Bool> {

@@ -29,153 +29,14 @@ struct CloudSyncSettingsV2View: View {
     private static let refreshIntervalSeconds: UInt64 = 5
 
     var body: some View {
-        Form {
-            Section {
-                Toggle(isOn: Binding(
-                    get: { v2Enabled },
-                    set: { newValue in
-                        if #available(iOS 17.0, *) { SyncV2Bootstrap.setEnabled(newValue) }
-                        v2Enabled = newValue
-                    }
-                )) {
-                    Text("Enable iCloud Sync")
-                        .font(CodyTypography.bodyLarge)
-                        .foregroundStyle(CodyColors.textPrimary)
-                }
-                .codyGroupedRow()
-                if !statusText.isEmpty {
-                    NavigationLink {
-                        SyncMigrationDetailView()
-                    } label: {
-                        LabeledContent("Status") {
-                            CodyStatusPill(
-                                localized: AppLocalized(String.LocalizationValue(statusText)),
-                                tone: statusTone,
-                                dotColor: v2Enabled && statusText == "Running" ? CodyColors.connectionReady : nil
-                            )
-                        }
-                    }
-                    .codyGroupedRow()
-                }
-            } footer: {
-                Text("Toggle takes effect on next app launch.")
-                    .settingsSectionFooter()
-            }
-
+        CodySettingsScrollPage {
+            syncSection
             if v2Enabled {
-                Section {
-                    Button {
-                        deviceNameDraft = deviceName
-                        showDeviceNameEditor = true
-                    } label: {
-                        LabeledContent("Name") {
-                            HStack(spacing: CodySpacing.xsPlus) {
-                                Text(deviceName)
-                                    .font(CodyTypography.bodyMedium)
-                                    .foregroundStyle(CodyColors.textSecondary)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
-                                    .foregroundStyle(CodyColors.iconDisclosure)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                    }
-                    .buttonStyle(CodyPressableButtonStyle())
-                    .codyGroupedRow()
-                } header: {
-                    Text("Upload (This Device)")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("This device name is broadcast to your other devices in the iCloud Sync zone.")
-                        .settingsSectionFooter()
-                }
-
-                Section {
-                    ForEach(UploadPolicy.Category.allCases, id: \.self) { cat in
-                        Toggle(isOn: Binding(
-                            get: { categoriesEnabled[cat] ?? true },
-                            set: { newVal in
-                                UploadPolicy.setEnabled(cat, newVal)
-                                categoriesEnabled[cat] = newVal
-                                Task { await markDeviceDirty() }
-                            }
-                        )) {
-                            HStack(spacing: CodySpacing.md) {
-                                CodySettingsIconBadge(systemImage: iconName(for: cat), tint: iconTint(for: cat))
-                                Text(LocalizedStringKey(cat.displayName))
-                                    .font(CodyTypography.bodyLarge)
-                                    .foregroundStyle(CodyColors.textPrimary)
-                            }
-                        }
-                        .codyGroupedRow()
-                    }
-                    if categoriesEnabled[.sessionFiles] ?? true {
-                        Picker(selection: $maxFileSizeMB) {
-                            Text("256 KB").tag(0)
-                            Text("1 MB").tag(1)
-                            Text("4 MB").tag(4)
-                            Text("16 MB").tag(16)
-                            Text("64 MB").tag(64)
-                        } label: {
-                            HStack(spacing: CodySpacing.md) {
-                                CodySettingsIconBadge(systemImage: "doc.zipper", tint: .neutral)
-                                Text("Max Per-File Size")
-                                    .font(CodyTypography.bodyLarge)
-                                    .foregroundStyle(CodyColors.textPrimary)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .codyGroupedRow()
-                        .onChange(of: maxFileSizeMB) { newValue in
-                            UploadPolicy.maxFileSizeBytes = newValue == 0 ? 256 * 1024 : newValue * 1024 * 1024
-                        }
-                    }
-                } footer: {
-                    Text("Choose which data this device pushes to iCloud. API keys and secrets are synced securely via iCloud Keychain.")
-                        .settingsSectionFooter()
-                }
-
-                Section {
-                    if remoteDevices.isEmpty {
-                        Text("No other devices found yet. Devices appear here once they enable iCloud Sync.")
-                            .font(CodyTypography.bodySmall)
-                            .foregroundStyle(CodyColors.textSecondary)
-                            .padding(.vertical, CodySpacing.xs)
-                            .codyGroupedRow()
-                    } else {
-                        ForEach(remoteDevices, id: \.id) { d in
-                            VStack(alignment: .leading, spacing: CodySpacing.xs) {
-                                HStack {
-                                    Text(d.deviceName)
-                                        .font(CodyTypography.bodyLarge)
-                                        .foregroundStyle(CodyColors.textPrimary)
-                                    Spacer()
-                                    Text(relativeDate(d.lastSeen))
-                                        .font(CodyTypography.labelSmall)
-                                        .monospacedDigit()
-                                        .foregroundStyle(CodyColors.textTertiary)
-                                }
-                                if !d.uploadTypes.isEmpty {
-                                    Text(uploadTypesSummary(d.uploadTypes))
-                                        .font(CodyTypography.bodySmall)
-                                        .foregroundStyle(CodyColors.textSecondary)
-                                        .lineLimit(2)
-                                }
-                            }
-                            .padding(.vertical, CodySpacing.xxs)
-                            .codyGroupedRow()
-                        }
-                    }
-                } header: {
-                    Text("Other Devices")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("Devices that are signed in to the same iCloud account and have sync enabled. Last seen reflects the most recent push from that device.")
-                        .settingsSectionFooter()
-                }
+                deviceSection
+                uploadSection
+                remoteDevicesSection
             }
         }
-        .codyGroupedFormCanvas()
         .navigationTitle("iCloud Sync")
 #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -203,6 +64,149 @@ struct CloudSyncSettingsV2View: View {
         } message: {
             Text("Friendly name shown to your other Cody devices.")
         }
+    }
+
+    private var syncSection: some View {
+        let enabled = Binding(
+            get: { v2Enabled },
+            set: { newValue in
+                if #available(iOS 17.0, *) { SyncV2Bootstrap.setEnabled(newValue) }
+                v2Enabled = newValue
+            }
+        )
+        return CodySettingsNovaSection(footer: "Toggle takes effect on next app launch.") {
+            CodySettingsNovaToggleRow("Enable iCloud Sync", systemImage: "icloud", tint: .blue, isOn: enabled)
+                .accessibilityRepresentation {
+                    Toggle("Enable iCloud Sync", isOn: enabled)
+                }
+            if !statusText.isEmpty {
+                CodySettingsNovaDivider()
+                CodySettingsNovaNavRow("Status", systemImage: "waveform.path", tint: .neutral) {
+                    CodyStatusPill(
+                        localized: AppLocalized(String.LocalizationValue(statusText)),
+                        tone: statusTone,
+                        dotColor: v2Enabled && statusText == "Running" ? CodyColors.connectionReady : nil
+                    )
+                } destination: {
+                    SyncMigrationDetailView()
+                }
+            }
+        }
+    }
+
+    private var deviceSection: some View {
+        CodySettingsNovaSection(
+            "Upload (This Device)",
+            footer: "This device name is broadcast to your other devices in the iCloud Sync zone."
+        ) {
+            CodySettingsNovaActionRow("Name", action: {
+                deviceNameDraft = deviceName
+                showDeviceNameEditor = true
+            }) {
+                Text(deviceName)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+            }
+        }
+    }
+
+    private var uploadSection: some View {
+        CodySettingsNovaSection(
+            footer: "Choose which data this device pushes to iCloud. API keys and secrets are synced securely via iCloud Keychain."
+        ) {
+            ForEach(UploadPolicy.Category.allCases, id: \.self) { category in
+                if category != UploadPolicy.Category.allCases.first {
+                    CodySettingsNovaDivider()
+                }
+                uploadToggle(category)
+            }
+            if categoriesEnabled[.sessionFiles] ?? true {
+                CodySettingsNovaDivider()
+                Picker(selection: $maxFileSizeMB) {
+                    Text("256 KB").tag(0)
+                    Text("1 MB").tag(1)
+                    Text("4 MB").tag(4)
+                    Text("16 MB").tag(16)
+                    Text("64 MB").tag(64)
+                } label: {
+                    SettingsIconLabel(title: Text("Max Per-File Size"), systemImage: "doc.zipper", tint: .neutral)
+                }
+                .pickerStyle(.menu)
+                .settingsNovaControlRow()
+                .onChange(of: maxFileSizeMB) { newValue in
+                    UploadPolicy.maxFileSizeBytes = newValue == 0 ? 256 * 1024 : newValue * 1024 * 1024
+                }
+            }
+        }
+    }
+
+    private func uploadToggle(_ category: UploadPolicy.Category) -> some View {
+        let title = LocalizedStringKey(category.displayName)
+        let enabled = Binding(
+            get: { categoriesEnabled[category] ?? true },
+            set: { newValue in
+                UploadPolicy.setEnabled(category, newValue)
+                categoriesEnabled[category] = newValue
+                Task { await markDeviceDirty() }
+            }
+        )
+        return CodySettingsNovaToggleRow(title, systemImage: iconName(for: category), tint: iconTint(for: category), isOn: enabled)
+            .accessibilityRepresentation {
+                Toggle(title, isOn: enabled)
+            }
+    }
+
+    private var remoteDevicesSection: some View {
+        CodySettingsNovaSection(
+            "Other Devices",
+            footer: "Devices that are signed in to the same iCloud account and have sync enabled. Last seen reflects the most recent push from that device."
+        ) {
+            if remoteDevices.isEmpty {
+                Text("No other devices found yet. Devices appear here once they enable iCloud Sync.")
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .settingsNovaControlRow()
+            } else {
+                ForEach(remoteDevices, id: \.id) { device in
+                    if device.id != remoteDevices.first?.id {
+                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    }
+                    remoteDeviceRow(device)
+                }
+            }
+        }
+    }
+
+    private func remoteDeviceRow(_ device: SyncDevice) -> some View {
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Text(device.deviceName)
+                    Spacer()
+                    lastSeen(device)
+                }
+                VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                    Text(device.deviceName)
+                    lastSeen(device)
+                }
+            }
+            .font(CodyTypography.bodyLarge)
+            .foregroundStyle(CodyColors.textPrimary)
+
+            if !device.uploadTypes.isEmpty {
+                Text(uploadTypesSummary(device.uploadTypes))
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+            }
+        }
+        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+    }
+
+    private func lastSeen(_ device: SyncDevice) -> some View {
+        Text(relativeDate(device.lastSeen))
+            .font(CodyTypography.labelSmall)
+            .monospacedDigit()
+            .foregroundStyle(CodyColors.textTertiary)
     }
 
     /// [T-ios-migration-timer-sessionlist-uaf-crash] Self-cancelling 5s refresh loop

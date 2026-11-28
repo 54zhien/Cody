@@ -31,7 +31,7 @@ struct EnvironmentVariablesView: View {
         List {
             Section {
                 Toggle("Privacy Mode", isOn: $privacy.enabled)
-                    .settingsRowSurface()
+                    .settingsNovaListCardRow()
             } footer: {
                 Text("When enabled, any environment variable value that appears in shell-execute output is replaced with a masked form (e.g. `sk-1********ajhks`) before reaching the model. Values shorter than 8 characters become all `*`. The user-visible output in chat is unchanged.")
                     .settingsSectionFooter()
@@ -50,7 +50,7 @@ struct EnvironmentVariablesView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
-                        .settingsRowSurface()
+                    .settingsNovaListCardRow()
                 }
             } else {
                 ForEach(filteredEntries) { entry in
@@ -60,7 +60,7 @@ struct EnvironmentVariablesView: View {
             }
         }
         .settingsGroupedCanvas()
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .searchable(text: $searchText, prompt: "Filter by name")
         .navigationTitle("Environment Variables")
         .navigationBarTitleDisplayMode(.inline)
@@ -167,7 +167,7 @@ struct EnvironmentVariablesView: View {
 
             Spacer()
 
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
                 Button {
                     if isRevealed {
                         revealedKeys.remove(entry.id)
@@ -203,8 +203,11 @@ struct EnvironmentVariablesView: View {
             }
         }
         .opacity(isEnabled ? 1 : 0.6)
-        .contentShape(Rectangle())
+        .settingsNovaListCardRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
         .onTapGesture {
+            editingEntry = entry
+        }
+        .accessibilityAction(named: Text("Edit")) {
             editingEntry = entry
         }
         // [T-envvar-disable] Swiping left shows Delete and, beside it,
@@ -225,7 +228,6 @@ struct EnvironmentVariablesView: View {
             }
             .tint(isEnabled ? .gray : .green)
         }
-        .settingsRowSurface()
     }
 
     private func deleteEntries(at offsets: IndexSet) {

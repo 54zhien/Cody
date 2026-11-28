@@ -15,21 +15,15 @@ struct SharedFoldersSettingsView: View {
     @StateObject private var model = SharedFoldersViewModel()
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    SettingsIconLabel(title: Text("Shared folders"), systemImage: "info", tint: .neutral)
-                        .font(.subheadline.weight(.semibold))
-                    Text("These directories appear in iOS Files under On My iPhone → Cody. Tap a row to see details, browse, or toggle visibility.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                    .settingsRowSurface()
-            }
-
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection(
+                "Folders",
+                footer: "These directories appear in iOS Files under On My iPhone → Cody. Tap a row to see details, browse, or toggle visibility."
+            ) {
                 ForEach(model.entries) { entry in
+                    if entry.id != model.entries.first?.id {
+                        CodySettingsNovaDivider()
+                    }
                     NavigationLink {
                         MountDetailView(
                             context: detailContext(for: entry),
@@ -40,16 +34,12 @@ struct SharedFoldersSettingsView: View {
                             entry: entry,
                             isVisible: model.isVisible(entry.name)
                         )
+                        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                     }
-                        .settingsRowSurface()
+                    .buttonStyle(CodyPressableButtonStyle())
                 }
-            } header: {
-                Text(AppLocalized("Folders"))
-                    .settingsSectionHeading()
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .navigationTitle("Shared Folders")
         .navigationBarTitleDisplayMode(.inline)
     }

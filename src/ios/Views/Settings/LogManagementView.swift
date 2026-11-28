@@ -57,13 +57,16 @@ struct LogManagementView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Tab", selection: $tab) {
-                Text("Logs").tag("logs")
-                Text("Config Changes").tag("config-audit")
+            CodySettingsNovaSection {
+                Picker("Tab", selection: $tab) {
+                    Text("Logs").tag("logs")
+                    Text("Config Changes").tag("config-audit")
+                }
+                .pickerStyle(.segmented)
+                .settingsNovaControlRow()
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal, CodySpacing.lg)
-            .padding(.vertical, CodySpacing.sm)
+            .padding(.top, CodySpacing.sm)
 
             if tab == "config-audit" {
                 ConfigAuditView()
@@ -72,7 +75,7 @@ struct LogManagementView: View {
             }
         }
         .background(CodyColors.bgGrouped)
-        .navigationTitle("Logs")
+        .navigationTitle("Diagnostic Logs")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             // "crashes" is no longer a tab — crash reports now live in a
@@ -84,150 +87,41 @@ struct LogManagementView: View {
 
     @ViewBuilder
     private var logsBody: some View {
-        List {
-            Section {
-                Toggle("Enable Logging", isOn: $loggingManager.isEnabled)
-                    .settingsRowSurface()
-                if loggingManager.isEnabled {
-                    // [T-ios-log-verbose-tier] Verbose turns on the
-                    // high-frequency traces (per-syscall filesystem, per-render
-                    // tool lifecycle, per-request context diagnostics). They are
-                    // off by default because they are enormous: two measured
-                    // days ran to 775 MB and 171 MB, of which 73% and 99% came
-                    // from a handful of such traces.
-                    Picker("Detail Level", selection: $loggingManager.level) {
-                        // Two fixed cases, so the localized keys are literals
-                        // (AppLocalized needs a literal, not a runtime String).
-                        Text("Info").tag(AppLogger.Level.info)
-                        Text("Verbose").tag(AppLogger.Level.verbose)
-                    }
-                        .settingsRowSurface()
-                }
-            } footer: {
-                Group {
-                    if loggingManager.isEnabled && loggingManager.level == .verbose {
-                        Text("Verbose adds high-frequency traces (filesystem, rendering, context). Useful when reproducing a specific problem — logs grow very quickly, so switch back to Info afterwards.")
-                    } else {
-                        Text("When enabled, all console output is captured to daily log files.")
-                    }
-                }
-                .settingsSectionFooter()
-            }
-
-            Section {
-                if vm.runningFiles.isEmpty {
-                    Text("No log files")
-                        .foregroundStyle(CodyColors.textSecondary)
-                        .settingsRowSurface()
-                } else {
-                    ForEach(vm.runningFiles) { file in
-                        NavigationLink {
-                            LogDetailView(url: file.url, name: file.name)
-                        } label: {
-                            HStack(spacing: CodySpacing.md) {
-                                CodySettingsIconBadge(systemImage: "doc.text", tint: .neutral)
-                                Text(file.name)
-                                    .lineLimit(1)
-                                Spacer()
-                                Text(vm.format(file.size))
-                                    .font(CodyTypography.bodyMedium.monospacedDigit())
-                                    .foregroundStyle(CodyColors.textSecondary)
-                            }
-                        }
-                            .settingsRowSurface()
-                    }
-                    .onDelete { indexSet in
-                        let files = vm.runningFiles
-                        for index in indexSet {
-                            LoggingManager.shared.deleteLog(at: files[index].url)
-                        }
-                        vm.load()
-                    }
-                }
-            } header: {
-                Text("Log Files")
-                    .settingsSectionHeading()
-            }
-
+        CodySettingsScrollPage {
+            loggingSection
+            fileSection("Log Files", files: vm.runningFiles, isCrash: false)
             if !vm.crashFiles.isEmpty {
-                Section {
-                    ForEach(vm.crashFiles) { file in
-                        NavigationLink {
-                            LogDetailView(url: file.url, name: file.name)
-                        } label: {
-                            HStack(spacing: CodySpacing.md) {
-                                CodySettingsIconBadge(systemImage: "exclamationmark.triangle.fill", tint: .orange)
-                                Text(file.name)
-                                    .lineLimit(1)
-                                Spacer()
-                                Text(vm.format(file.size))
-                                    .font(CodyTypography.bodyMedium.monospacedDigit())
-                                    .foregroundStyle(CodyColors.textSecondary)
-                            }
-                        }
-                            .settingsRowSurface()
-                    }
-                    .onDelete { indexSet in
-                        let files = vm.crashFiles
-                        for index in indexSet {
-                            LoggingManager.shared.deleteLog(at: files[index].url)
-                        }
-                        vm.load()
-                    }
-                } header: {
-                    Text("Crash Reports")
-                        .settingsSectionHeading()
-                }
+                fileSection("Crash Reports", files: vm.crashFiles, isCrash: true)
             }
 
-            // [T-crash-diag-export] Breadcrumbs, crash contexts and MetricKit
-            // reports, with a sanitised zip export.
-            Section {
-                NavigationLink {
+            CodySettingsNovaSection {
+                CodySettingsNovaNavRow("Crash Diagnostics", systemImage: "stethoscope", tint: .orange) {
                     CrashDiagnosticsView()
-                } label: {
-                    SettingsIconLabel(title: Text("Crash Diagnostics"), systemImage: "stethoscope", tint: .orange)
                 }
-                    .settingsRowSurface()
-            }
-
-            if #available(iOS 17.0, *) {
-                Section {
-                    NavigationLink {
+                if #available(iOS 17.0, *) {
+                    CodySettingsNovaDivider()
+                    CodySettingsNovaNavRow("iCloud Sync Logs", systemImage: "icloud", tint: .blue) {
+                        Text(SyncLogStore.shared.entries.count, format: .number)
+                            .font(CodyTypography.bodySmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textSecondary)
+                    } destination: {
                         SyncLogView()
-                    } label: {
-                        HStack {
-                            SettingsIconLabel(title: Text("iCloud Sync Logs"), systemImage: "icloud", tint: .blue)
-                            Spacer()
-                            Text("\(SyncLogStore.shared.entries.count)")
-                                .foregroundStyle(.secondary)
-                        }
                     }
-                        .settingsRowSurface()
                 }
             }
 
             if !vm.logFiles.isEmpty {
-                Section {
-                    Button(role: .destructive) {
+                CodySettingsNovaSection(footer: "Total log storage: \(vm.format(vm.totalSize))") {
+                    CodySettingsNovaActionRow("Delete All Logs", systemImage: "trash", isDestructive: true, action: {
                         showDeleteAllConfirm = true
-                    } label: {
-                        HStack {
-                            SettingsIconLabel(title: Text("Delete All Logs"), systemImage: "trash", tint: .red)
-                            Spacer()
-                            Text(vm.format(vm.totalSize))
-                                .foregroundStyle(.secondary)
-                        }
+                    }) {
+                        Text(vm.format(vm.totalSize))
+                            .font(CodyTypography.bodySmall.monospacedDigit())
+                            .foregroundStyle(CodyColors.textSecondary)
                     }
-                        .settingsRowSurface()
-                } footer: {
-                    Text("Total log storage: \(vm.format(vm.totalSize))")
-                        .settingsSectionFooter()
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .toolbar {
             if !vm.logFiles.isEmpty && tab == "logs" {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -235,6 +129,7 @@ struct LogManagementView: View {
                         showShareSheet = true
                     } label: {
                         Image(systemName: "square.and.arrow.up")
+                            .accessibilityLabel(Text("Share Logs"))
                     }
                 }
             }
@@ -252,6 +147,59 @@ struct LogManagementView: View {
             Text("This will delete \(vm.format(vm.totalSize)) of log files. This action cannot be undone.")
         }
     }
+
+    private var loggingSection: some View {
+        CodySettingsNovaSection(
+            footer: loggingManager.isEnabled && loggingManager.level == .verbose
+                ? "Verbose adds high-frequency traces (filesystem, rendering, context). Useful when reproducing a specific problem — logs grow very quickly, so switch back to Info afterwards."
+                : "When enabled, all console output is captured to daily log files."
+        ) {
+            Toggle("Enable Logging", isOn: $loggingManager.isEnabled)
+                .settingsNovaControlRow()
+            if loggingManager.isEnabled {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                Picker("Detail Level", selection: $loggingManager.level) {
+                    Text("Info").tag(AppLogger.Level.info)
+                    Text("Verbose").tag(AppLogger.Level.verbose)
+                }
+                .pickerStyle(.menu)
+                .settingsNovaControlRow()
+            }
+        }
+    }
+
+    private func fileSection(_ title: LocalizedStringKey, files: [LogManagementViewModel.LogFile], isCrash: Bool) -> some View {
+        CodySettingsNovaSection(title) {
+            if files.isEmpty {
+                Text("No log files")
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .settingsNovaControlRow()
+            } else {
+                ForEach(files) { file in
+                    if file.id != files.first?.id {
+                        CodySettingsNovaDivider()
+                    }
+                    HStack(spacing: 0) {
+                        CodySettingsNovaNavRow(
+                            "\(file.name)",
+                            subtitle: "\(vm.format(file.size))",
+                            systemImage: isCrash ? "exclamationmark.triangle.fill" : "doc.text",
+                            tint: isCrash ? .orange : .neutral
+                        ) {
+                            LogDetailView(url: file.url, name: file.name)
+                        }
+                        SettingsNovaRowMenu(title: "Actions for \(file.name)") {
+                            Button("Delete", role: .destructive) {
+                                LoggingManager.shared.deleteLog(at: file.url)
+                                vm.load()
+                            }
+                        }
+                        .padding(.trailing, CodySpacing.sm)
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Log Detail View
@@ -263,13 +211,18 @@ struct LogDetailView: View {
     @State private var isLoading = true
 
     var body: some View {
-        Group {
+        CodySettingsNovaSection {
             if isLoading {
                 ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 LogTextView(text: content)
             }
         }
+        .padding(.horizontal, CodySpacing.lg)
+        .padding(.vertical, CodySpacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(CodyColors.bgGrouped.ignoresSafeArea())
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -292,13 +245,14 @@ struct LogDetailView: View {
 
 private struct LogTextView: UIViewRepresentable {
     let text: String
+    @ScaledMetric(relativeTo: .caption) private var fontSize: CGFloat = 11
 
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView(usingTextLayoutManager: true)
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = .clear
-        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
         textView.textColor = .label
         textView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         textView.dataDetectorTypes = []
@@ -306,6 +260,9 @@ private struct LogTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        if textView.font?.pointSize != fontSize {
+            textView.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        }
         if textView.text != text {
             textView.text = text
         }

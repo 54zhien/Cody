@@ -20,56 +20,38 @@ struct MemoryManagementView: View {
     @AppStorage("memory.global.enabled") private var memoryGlobalEnabled: Bool = true
 
     var body: some View {
-        List {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection(footer: "settings_memory_global_enabled_footer") {
                 Toggle(AppLocalized("settings_memory_global_enabled"), isOn: $memoryGlobalEnabled)
-                    .settingsRowSurface()
-            } footer: {
-                Text(AppLocalized("settings_memory_global_enabled_footer"))
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
             }
 
-            Section {
-                ForEach(memoryFiles) { file in
-                    NavigationLink {
-                        MemoryFileEditView(fileName: file.name, isGlobal: file.isGlobal)
-                    } label: {
-                        HStack(spacing: CodySpacing.md) {
-                            CodySettingsIconBadge(systemImage: file.isGlobal ? "brain.head.profile" : "doc.text", tint: .purple)
-                            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
-                                HStack {
-                                    Text(file.name)
-                                        .font(CodyTypography.bodyLarge)
-                                        .foregroundStyle(CodyColors.textPrimary)
-                                    if !file.fileSize.isEmpty {
-                                        Text(file.fileSize)
-                                            .font(CodyTypography.labelSmall)
-                                            .foregroundStyle(CodyColors.textTertiary)
+            if !memoryFiles.isEmpty {
+                CodySettingsNovaSection {
+                    ForEach(memoryFiles) { file in
+                        if file.id != memoryFiles.first?.id {
+                            CodySettingsNovaDivider()
+                        }
+                        HStack(spacing: 0) {
+                            NavigationLink {
+                                MemoryFileEditView(fileName: file.name, isGlobal: file.isGlobal)
+                            } label: {
+                                memoryRow(file)
+                            }
+                            .buttonStyle(CodyPressableButtonStyle())
+                            if !file.isGlobal {
+                                SettingsNovaRowMenu(title: "Actions for \(file.name)") {
+                                    Button("Delete", role: .destructive) {
+                                        deleteFile(file)
                                     }
-                                    Spacer()
-                                    Text(file.modifiedDate)
-                                        .font(CodyTypography.labelSmall)
-                                        .foregroundStyle(CodyColors.textSecondary)
                                 }
-                                if !file.preview.isEmpty {
-                                    Text(file.preview)
-                                        .font(CodyTypography.bodySmall)
-                                        .foregroundStyle(CodyColors.textSecondary)
-                                        .lineLimit(1)
-                                }
+                                .padding(.trailing, CodySpacing.sm)
                             }
                         }
-                        .padding(.vertical, CodySpacing.xs)
                     }
-                        .settingsRowSurface()
-                }
-                .onDelete { offsets in
-                    deleteFiles(at: offsets)
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .navigationTitle("Memory")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -168,17 +150,32 @@ struct MemoryManagementView: View {
         memoryFiles = items
     }
 
-    private func deleteFiles(at offsets: IndexSet) {
-        let fm = FileManager.default
-        let memDir = AIChatViewModel.codyMemoryPersistentDir
-        for idx in offsets {
-            let file = memoryFiles[idx]
-            if file.isGlobal { continue }
-            let url = memDir.appendingPathComponent(file.name)
-            try? fm.removeItem(at: url)
+    private func memoryRow(_ file: MemoryFileItem) -> some View {
+        HStack(spacing: CodySpacing.md) {
+            CodySettingsIconBadge(systemImage: file.isGlobal ? "brain.head.profile" : "doc.text", tint: .purple)
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                Text(file.name)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                Text([file.modifiedDate, file.fileSize].filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(CodyTypography.labelSmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                if !file.preview.isEmpty {
+                    Text(file.preview)
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .lineLimit(1)
+                }
+            }
         }
-        let deletable = IndexSet(offsets.filter { !memoryFiles[$0].isGlobal })
-        memoryFiles.remove(atOffsets: deletable)
+        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+    }
+
+    private func deleteFile(_ file: MemoryFileItem) {
+        guard !file.isGlobal else { return }
+        let url = AIChatViewModel.codyMemoryPersistentDir.appendingPathComponent(file.name)
+        try? FileManager.default.removeItem(at: url)
+        loadFiles()
     }
 
     private func firstMemoryLine(from content: String) -> String {

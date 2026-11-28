@@ -8,62 +8,53 @@ struct OffloadPermissionSettingsView: View {
     @State private var correctionDataCleared = false
 
     var body: some View {
-        List {
-            Section {
-                NavigationLink {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection("App & Sessions") {
+                CodySettingsNovaNavRow("Background", systemImage: "location", tint: .blue) {
                     EnhancedBackgroundSettingsView()
-                } label: {
-                    SettingsIconLabel(title: Text("Background"), systemImage: "location", tint: .blue)
                 }
-                    .settingsRowSurface()
-            } header: {
-                Text("Background")
-                    .settingsSectionHeading()
+                if BiometricAuth.isAvailable {
+                    CodySettingsNovaDivider()
+                    CodySettingsNovaNavRow(
+                        "\(BiometricAuth.biometryDisplayName) Protection",
+                        systemImage: BiometricAuth.biometryIconName,
+                        tint: .green
+                    ) {
+                        FaceIDProtectionSettingsView()
+                    }
+                }
             }
 
-            Section {
+            CodySettingsNovaSection(
+                "Configuration Tool",
+                footer: "When disabled, the agent cannot read or modify any settings via cody-config. The change history at Logs → Config Changes remains accessible. The agent will receive a permission_denied error and can guide you via deep links instead."
+            ) {
                 Toggle("Allow cody-config", isOn: $configGate.enabled)
-                    .settingsRowSurface()
-            } header: {
-                Text("Configuration Tool")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("When disabled, the agent cannot read or modify any settings via cody-config. The change history at Logs → Config Changes remains accessible. The agent will receive a permission_denied error and can guide you via deep links instead.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
             }
 
-            Section {
+            CodySettingsNovaSection("Privacy") {
                 ForEach(settingsCommands, id: \.name) { cmd in
+                    if cmd.name != settingsCommands.first?.name {
+                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    }
                     CommandPermissionRow(command: cmd)
-                        .settingsRowSurface()
+                        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                 }
-            } header: {
-                Text("Privacy")
-                    .settingsSectionHeading()
             }
 
-            Section {
+            CodySettingsNovaSection(
+                "Voice Correction Learning",
+                footer: "When enabled, your manual fixes to voice transcripts (original → corrected pairs), accepted/rejected AI corrections, and frequently typed terms are stored in a local on-device database to make future voice corrections smarter. Nothing is uploaded. Default is off; existing data stays until you clear it."
+            ) {
                 Toggle(AppLocalized("Collect voice correction data",
                               comment: "Permissions: toggle for voice-correction learning data collection"),
                        isOn: $correctionConsent.isEnabled)
-                    .settingsRowSurface()
-                Button(role: .destructive) {
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaActionRow("Clear Collected Data", systemImage: "trash", isDestructive: true) {
                     showClearCorrectionConfirm = true
-                } label: {
-                    SettingsIconLabel(
-                        title: Text(AppLocalized("Clear Collected Data",
-                                                comment: "Permissions: wipe voice-correction learning data")),
-                        systemImage: "trash",
-                        tint: .red
-                    )
                 }
-                    .settingsRowSurface()
-            } header: {
-                Text("Voice Correction Learning")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("When enabled, your manual fixes to voice transcripts (original → corrected pairs), accepted/rejected AI corrections, and frequently typed terms are stored in a local on-device database to make future voice corrections smarter. Nothing is uploaded. Default is off; existing data stays until you clear it.")
-                    .settingsSectionFooter()
             }
             .confirmationDialog(
                 AppLocalized("Clear all collected voice correction data?",
@@ -90,8 +81,6 @@ struct OffloadPermissionSettingsView: View {
                 Button("OK") {}
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .navigationTitle("Permissions")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -141,6 +130,7 @@ private struct CommandPermissionRow: View {
                 }
             }
             .pickerStyle(.menu)
+            .accessibilityLabel(Text(command.displayLabel))
             .onChange(of: level) { newValue in
                 manager.setPermissionLevel(newValue, for: command.name)
             }

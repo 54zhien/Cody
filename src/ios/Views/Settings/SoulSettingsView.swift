@@ -2,7 +2,7 @@ import SwiftUI
 import PhotosUI
 
 /// Settings page for SOUL.md — Cody's persistent personality file.
-/// Lives between Skills and Memory in the Agent Runtime section.
+/// Opened by the identity card in Settings.
 struct SoulSettingsView: View {
     @State private var name: String = SoulMetadata.default.name
     /// Raw emoji value loaded from SOUL.md. Not user-editable; preserved
@@ -41,88 +41,76 @@ struct SoulSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection {
                 previewCard
-                    .settingsRowSurface()
+                    .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             }
 
-            Section {
+            CodySettingsNovaSection("Identity") {
                 LabeledContent(AppLocalized("Name")) {
                     TextField("Cody", text: $name)
                         .multilineTextAlignment(.trailing)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
+                        .accessibilityLabel(Text("Name"))
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 LabeledContent(AppLocalized("Style")) {
                     TextField(AppLocalized("e.g. Warm, direct, opinionated"), text: $style)
                         .multilineTextAlignment(.trailing)
+                        .accessibilityLabel(Text("Style"))
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 Picker(AppLocalized("Language"), selection: $lang) {
                     ForEach(Self.langOptions, id: \.value) { opt in
                         Text(opt.label).tag(opt.value)
                     }
                 }
-                    .settingsRowSurface()
-            } header: {
-                Text(AppLocalized("Identity"))
-                    .settingsSectionHeading()
+                .pickerStyle(.menu)
+                .settingsNovaControlRow()
             }
 
-            Section {
-                personalityEditor
-                    .settingsRowSurface()
-            } header: {
-                Text(AppLocalized("Personality Prompt"))
-                    .settingsSectionHeading()
-            } footer: {
-                bodyLengthFooter
-                    .settingsSectionFooter()
-            }
-
-            Section {
-                Button(role: .destructive) {
-                    showRestoreConfirm = true
-                } label: {
-                    SettingsIconLabel(title: Text(AppLocalized("Restore Default")), systemImage: "arrow.uturn.backward", tint: .red)
+            VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                CodySettingsNovaSection("Personality Prompt") {
+                    personalityEditor
+                        .settingsNovaControlRow()
                 }
-                    .settingsRowSurface()
+                bodyLengthFooter
+                    .settingsNovaFooter()
+            }
 
-                // Force iCloud Sync — re-marks SOUL.md dirty and asks
-                // SyncCore to send immediately. Same gating predicate
-                // as SkillDetailView (47fd61ef / 3a4fe546): hidden
-                // entirely when the user has iCloud sync off, since
-                // the action would no-op on a disabled engine.
+            CodySettingsNovaSection {
+                CodySettingsNovaActionRow("Restore Default", systemImage: "arrow.uturn.backward", isDestructive: true) {
+                    showRestoreConfirm = true
+                }
+
                 if #available(iOS 17.0, *), iCloudSyncEnabled {
-                    Button {
+                    CodySettingsNovaDivider()
+                    CodySettingsNovaActionRow("Force iCloud Sync", systemImage: "icloud.and.arrow.up", tint: .blue, action: {
                         Task { await forceSyncSoul() }
-                    } label: {
-                        HStack {
-                            SettingsIconLabel(title: Text(AppLocalized("Force iCloud Sync")), systemImage: "icloud.and.arrow.up", tint: .blue)
-                            Spacer()
-                            if showForceSyncDone {
-                                Text(AppLocalized("Queued"))
-                                    .foregroundStyle(CodyColors.statusSuccessText)
-                                    .font(CodyTypography.bodySmall)
-                            }
+                    }) {
+                        if showForceSyncDone {
+                            Text("Queued")
+                                .foregroundStyle(CodyColors.statusSuccessText)
+                                .font(CodyTypography.bodySmall)
                         }
                     }
-                        .settingsRowSurface()
                 }
             }
 
             if let saveError {
-                Section {
+                CodySettingsNovaSection {
                     Text(saveError)
                         .font(CodyTypography.sectionHeader)
                         .foregroundStyle(CodyColors.statusErrorText)
-                        .settingsRowSurface()
+                        .settingsNovaControlRow()
                 }
             }
         }
-        .settingsGroupedCanvas()
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle(AppLocalized("Soul"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -169,9 +157,6 @@ struct SoulSettingsView: View {
 
     // MARK: - Subviews
 
-    // Standard Form row — the insetGrouped section provides the rounded
-    // card chrome automatically, so we only render content here. Matches
-    // the visual width of every other section on the page.
     private var previewCard: some View {
         HStack(alignment: .center, spacing: 12) {
             // [T-soul-custom-icon] Tappable, and it has to LOOK tappable: a

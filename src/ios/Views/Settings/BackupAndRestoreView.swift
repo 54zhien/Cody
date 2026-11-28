@@ -34,17 +34,18 @@ struct BackupAndRestoreView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $tab) {
-                Text("Backup").tag(Tab.backup)
-                Text("Restore").tag(Tab.restore)
+            CodySettingsNovaSection {
+                Picker("Backup & Restore", selection: $tab) {
+                    Text("Backup").tag(Tab.backup)
+                    Text("Restore").tag(Tab.restore)
+                }
+                .pickerStyle(.segmented)
+                .settingsNovaControlRow()
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal, CodySpacing.lg)
             .padding(.top, CodySpacing.sm)
-            .padding(.bottom, CodySpacing.xs)
-            .accessibilityLabel(Text("Backup & Restore"))
 
-            // Both children are Forms that own their own scrolling, so they sit
+            // Both children own their own scrolling, so they sit
             // directly under the picker rather than inside another container.
             //
             // [T-restore-keep-tab-state] BOTH are always in the hierarchy, with

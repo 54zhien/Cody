@@ -45,13 +45,14 @@ struct BackupRestoreView: View {
     @State private var inspectTask: Task<Void, Never>?
     @State private var isWorking = false
     @State private var statusText = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var passphraseFocused: Bool
     @State private var errorText: String?
     @State private var report: BackupImporter.Report?
     @State private var showConfirm = false
 
     var body: some View {
-        Form {
+        CodySettingsScrollPage {
             if report == nil {
                 // Chosen package FIRST. Everything below is about finding one;
                 // once found, what it is and the button that acts on it are
@@ -83,15 +84,15 @@ struct BackupRestoreView: View {
             }
 
             if let errorText {
-                Section {
+                CodySettingsNovaSection {
                     Text(errorText)
                         .font(CodyTypography.sectionHeader)
                         .foregroundStyle(CodyColors.statusErrorText)
-                        .settingsRowSurface()
+                        .settingsNovaControlRow()
                 }
             }
         }
-        .settingsGroupedCanvas()
+        .scrollDismissesKeyboard(.interactively)
         .modifier(StandaloneTitle(title: AppLocalized("Restore"),
                                  active: !embedded))
         .fileImporter(isPresented: $showPicker,
@@ -153,8 +154,9 @@ struct BackupRestoreView: View {
     private var destinationsSection: some View {
         let folders = BackupDestinations.selectedFolders
         if !folders.isEmpty || !remotes.isEmpty {
-            Section {
+            CodySettingsNovaSection("Backup Destinations", footer: "Tap a destination to browse its folders and pick a backup.") {
                 ForEach(folders) { folder in
+                    if folder.id != folders.first?.id { CodySettingsNovaDivider() }
                     NavigationLink {
                         FolderPackageListView(folder: folder, onPicked: load)
                     } label: {
@@ -163,11 +165,13 @@ struct BackupRestoreView: View {
                             subtitle: AppLocalized("Shared Folder"),
                             systemName: "externaldrive.connected.to.line.below.fill",
                             tint: .green)
+                            .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(isWorking)
-                        .settingsRowSurface()
                 }
                 ForEach(remotes) { r in
+                    if !folders.isEmpty || r.id != remotes.first?.id { CodySettingsNovaDivider() }
                     NavigationLink {
                         ServerPackageListView(remote: r, onPicked: load)
                     } label: {
@@ -176,16 +180,11 @@ struct BackupRestoreView: View {
                             subtitle: "\(r.backend.uppercased()) · /\(r.path)",
                             systemName: "network",
                             tint: .purple)
+                            .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                     }
+                    .buttonStyle(CodyPressableButtonStyle())
                     .disabled(isWorking)
-                        .settingsRowSurface()
                 }
-            } header: {
-                Text("Backup Destinations")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Tap a destination to browse its folders and pick a backup.")
-                    .settingsSectionFooter()
             }
         }
     }
@@ -215,36 +214,17 @@ struct BackupRestoreView: View {
     /// Servers…" leads to a sheet that can add one, and anything added there
     /// becomes a destination and moves up into the list above.
     private var otherSourcesSection: some View {
-        Section {
-            Button {
+        CodySettingsNovaSection("Other Sources", footer: "Pick a .codybak file from Files, iCloud Drive, or any connected storage — or add a server your backups were saved to.") {
+            CodySettingsNovaActionRow("Choose from Files…", systemImage: "folder.fill", tint: .blue) {
                 showPicker = true
-            } label: {
-                Label {
-                    Text("Choose from Files…")
-                } icon: {
-                    CodySettingsIconBadge(systemImage: "folder.fill", tint: .blue)
-                }
             }
             .disabled(isWorking)
-                .settingsRowSurface()
 
-            Button {
+            CodySettingsNovaDivider()
+            CodySettingsNovaActionRow("Browse Other Servers…", systemImage: "globe", tint: .purple) {
                 showServerPicker = true
-            } label: {
-                Label {
-                    Text("Browse Other Servers…")
-                } icon: {
-                    CodySettingsIconBadge(systemImage: "globe", tint: .purple)
-                }
             }
             .disabled(isWorking)
-                .settingsRowSurface()
-        } header: {
-            Text("Other Sources")
-                .settingsSectionHeading()
-        } footer: {
-            Text("Pick a .codybak file from Files, iCloud Drive, or any connected storage — or add a server your backups were saved to.")
-                .settingsSectionFooter()
         }
     }
 
@@ -264,7 +244,7 @@ struct BackupRestoreView: View {
     ///  - a Cancel, because until now the only way out of a slow open was to
     ///    kill the app, and doing that leaves the scratch copy behind.
     private var inspectingSection: some View {
-        Section {
+        CodySettingsNovaSection {
             HStack(spacing: 12) {
                 ProgressView()
                 VStack(alignment: .leading, spacing: 2) {
@@ -280,7 +260,7 @@ struct BackupRestoreView: View {
                         // The stage text changes underneath a fixed layout, so
                         // the row must not resize as the wording changes.
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .animation(.easeInOut(duration: 0.2), value: inspectStage)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: inspectStage)
                 }
                 Spacer(minLength: 8)
                 Button {
@@ -292,7 +272,7 @@ struct BackupRestoreView: View {
                 .controlSize(.small)
                 .layoutPriority(1)
             }
-                .settingsRowSurface()
+            .settingsNovaControlRow()
         }
     }
 
@@ -304,7 +284,7 @@ struct BackupRestoreView: View {
     /// immediately after picking one — especially when several packages in a
     /// folder differ only by date.
     private func selectedPackageSection(_ m: BackupManifest) -> some View {
-        Section {
+        CodySettingsNovaSection("Selected Backup") {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 12) {
                     CodySettingsIconBadge(systemImage: "doc.zipper", tint: .green)
@@ -319,59 +299,56 @@ struct BackupRestoreView: View {
                     }
                 }
             }
-                .settingsRowSurface()
+            .settingsNovaControlRow()
 
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
             LabeledContent("Created",
                            value: m.createdAt.formatted(date: .abbreviated, time: .shortened))
-                .settingsRowSurface()
+                .settingsNovaControlRow()
             // The data cut-off, when the package records one. Distinct from
             // "Created": anything changed after this instant is deliberately
             // not in the package, and the user should see that before
             // deciding this is the backup they want.
             if let snapshotAt = m.snapshotAt, snapshotAt != m.createdAt {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 LabeledContent("Data as of",
                                value: snapshotAt.formatted(date: .abbreviated, time: .shortened))
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
             LabeledContent("From", value: "\(m.deviceName) · \(m.app.platform) \(m.app.version)")
-                .settingsRowSurface()
+                .settingsNovaControlRow()
             if m.encryption != nil {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 LabeledContent("Encrypted", value: AppLocalized("Yes"))
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
             if let limits = m.limits.maxFileBytes, limits == 0 {
                 // The package was made with file contents switched off, so it
                 // can restore conversations but none of their attachments.
                 // Saying "size limit" here would be misleading — nothing was
                 // too big, the user chose to leave files out.
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 LabeledContent("File contents",
                                value: "Not included (\(m.limits.skippedFiles) file(s) listed)")
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             } else if let limits = m.limits.maxFileBytes, limits > 0 {
                 // §3.4 — the package is known-incomplete, and the user should
                 // learn that here rather than after restoring.
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 LabeledContent("Excluded (size limit)",
                                value: "\(m.limits.skippedFiles) file(s)")
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
 
             // Escape hatch, kept with the thing it replaces rather than in the
             // pickers below: having chosen the wrong package, "choose another"
             // is the next action, and it should be where the user is looking.
-            Button {
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaActionRow("Choose a Different Backup", systemImage: "arrow.triangle.2.circlepath", tint: .neutral) {
                 clearSelection()
-            } label: {
-                Label {
-                    Text("Choose a Different Backup")
-                } icon: {
-                    CodySettingsIconBadge(systemImage: "arrow.triangle.2.circlepath", tint: .neutral)
-                }
             }
             .disabled(isWorking)
-                .settingsRowSurface()
-        } header: {
-            Text("Selected Backup")
-                .settingsSectionHeading()
         }
     }
 
@@ -460,8 +437,10 @@ struct BackupRestoreView: View {
     }
 
     private func categorySection(_ m: BackupManifest) -> some View {
-        Section {
-            ForEach(availableCategories(m), id: \.self) { category in
+        CodySettingsNovaSection("Restore", footer: "Merge: items are matched by id. Existing items are only replaced when the backup's copy is newer. Nothing is deleted.") {
+            let categories = availableCategories(m)
+            ForEach(categories, id: \.self) { category in
+                if category != categories.first { CodySettingsNovaDivider() }
                 Toggle(isOn: binding(for: category)) {
                     // Same badge as the Backup tab, so a category is
                     // recognisable across both screens rather than only by
@@ -478,19 +457,13 @@ struct BackupRestoreView: View {
                         }
                     }
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
             }
-        } header: {
-            Text("Restore")
-                .settingsSectionHeading()
-        } footer: {
-            Text("Merge: items are matched by id. Existing items are only replaced when the backup's copy is newer. Nothing is deleted.")
-                .settingsSectionFooter()
         }
     }
 
     private var passphraseSection: some View {
-        Section {
+        CodySettingsNovaSection("Encryption", footer: "This backup is encrypted. Without its passphrase it cannot be opened.") {
             // [T-restore-lock-passphrase] Locked while the restore runs: the
             // passphrase is already in use, and a focused field kept raising
             // the keyboard over the progress line.
@@ -498,18 +471,12 @@ struct BackupRestoreView: View {
                 .textContentType(.password)
                 .focused($passphraseFocused)
                 .disabled(isWorking)
-                .settingsRowSurface()
-        } header: {
-            Text("Encryption")
-                .settingsSectionHeading()
-        } footer: {
-            Text("This backup is encrypted. Without its passphrase it cannot be opened.")
-                .settingsSectionFooter()
+                .settingsNovaControlRow()
         }
     }
 
     private var actionSection: some View {
-        Section {
+        CodySettingsNovaSection {
             Button {
                 // [T-restore-lock-passphrase] Put the keyboard away before the
                 // confirmation, so it is not left up for the whole restore.
@@ -534,7 +501,7 @@ struct BackupRestoreView: View {
             .buttonStyle(CodyPrimaryCapsuleButtonStyle())
             .disabled(isWorking || selected.isEmpty || !passphraseReady)
             .padding(.vertical, CodySpacing.xs)
-            .settingsRowSurface()
+            .settingsNovaControlRow()
         }
     }
 
@@ -546,85 +513,95 @@ struct BackupRestoreView: View {
     /// back to English. Taking a `Text` (not a `String`) keeps the call site's
     /// literal a `LocalizedStringKey`.
     private func restoreNotice(_ text: Text) -> some View {
-        Label {
-            text
-        } icon: {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .accessibilityHidden(true)
+        VStack(spacing: 0) {
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            Label {
+                text
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .accessibilityHidden(true)
+            }
+            .font(CodyTypography.bodySmall)
+            .foregroundStyle(.orange)
+            .settingsNovaControlRow()
         }
-        .font(CodyTypography.bodySmall)
-        .foregroundStyle(.orange)
-        .settingsRowSurface()
     }
 
     private func reportSection(_ r: BackupImporter.Report) -> some View {
-        Section {
-            LabeledContent("Restored", value: "\(r.totalImported)")
-                .settingsRowSurface()
-            if r.totalUpdated > 0 { LabeledContent("Updated", value: "\(r.totalUpdated)")
-                                        .settingsRowSurface() }
-            // "Skipped" is the expected outcome for anything already present,
-            // so it is labelled as such rather than looking like a failure.
-            LabeledContent("Already up to date", value: "\(r.totalSkipped)")
-                .settingsRowSurface()
-            if r.totalUnreadable > 0 {
-                LabeledContent("Unreadable", value: "\(r.totalUnreadable)")
-                    .settingsRowSurface()
-            }
-            let credsRestored = r.categories.reduce(0) { $0 + $1.credentialsRestored }
-            if credsRestored > 0 {
-                LabeledContent("API keys restored", value: "\(credsRestored)")
-                    .settingsRowSurface()
-            }
-            // [T-restore-result-severity] Two tiers, told apart by colour AND
-            // icon so the difference survives for colour-blind users:
-            //   • red, no icon  — the category's restore actually FAILED;
-            //   • orange + ⚠️   — the restore succeeded, but some files were
-            //     not in the package to begin with.
-            // Every "not in the package" line used to be red or grey, and red
-            // read as a crash or corruption to users whose restore had in fact
-            // gone fine.
-            ForEach(r.categories, id: \.category) { c in
-                if let failed = c.failed {
-                    Text("\(displayNameRaw(c.category)): \(failed)")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .settingsRowSurface()
-                } else {
-                    // Was `.secondary`, which made a real gap look like fine print.
-                    if c.sizeSkippedInPackage > 0 {
-                        restoreNotice(Text("\(displayNameRaw(c.category)): \(c.sizeSkippedInPackage) file(s) weren't in the backup (size limit)"))
-                    }
-                    // [review S9] Different remedy from the size cap, so it gets
-                    // its own line rather than being folded into "skipped":
-                    // these files exist, they just weren't on the device that
-                    // made the backup.
-                    if c.notDownloadedInPackage > 0 {
-                        restoreNotice(Text("\(displayNameRaw(c.category)): \(c.notDownloadedInPackage) file(s) weren't in the backup (not downloaded from iCloud on the source device)"))
-                    }
-                    // [review S7] The package's own index referenced content it
-                    // did not contain (the export is not a snapshot, so a file
-                    // written between the index pass and the blob copy can be
-                    // listed but not stored). Still always surfaced — that is
-                    // what S7 fixed, since it used to be swallowed as a clean
-                    // success — but as a warning, not a failure, per product
-                    // decision: the restore itself worked, and the old
-                    // "— the backup is incomplete" wording in red read as
-                    // corruption. Note this is a genuine gap in THAT backup,
-                    // not a policy skip: tombstones (size cap, not downloaded,
-                    // unreadable) are filtered out before this is counted.
-                    if c.missingBlobs > 0 {
-                        restoreNotice(Text("\(displayNameRaw(c.category)): \(c.missingBlobs) file(s) were listed in the backup but missing from it"))
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            CodySettingsNovaSection {
+                LabeledContent("Restored", value: "\(r.totalImported)")
+                    .settingsNovaControlRow()
+                if r.totalUpdated > 0 {
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    LabeledContent("Updated", value: "\(r.totalUpdated)")
+                        .settingsNovaControlRow()
+                }
+                // "Skipped" is the expected outcome for anything already present,
+                // so it is labelled as such rather than looking like a failure.
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                LabeledContent("Already up to date", value: "\(r.totalSkipped)")
+                    .settingsNovaControlRow()
+                if r.totalUnreadable > 0 {
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    LabeledContent("Unreadable", value: "\(r.totalUnreadable)")
+                        .settingsNovaControlRow()
+                }
+                let credsRestored = r.categories.reduce(0) { $0 + $1.credentialsRestored }
+                if credsRestored > 0 {
+                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    LabeledContent("API keys restored", value: "\(credsRestored)")
+                        .settingsNovaControlRow()
+                }
+                // [T-restore-result-severity] Two tiers, told apart by colour AND
+                // icon so the difference survives for colour-blind users:
+                //   • red, no icon  — the category's restore actually FAILED;
+                //   • orange + ⚠️   — the restore succeeded, but some files were
+                //     not in the package to begin with.
+                // Every "not in the package" line used to be red or grey, and red
+                // read as a crash or corruption to users whose restore had in fact
+                // gone fine.
+                ForEach(r.categories, id: \.category) { c in
+                    if let failed = c.failed {
+                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                        Text("\(displayNameRaw(c.category)): \(failed)")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .settingsNovaControlRow()
+                    } else {
+                        // Was `.secondary`, which made a real gap look like fine print.
+                        if c.sizeSkippedInPackage > 0 {
+                            restoreNotice(Text("\(displayNameRaw(c.category)): \(c.sizeSkippedInPackage) file(s) weren't in the backup (size limit)"))
+                        }
+                        // [review S9] Different remedy from the size cap, so it gets
+                        // its own line rather than being folded into "skipped":
+                        // these files exist, they just weren't on the device that
+                        // made the backup.
+                        if c.notDownloadedInPackage > 0 {
+                            restoreNotice(Text("\(displayNameRaw(c.category)): \(c.notDownloadedInPackage) file(s) weren't in the backup (not downloaded from iCloud on the source device)"))
+                        }
+                        // [review S7] The package's own index referenced content it
+                        // did not contain (the export is not a snapshot, so a file
+                        // written between the index pass and the blob copy can be
+                        // listed but not stored). Still always surfaced — that is
+                        // what S7 fixed, since it used to be swallowed as a clean
+                        // success — but as a warning, not a failure, per product
+                        // decision: the restore itself worked, and the old
+                        // "— the backup is incomplete" wording in red read as
+                        // corruption. Note this is a genuine gap in THAT backup,
+                        // not a policy skip: tombstones (size cap, not downloaded,
+                        // unreadable) are filtered out before this is counted.
+                        if c.missingBlobs > 0 {
+                            restoreNotice(Text("\(displayNameRaw(c.category)): \(c.missingBlobs) file(s) were listed in the backup but missing from it"))
+                        }
                     }
                 }
+                if !r.rolledBack.isEmpty {
+                    restoreNotice(Text("Rolled back: \(r.rolledBack.joined(separator: ", "))"))
+                }
+            } header: {
+                "Restore Complete"
             }
-            if !r.rolledBack.isEmpty {
-                restoreNotice(Text("Rolled back: \(r.rolledBack.joined(separator: ", "))"))
-            }
-        } header: {
-            Text("Restore Complete")
-                .settingsSectionHeading()
-        } footer: {
             if let prov = r.categories.first(where: { $0.category == BackupCategory.providers.rawValue }) {
                 Group {
                     if prov.credentialsRestored > 0 {
@@ -655,7 +632,7 @@ struct BackupRestoreView: View {
                         Text("This backup was created without API keys, so restored providers have no credentials — enter each API key or sign in again before use.")
                     }
                 }
-                .settingsSectionFooter()
+                .settingsNovaFooter()
             }
         }
     }
@@ -1751,5 +1728,12 @@ struct ServerPackageListView: View {
     /// from then on.
     private static func discardScratch(_ fileURL: URL) {
         try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
+    }
+}
+
+// Keep the restore result's header separate from the status rows.
+private extension CodySettingsNovaSection {
+    init(@ViewBuilder content: @escaping () -> Content, header: () -> LocalizedStringKey) {
+        self.init(header(), content: content)
     }
 }

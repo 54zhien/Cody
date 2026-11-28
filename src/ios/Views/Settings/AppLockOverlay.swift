@@ -12,33 +12,43 @@ struct AppLockOverlay: View {
                 CodyColors.bgCanvas
                     .ignoresSafeArea()
 
-                VStack(spacing: CodySpacing.xxl) {
-                    Image(systemName: BiometricAuth.biometryIconName)
-                        .font(.system(size: iconSize, weight: .regular))
-                        .foregroundStyle(CodyColors.iconPrimary)
-                        .accessibilityHidden(true)
+                GeometryReader { geometry in
+                    ScrollView {
+                        CodySettingsNovaSection {
+                            VStack(spacing: CodySpacing.xxl) {
+                                Image(systemName: BiometricAuth.biometryIconName)
+                                    .font(.system(size: iconSize, weight: .regular))
+                                    .foregroundStyle(CodyColors.iconPrimary)
+                                    .accessibilityHidden(true)
 
-                    Text("Cody is Locked")
-                        .font(CodyTypography.headlineSmall)
-                        .foregroundStyle(CodyColors.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
+                                Text("Cody is Locked")
+                                    .font(CodyTypography.headlineSmall)
+                                    .foregroundStyle(CodyColors.textPrimary)
+                                    .accessibilityAddTraits(.isHeader)
 
-                    Text("Tap to unlock with \(BiometricAuth.biometryDisplayName)")
-                        .font(CodyTypography.bodyMedium)
-                        .foregroundStyle(CodyColors.textSecondary)
+                                Text("Tap to unlock with \(BiometricAuth.biometryDisplayName)")
+                                    .font(CodyTypography.bodyMedium)
+                                    .foregroundStyle(CodyColors.textSecondary)
 
-                    Button {
-                        authenticate()
-                    } label: {
-                        Text("Unlock")
-                            .font(CodyTypography.titleMedium)
-                            .padding(.horizontal, CodySpacing.lg)
+                                Button {
+                                    authenticate()
+                                } label: {
+                                    Text("Unlock")
+                                        .font(CodyTypography.titleMedium)
+                                        .padding(.horizontal, CodySpacing.lg)
+                                }
+                                .buttonStyle(CodyPrimaryCapsuleButtonStyle())
+                                .disabled(isAuthenticating)
+                            }
+                            .padding(CodySpacing.xxl)
+                            .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: 420)
+                        .padding(.horizontal, CodySpacing.lg)
+                        .padding(.vertical, CodySpacing.xxl)
+                        .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                     }
-                    .buttonStyle(CodyPrimaryCapsuleButtonStyle())
-                    .disabled(isAuthenticating)
                 }
-                .padding(CodySpacing.xxl)
-                .multilineTextAlignment(.center)
             }
             .transition(reduceMotion ? .identity : .opacity)
             .onAppear {
