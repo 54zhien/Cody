@@ -157,3 +157,39 @@ struct CodyIconView: View {
         }
     }
 }
+
+/// Multicolor layered vector icon catalog compiled into `Assets.xcassets/CodyIcons/`
+/// (`template-rendering-intent: original`) for Explore category cards.
+enum CodyExploreIcon: String, CaseIterable {
+    case files = "cody_mc_files"
+    case terminal = "cody_mc_terminal"
+    case skills = "cody_mc_skills"
+    case mcp = "cody_mc_mcp"
+    case browser = "cody_mc_browser"
+    case agentTools = "cody_mc_tools"
+    case subAgents = "cody_mc_agents"
+    case soul = "cody_mc_soul"
+    case memory = "cody_mc_memory"
+    case providers = "cody_mc_providers"
+    case usage = "cody_mc_usage"
+    case alarms = "cody_mc_alarms"
+}
+
+/// Renders a full-color layered vector icon from `Assets.xcassets/CodyIcons/` without template tinting.
+struct CodyExploreIconView: View {
+    let icon: CodyExploreIcon
+    let size: CGFloat
+
+    init(_ icon: CodyExploreIcon, size: CGFloat = 34) {
+        self.icon = icon
+        self.size = size
+    }
+
+    var body: some View {
+        Image(icon.rawValue)
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    }
+}

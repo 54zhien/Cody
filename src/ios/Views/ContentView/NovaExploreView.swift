@@ -351,8 +351,7 @@ struct NovaExploreCardBody: View {
 
             Spacer(minLength: 0)
 
-            CodyIconView(systemName: tool.iconName, size: 34)
-                .foregroundStyle(tool.exploreGlyphColor)
+            CodyExploreIconView(tool.exploreColorIcon, size: 34)
                 .accessibilityHidden(true)
         }
         .padding(16)

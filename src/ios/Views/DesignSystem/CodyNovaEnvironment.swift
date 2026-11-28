@@ -88,7 +88,25 @@ enum CodyNovaPinnedTool: String, CaseIterable, Identifiable, Hashable, Codable {
         }
     }
 
-    /// Vivid accent color for Explore tile glyphs (matching clean colorful card icons).
+    /// Multicolor layered vector icon rendered on Explore cards.
+    var exploreColorIcon: CodyExploreIcon {
+        switch self {
+        case .files: .files
+        case .terminal: .terminal
+        case .skills: .skills
+        case .mcp: .mcp
+        case .browser: .browser
+        case .agentTools: .agentTools
+        case .subAgents: .subAgents
+        case .soul: .soul
+        case .memory: .memory
+        case .providers: .providers
+        case .usage: .usage
+        case .alarms: .alarms
+        }
+    }
+
+    /// Vivid accent color for Explore tile badges and pinned indicators.
     var exploreGlyphColor: Color {
         switch self {
         case .files: Color(red: 0.25, green: 0.65, blue: 0.98)

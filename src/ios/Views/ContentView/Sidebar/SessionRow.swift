@@ -623,7 +623,8 @@ struct SidebarUnreadDot: View {
     var body: some View {
         Circle()
             .fill(CodyColors.statusErrorText)
-            .frame(width: CodySpacing.xsPlus, height: CodySpacing.xsPlus)
+            .frame(width: CodySpacing.sm, height: CodySpacing.sm)
+            .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 }

@@ -368,7 +368,11 @@ struct CodySettingsNovaToggleRow: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, minHeight: subtitle == nil ? 56 : 70, alignment: .leading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: subtitle == nil ? CodyControlHeight.settingsToggle : CodyControlHeight.settingsNavMultiLine,
+            alignment: .leading
+        )
         .contentShape(Rectangle())
     }
 }
@@ -414,10 +418,10 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, subtitle == nil ? 14 : 13)
+        .padding(.vertical, subtitle == nil ? 16 : 14)
         .frame(
             maxWidth: .infinity,
-            minHeight: subtitle == nil ? 56 : 70,
+            minHeight: subtitle == nil ? CodyControlHeight.settingsRow : CodyControlHeight.settingsNavMultiLine,
             alignment: .leading
         )
         .contentShape(Rectangle())
