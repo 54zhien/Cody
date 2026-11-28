@@ -57,15 +57,17 @@ struct FileBrowserView: View {
     /// [T-browser-download-ux-v2] Filename to scroll to and briefly highlight
     /// after the first listing loads (downloads panel "Show in Files").
     private let highlightFileName: String?
+    private let showsCloseButton: Bool
     @State private var highlightActive = false
     @State private var didLocateHighlight = false
 
     enum MoveOrCopyMode { case move, copy }
 
     init(rootPath: URL? = nil, initialPath: URL? = nil, rootLabel: String? = nil,
-         highlightFileName: String? = nil) {
+         highlightFileName: String? = nil, showsCloseButton: Bool = true) {
         let path = rootPath ?? RootfsManager.shared.rootfsPath
         self.highlightFileName = highlightFileName
+        self.showsCloseButton = showsCloseButton
         _viewModel = StateObject(wrappedValue: FileBrowserViewModel(rootPath: path, initialPath: initialPath, rootLabel: rootLabel))
     }
 
@@ -197,9 +199,11 @@ struct FileBrowserView: View {
         }
         .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: copiedToast)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("Close") {
-                    dismiss()
+            if showsCloseButton {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
                 }
             }
             // T-hidden-files a3e7f1d0: trailing toolbar collapsed to a

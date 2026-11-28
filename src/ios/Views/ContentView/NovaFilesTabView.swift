@@ -9,7 +9,7 @@ struct NovaFilesTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             rootSelector
-            FileBrowserView(rootPath: selectedRoot.url, rootLabel: selectedRoot.linuxPath)
+            FileBrowserView(rootPath: selectedRoot.url, rootLabel: selectedRoot.linuxPath, showsCloseButton: false)
                 .id(selectedRoot)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
