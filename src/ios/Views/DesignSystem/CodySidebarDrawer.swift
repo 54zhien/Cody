@@ -29,7 +29,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
             ZStack(alignment: .leading) {
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .scaleEffect(reduceMotion ? 1 : 1 - visibility * 0.04)
+                    .scaleEffect(reduceMotion ? 1 : 1 - visibility * 0.05)
                     .blur(radius: reduceTransparency ? 0 : visibility * 8)
                     .allowsHitTesting(!showingDrawer && dragStart == nil)
                     .accessibilityHidden(showingDrawer)
