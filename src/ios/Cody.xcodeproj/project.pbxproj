@@ -482,7 +482,9 @@
 		E5U000002 /* KaTeX in Resources */ = {isa = PBXBuildFile; fileRef = E5U000012 /* KaTeX */; };
 		E5UAM0001 /* UserActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5UAM0011 /* UserActivityMonitor.swift */; };
 		E5UMP0001 /* UnifiedModelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5UMP0011 /* UnifiedModelPicker.swift */; };
-		E5V000002 /* AlternateIcons in Resources */ = {isa = PBXBuildFile; fileRef = E5V000012 /* AlternateIcons */; };
+		AE15AC5407FE4DBBB622CF11 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = AE15AC5407FE4DBBB622CE11 /* AppIcon.icon */; };
+		AE15AC5407FE4DBBB622CF12 /* AppIcon-Light.icon in Resources */ = {isa = PBXBuildFile; fileRef = AE15AC5407FE4DBBB622CE12 /* AppIcon-Light.icon */; };
+		AE15AC5407FE4DBBB622CF13 /* AppIcon-Dark.icon in Resources */ = {isa = PBXBuildFile; fileRef = AE15AC5407FE4DBBB622CE13 /* AppIcon-Dark.icon */; };
 		E5V100001 /* MessageListLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5V100011 /* MessageListLayout.swift */; };
 		E5VC00001 /* VoiceCorrectionDB.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VC00011 /* VoiceCorrectionDB.swift */; };
 		E5VC00002 /* PhoneticNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VC00012 /* PhoneticNormalizer.swift */; };
@@ -1304,7 +1306,9 @@
 		E5U000012 /* KaTeX */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KaTeX; path = Resources/KaTeX; sourceTree = "<group>"; };
 		E5UAM0011 /* UserActivityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserActivityMonitor.swift; sourceTree = "<group>"; };
 		E5UMP0011 /* UnifiedModelPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedModelPicker.swift; sourceTree = "<group>"; };
-		E5V000012 /* AlternateIcons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AlternateIcons; path = Resources/AlternateIcons; sourceTree = "<group>"; };
+		AE15AC5407FE4DBBB622CE11 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = AppIcon.icon; path = Resources/AppIcon.icon; sourceTree = "<group>"; };
+		AE15AC5407FE4DBBB622CE12 /* AppIcon-Light.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = AppIcon-Light.icon; path = Resources/AppIcon-Light.icon; sourceTree = "<group>"; };
+		AE15AC5407FE4DBBB622CE13 /* AppIcon-Dark.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = AppIcon-Dark.icon; path = Resources/AppIcon-Dark.icon; sourceTree = "<group>"; };
 		E5V100011 /* MessageListLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageListLayout.swift; sourceTree = "<group>"; };
 		E5VC00011 /* VoiceCorrectionDB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCorrectionDB.swift; sourceTree = "<group>"; };
 		E5VC00012 /* PhoneticNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneticNormalizer.swift; sourceTree = "<group>"; };
@@ -1705,7 +1709,9 @@
 				E5A000011 /* default_mount */,
 				E5A000A11 /* AOJITRestore */,
 				E5U000012 /* KaTeX */,
-				E5V000012 /* AlternateIcons */,
+				AE15AC5407FE4DBBB622CE11 /* AppIcon.icon */,
+				AE15AC5407FE4DBBB622CE12 /* AppIcon-Light.icon */,
+				AE15AC5407FE4DBBB622CE13 /* AppIcon-Dark.icon */,
 				E5D00060 /* models-dev-api.json */,
 				E5JB00014 /* jieba.dict.utf8 */,
 				E5VC0001B /* zh_background_wordfreq.txt */,
@@ -2970,7 +2976,9 @@
 				E5A000001 /* default_mount in Resources */,
 				E5A000A01 /* AOJITRestore in Resources */,
 				E5U000002 /* KaTeX in Resources */,
-				E5V000002 /* AlternateIcons in Resources */,
+				AE15AC5407FE4DBBB622CF11 /* AppIcon.icon in Resources */,
+				AE15AC5407FE4DBBB622CF12 /* AppIcon-Light.icon in Resources */,
+				AE15AC5407FE4DBBB622CF13 /* AppIcon-Dark.icon in Resources */,
 				AA71B0222F44BEB200A28A5E /* Launch Screen.storyboard in Resources */,
 				E51000003 /* Assets.xcassets in Resources */,
 				E5PV00001 /* PrivacyInfo.xcprivacy in Resources */,
@@ -4005,9 +4013,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
+					"AppIcon-Light",
+					"AppIcon-Dark",
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Cody.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -4064,9 +4075,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
+					"AppIcon-Light",
+					"AppIcon-Dark",
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Cody.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

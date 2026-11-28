@@ -229,11 +229,9 @@ struct AppearanceSettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let iconOptions: [AppIconOption] = [
-        AppIconOption(id: 0, title: "Automatic", iconName: nil, imageName: "AlternateIcons/AppIcon-Light"),
-        AppIconOption(id: 1, title: "Light", iconName: "AppIcon-Light", imageName: "AlternateIcons/AppIcon-Light"),
-        AppIconOption(id: 2, title: "Dark", iconName: "AppIcon-Dark", imageName: "AlternateIcons/AppIcon-Dark"),
-        AppIconOption(id: 3, title: "Light (Legacy)", iconName: "AppIcon-LegacyLight", imageName: "AlternateIcons/AppIcon-LegacyLight"),
-        AppIconOption(id: 4, title: "Dark (Legacy)", iconName: "AppIcon-LegacyDark", imageName: "AlternateIcons/AppIcon-LegacyDark"),
+        AppIconOption(id: 0, title: "Automatic", iconName: nil, imageName: "LadySereneIconLight"),
+        AppIconOption(id: 1, title: "Light", iconName: "AppIcon-Light", imageName: "LadySereneIconLight"),
+        AppIconOption(id: 2, title: "Dark", iconName: "AppIcon-Dark", imageName: "LadySereneIconDark"),
     ]
 
     var body: some View {
@@ -289,7 +287,7 @@ struct AppearanceSettingsView: View {
     private var appIconPicker: some View {
         let current = iconOptions.first { $0.id == appIconMode } ?? iconOptions[0]
         let previewName = current.iconName == nil && colorScheme == .dark
-            ? "AlternateIcons/AppIcon-Dark"
+            ? "LadySereneIconDark"
             : current.imageName
         return Menu {
             Picker("App Icon", selection: Binding(get: { appIconMode }, set: changeAppIcon)) {
@@ -317,12 +315,18 @@ struct AppearanceSettingsView: View {
     }
 
     private func changeAppIcon(_ id: Int) {
-        guard id != appIconMode, let option = iconOptions.first(where: { $0.id == id }) else { return }
-        appIconMode = id
-        UIApplication.shared.setAlternateIconName(option.iconName) { error in
+        guard let option = iconOptions.first(where: { $0.id == id }) else { return }
+        let application = UIApplication.shared
+        guard application.alternateIconName != option.iconName else {
+            appIconMode = id
+            return
+        }
+        application.setAlternateIconName(option.iconName) { error in
             if let error {
                 print("[AppIcon] Failed to set icon: \(error.localizedDescription)")
+                return
             }
+            DispatchQueue.main.async { appIconMode = id }
         }
     }
 

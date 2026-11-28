@@ -1,0 +1,57 @@
+{
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": true,
+          "hidden": false,
+          "image-name": "LadySerene-Light.svg",
+          "name": "Lady Serene",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "opacity": 1,
+          "image-name-specializations": [
+            {
+              "appearance": "dark",
+              "value": "LadySerene-Dark.svg"
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.24
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.22
+      },
+      "specular": true,
+      "lighting": "individual"
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  },
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "srgb:0.96078431,0.95686275,0.94901961,1.00000000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "srgb:0.08235294,0.07843137,0.09411765,1.00000000"
+      }
+    }
+  ]
+}

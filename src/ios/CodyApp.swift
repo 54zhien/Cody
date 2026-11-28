@@ -504,6 +504,37 @@ struct CodyApp: App {
 
     // MARK: - Lifecycle Logging
 
+    @MainActor
+    private static func migrateLegacyAppIcon() {
+        let application = UIApplication.shared
+        let defaults = UserDefaults.standard
+        let key = "appIconMode"
+        let replacement: (name: String, mode: Int)
+
+        switch application.alternateIconName {
+        case "AppIcon-LegacyLight"?:
+            replacement = ("AppIcon-Light", 1)
+        case "AppIcon-LegacyDark"?:
+            replacement = ("AppIcon-Dark", 2)
+        default:
+            // iOS may have already reset an alternate icon removed during an update.
+            if (3...4).contains(defaults.integer(forKey: key)) {
+                let modes = ["AppIcon-Light": 1, "AppIcon-Dark": 2]
+                defaults.set(application.alternateIconName.flatMap { modes[$0] } ?? 0, forKey: key)
+            }
+            return
+        }
+
+        guard application.supportsAlternateIcons else { return }
+        application.setAlternateIconName(replacement.name) { error in
+            if let error {
+                lifecycleLog.error("Failed to migrate app icon: \(error.localizedDescription)")
+                return
+            }
+            UserDefaults.standard.set(replacement.mode, forKey: key)
+        }
+    }
+
     private func handleScenePhaseChange(_ phase: ScenePhase) {
         switch phase {
         case .active:
@@ -545,6 +576,7 @@ struct CodyApp: App {
             Task { @MainActor in
                 await Task.yield()
 
+                Self.migrateLegacyAppIcon()
                 ViewModelCache.shared.resumeAllStreamingUI()
 
                 SessionLockStore.shared.evaluateAppLock()
