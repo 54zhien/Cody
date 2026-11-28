@@ -1,8 +1,21 @@
 import SwiftUI
 import UIKit
 
+/// Crisp visible hairline stroke for Settings capsules and pill cards (distinct from ultra-subtle 5% borders).
+enum CodySettingsHairline {
+    static let strokeColor = Color(
+        uiColor: CodyUIColors.dynamic(
+            light: 0x0D0D0D,
+            lightAlpha: 0.11,
+            dark: 0xFFFFFF,
+            darkAlpha: 0.14
+        )
+    )
+    static let capsuleRadius: CGFloat = 27
+}
+
 /// Full-page ScrollView host for Nova Settings screens.
-/// Replaces default SwiftUI `List`/`Form` chrome with 22pt grouped spacing and 27pt bordered cards.
+/// Uses capsule-outlined cards over a clean canvas/grouped backdrop with zero default SwiftUI `List` chrome.
 struct CodySettingsScrollPage<Content: View>: View {
     var bottomInset: CGFloat = CodySpacing.xxxl
     @ViewBuilder let content: () -> Content
@@ -21,7 +34,7 @@ struct CodySettingsScrollPage<Content: View>: View {
     }
 }
 
-/// Nova Settings 27pt card section with optional section heading and footer.
+/// Nova Settings capsule-cornered bordered section (27pt continuous capsule ends + crisp 1pt hairline stroke).
 struct CodySettingsNovaSection<Content: View>: View {
     let title: LocalizedStringKey?
     let footer: LocalizedStringKey?
@@ -44,18 +57,18 @@ struct CodySettingsNovaSection<Content: View>: View {
                     .font(CodyTypography.sectionHeader.weight(.medium))
                     .foregroundStyle(CodyColors.textSecondary)
                     .padding(.horizontal, CodySpacing.lg)
-                    .padding(.bottom, 7)
+                    .padding(.bottom, 8)
                     .accessibilityAddTraits(.isHeader)
             }
 
-            let shape = RoundedRectangle(cornerRadius: CodyMetrics.Settings.sectionRadius, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: CodySettingsHairline.capsuleRadius, style: .continuous)
             VStack(spacing: 0) {
                 content()
             }
             .background(shape.fill(CodyColors.bgGroupedSurface))
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
                     .allowsHitTesting(false)
             }
 
@@ -70,20 +83,86 @@ struct CodySettingsNovaSection<Content: View>: View {
     }
 }
 
-/// Subtle inset separator between rows inside a `CodySettingsNovaSection`.
+/// Standalone capsule-pill stack for individual pill options with crisp 1pt hairline outline
+/// (matches the individual capsule + thin stroke option aesthetic).
+struct CodySettingsCapsuleGroup<Content: View>: View {
+    let title: LocalizedStringKey?
+    let footer: LocalizedStringKey?
+    @ViewBuilder let content: () -> Content
+
+    init(
+        _ title: LocalizedStringKey? = nil,
+        footer: LocalizedStringKey? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.footer = footer
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title {
+                Text(title)
+                    .font(CodyTypography.sectionHeader.weight(.medium))
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .padding(.horizontal, CodySpacing.lg)
+                    .padding(.bottom, 8)
+                    .accessibilityAddTraits(.isHeader)
+            }
+
+            VStack(spacing: 10) {
+                content()
+            }
+
+            if let footer {
+                Text(footer)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .padding(.horizontal, 18)
+                    .padding(.top, CodySpacing.sm)
+            }
+        }
+    }
+}
+
+/// Wraps any single settings row as an individual full-capsule pill (`Capsule` / 27pt) with crisp 1pt hairline border.
+struct CodySettingsCapsulePillModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CodySettingsHairline.capsuleRadius, style: .continuous)
+        content
+            .background(shape.fill(CodyColors.bgGroupedSurface))
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(shape)
+    }
+}
+
+extension View {
+    /// Renders a standalone settings row as a pill/capsule with a crisp 1pt hairline stroke.
+    func codySettingsCapsulePill() -> some View {
+        modifier(CodySettingsCapsulePillModifier())
+    }
+}
+
+/// Subtle inset separator between rows inside a multi-row `CodySettingsNovaSection`.
 struct CodySettingsNovaDivider: View {
     var leadingInset: CGFloat = 56
 
     var body: some View {
         Rectangle()
-            .fill(CodyColors.separator.opacity(0.65))
+            .fill(CodySettingsHairline.strokeColor)
             .frame(height: 0.5)
             .padding(.leading, leadingInset)
+            .padding(.trailing, CodySpacing.lg)
             .accessibilityHidden(true)
     }
 }
 
-/// Nova Settings navigation row (56pt single-line, 72pt with subtitle).
+/// Nova Settings navigation row (54pt single-line, 68pt with subtitle).
 struct CodySettingsNovaNavRow<Destination: View, Trailing: View>: View {
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey?
@@ -242,7 +321,7 @@ struct CodySettingsNovaToggleRow: View {
     var body: some View {
         HStack(spacing: CodySpacing.md) {
             if let systemImage {
-                CodySettingsIconBadge(systemImage: systemImage, tint: tint)
+                CodySettingsIconBadge(systemImage: systemImage, tint: tint, outline: .circle)
             }
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(title)
@@ -258,9 +337,9 @@ struct CodySettingsNovaToggleRow: View {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
         }
-        .padding(.horizontal, CodyMetrics.Settings.rowPaddingH)
+        .padding(.horizontal, 18)
         .padding(.vertical, CodySpacing.md)
-        .frame(maxWidth: .infinity, minHeight: subtitle == nil ? CodyMetrics.Settings.rowMinHeight : CodyMetrics.Settings.navRowMinHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: subtitle == nil ? 54 : 68, alignment: .leading)
         .contentShape(Rectangle())
     }
 }
@@ -278,7 +357,7 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
     var body: some View {
         HStack(spacing: CodySpacing.md) {
             if let systemImage {
-                CodySettingsIconBadge(systemImage: systemImage, tint: tint)
+                CodySettingsIconBadge(systemImage: systemImage, tint: tint, outline: .circle)
             }
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(title)
@@ -303,18 +382,18 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, CodyMetrics.Settings.rowPaddingH)
+        .padding(.horizontal, 18)
         .padding(.vertical, subtitle == nil ? CodySpacing.mdPlus : CodySpacing.md)
         .frame(
             maxWidth: .infinity,
-            minHeight: subtitle == nil ? CodyMetrics.Settings.rowMinHeight : CodyMetrics.Settings.navRowMinHeight,
+            minHeight: subtitle == nil ? 54 : 68,
             alignment: .leading
         )
         .contentShape(Rectangle())
     }
 }
 
-/// Top hero identity card for Nova Settings (displays Soul avatar/emoji, name, and active model summary).
+/// Top hero identity capsule card for Nova Settings (displays Soul avatar/emoji, name, and active model summary).
 struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
     let name: String
     let subtitle: String
@@ -322,16 +401,16 @@ struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
     @ViewBuilder let destination: () -> Destination
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: CodyMetrics.Settings.sectionRadius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: CodySettingsHairline.capsuleRadius, style: .continuous)
         NavigationLink(destination: destination) {
             HStack(spacing: CodySpacing.mdPlus) {
                 avatar()
-                    .frame(width: 52, height: 52)
+                    .frame(width: 50, height: 50)
                     .background(Circle().fill(CodyColors.bgListIcon))
                     .clipShape(Circle())
                     .overlay {
                         Circle()
-                            .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
+                            .strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
                             .allowsHitTesting(false)
                     }
 
@@ -353,13 +432,13 @@ struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
                     .foregroundStyle(CodyColors.iconDisclosure)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, CodySpacing.lg)
-            .padding(.vertical, CodySpacing.lg)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(shape.fill(CodyColors.bgGroupedSurface))
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(CodyColors.borderLight, lineWidth: CodySpacing.px)
+                shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
                     .allowsHitTesting(false)
             }
             .contentShape(shape)

@@ -1,19 +1,22 @@
 import SwiftUI
 import UIKit
 
-/// Slide-over sidebar drawer matching the spec:
-/// - Panel width: 88% of viewport, capped at 380pt
-/// - Left edge hotzone: 24pt
-/// - Main content canvas stays stationary behind a linear `bgScrim` backdrop
-/// - Release threshold: velocity >= 620 opens, <= -620 closes, else progress >= 0.5
-/// - Settle animation: spring(stiffness: 460, damping: 38)
+/// Full-screen live-blurred sidebar overlay matching the Nova reference:
+/// - Swiping right from the left 24pt edge (or tapping the drawer button) blurs the entire
+///   underlying canvas with live material blur and reveals the frameless sidebar menu over it.
+/// - No solid opaque side panel edge: the underlying chat artwork/colors glow softly behind
+///   the entire drawer surface.
+/// - Release threshold: velocity >= 620 opens, <= -620 closes, else progress >= 0.5.
+/// - Settle animation: spring(stiffness: 460, damping: 38).
 struct CodySidebarDrawer<Content: View, Drawer: View>: View {
     @Binding var isOpen: Bool
     var edgeDragEnabled: Bool = true
     @ViewBuilder let content: () -> Content
     @ViewBuilder let drawer: () -> Drawer
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var dragProgress: CGFloat? = nil
     @State private var dragStartProgress: CGFloat = 0
 
@@ -29,16 +32,14 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
 
     var body: some View {
         GeometryReader { geo in
-            let panelWidth = min(
-                geo.size.width * CodyMetrics.Sidebar.panelWidthPercent,
-                CodyMetrics.Sidebar.panelMaxWidth
-            )
+            let dragSpan = max(min(geo.size.width * 0.78, 340), 220)
             let progress = effectiveProgress
-            let panelOffsetX = ((progress - 1) * panelWidth).rounded()
+            let contentShiftX = ((progress - 1) * 44).rounded()
 
             ZStack(alignment: .leading) {
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .blur(radius: reduceTransparency ? 0 : progress * 24)
                     .allowsHitTesting(progress < 0.05)
 
                 // Left-edge drag hotzone when drawer is closed
@@ -47,40 +48,40 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                         .frame(width: CodyMetrics.Sidebar.edgeWidth)
                         .frame(maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        .gesture(drawerDragGesture(panelWidth: panelWidth))
+                        .gesture(drawerDragGesture(dragSpan: dragSpan))
                         .accessibilityHidden(true)
                 }
 
-                // Scrim backdrop over stationary content
-                if progress > 0.001 {
-                    CodyColors.bgScrim
+                // Full-screen blurred glass veil + frameless drawer content
+                if progress > 0.001 || isOpen {
+                    ZStack(alignment: .leading) {
+                        Group {
+                            if reduceTransparency {
+                                CodyColors.bgPrimary
+                            } else {
+                                ZStack {
+                                    Rectangle()
+                                        .fill(.ultraThinMaterial)
+                                    (colorScheme == .dark
+                                        ? Color.black.opacity(0.42)
+                                        : Color.white.opacity(0.58))
+                                }
+                            }
+                        }
                         .ignoresSafeArea()
                         .opacity(Double(progress))
                         .contentShape(Rectangle())
                         .onTapGesture {
                             settle(open: false)
                         }
-                        .gesture(drawerDragGesture(panelWidth: panelWidth))
-                        .accessibilityLabel(Text("Close sidebar"))
-                        .accessibilityAddTraits(.isButton)
-                }
 
-                // Sliding drawer panel
-                if progress > 0.001 || isOpen {
-                    drawer()
-                        .frame(width: panelWidth)
-                        .frame(maxHeight: .infinity)
-                        .background(CodyColors.bgPrimary.ignoresSafeArea())
-                        .overlay(alignment: .trailing) {
-                            Rectangle()
-                                .fill(CodyColors.borderLight)
-                                .frame(width: CodySpacing.px)
-                                .ignoresSafeArea()
-                                .allowsHitTesting(false)
-                        }
-                        .offset(x: panelOffsetX)
-                        .gesture(drawerDragGesture(panelWidth: panelWidth))
-                        .accessibilityAddTraits(.isModal)
+                        drawer()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .offset(x: contentShiftX)
+                            .opacity(Double(progress))
+                    }
+                    .gesture(drawerDragGesture(dragSpan: dragSpan))
+                    .accessibilityAddTraits(.isModal)
                 }
             }
             .animation(
@@ -90,7 +91,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
         }
     }
 
-    private func drawerDragGesture(panelWidth: CGFloat) -> some Gesture {
+    private func drawerDragGesture(dragSpan: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .onChanged { value in
                 let dx = value.translation.width
@@ -100,13 +101,12 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                     if !isOpen && dx <= 0 { return }
                     dragStartProgress = isOpen ? 1 : 0
                 }
-                let next = min(max(dragStartProgress + dx / max(panelWidth, 1), 0), 1)
+                let next = min(max(dragStartProgress + dx / dragSpan, 0), 1)
                 dragProgress = next
             }
             .onEnded { value in
                 guard let current = dragProgress else { return }
                 let predictedDelta = value.predictedEndTranslation.width - value.translation.width
-                // DragGesture predictedEndTranslation roughly projects ~0.25s ahead
                 let estimatedVelocity = predictedDelta * 4
                 let shouldOpen: Bool
                 if estimatedVelocity >= Self.velocityThreshold {

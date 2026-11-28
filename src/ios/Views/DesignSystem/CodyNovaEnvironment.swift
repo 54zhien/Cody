@@ -2,35 +2,193 @@ import Combine
 import SwiftUI
 import UIKit
 
+/// Tools that can be browsed on the Explore ("More") screen and long-press pinned
+/// directly onto the customizable Nova bottom icon bar.
+enum CodyNovaPinnedTool: String, CaseIterable, Identifiable, Hashable, Codable {
+    case files
+    case terminal
+    case skills
+    case mcp
+    case browser
+    case agentTools
+    case subAgents
+    case soul
+    case memory
+    case providers
+    case usage
+    case alarms
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .files: "Files"
+        case .terminal: "Terminal"
+        case .skills: "Skills"
+        case .mcp: "MCP"
+        case .browser: "Browser"
+        case .agentTools: "Agent Tools"
+        case .subAgents: "Sub Agents"
+        case .soul: "Soul"
+        case .memory: "Memory"
+        case .providers: "Providers"
+        case .usage: "Usage"
+        case .alarms: "Alarms"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .files: "folder"
+        case .terminal: "terminal"
+        case .skills: "puzzlepiece.extension"
+        case .mcp: "square.stack.3d.up"
+        case .browser: "safari"
+        case .agentTools: "wrench.and.screwdriver"
+        case .subAgents: "sparkles.rectangle.stack"
+        case .soul: "sparkles"
+        case .memory: "brain.head.profile"
+        case .providers: "cpu"
+        case .usage: "chart.line.uptrend.xyaxis"
+        case .alarms: "alarm"
+        }
+    }
+
+    var selectedIconName: String {
+        switch self {
+        case .files: "folder.fill"
+        case .terminal: "terminal.fill"
+        case .skills: "puzzlepiece.extension.fill"
+        case .mcp: "square.stack.3d.up.fill"
+        case .browser: "safari.fill"
+        case .agentTools: "wrench.and.screwdriver.fill"
+        case .subAgents: "sparkles.rectangle.stack.fill"
+        case .soul: "sparkles"
+        case .memory: "brain.head.profile.fill"
+        case .providers: "cpu.fill"
+        case .usage: "chart.line.uptrend.xyaxis"
+        case .alarms: "alarm.fill"
+        }
+    }
+
+    var tint: CodyCategoryTint {
+        switch self {
+        case .files: .blue
+        case .terminal: .green
+        case .skills: .blue
+        case .mcp: .green
+        case .browser: .blue
+        case .agentTools: .purple
+        case .subAgents: .purple
+        case .soul: .purple
+        case .memory: .purple
+        case .providers: .blue
+        case .usage: .green
+        case .alarms: .orange
+        }
+    }
+
+    /// Vivid accent color for Explore tile glyphs (matching clean colorful card icons).
+    var exploreGlyphColor: Color {
+        switch self {
+        case .files: Color(red: 0.25, green: 0.65, blue: 0.98)
+        case .terminal: Color(red: 0.20, green: 0.45, blue: 0.95)
+        case .skills: Color(red: 0.28, green: 0.78, blue: 0.72)
+        case .mcp: Color(red: 0.35, green: 0.74, blue: 0.42)
+        case .browser: Color(red: 0.22, green: 0.62, blue: 0.96)
+        case .agentTools: Color(red: 0.56, green: 0.36, blue: 0.92)
+        case .subAgents: Color(red: 0.48, green: 0.32, blue: 0.90)
+        case .soul: Color(red: 0.94, green: 0.74, blue: 0.22)
+        case .memory: Color(red: 0.60, green: 0.38, blue: 0.90)
+        case .providers: Color(red: 0.24, green: 0.56, blue: 0.96)
+        case .usage: Color(red: 0.52, green: 0.80, blue: 0.24)
+        case .alarms: Color(red: 0.52, green: 0.30, blue: 0.86)
+        }
+    }
+}
+
+/// Active destination in the Nova root shell: fixed Home (Chat), user-pinned custom tools, or fixed More (Explore).
+enum CodyNovaDestination: Hashable, Identifiable {
+    case home
+    case tool(CodyNovaPinnedTool)
+    case more
+
+    var id: String {
+        switch self {
+        case .home: "home"
+        case .tool(let t): "tool.\(t.rawValue)"
+        case .more: "more"
+        }
+    }
+}
+
+/// Legacy tab alias kept for source compatibility where needed.
 enum CodyNovaTab: String, CaseIterable, Identifiable, Hashable {
     case chat
     case explore
     case files
 
     var id: String { rawValue }
+}
 
-    var title: LocalizedStringKey {
-        switch self {
-        case .chat: "Chat"
-        case .explore: "Explore"
-        case .files: "Files"
+/// Persistent store for the user's customizable Nova bottom-bar pinned tools.
+/// Supports long-press pin/unpin from the Explore ("More") grid (up to 4 custom icons between Home and More).
+@MainActor
+final class CodyNovaTabStore: ObservableObject {
+    static let maxPinnedCount = 4
+    private static let storageKey = "cody.nova.pinnedBottomTools.v1"
+    private static let defaultPinned: [CodyNovaPinnedTool] = [.skills, .terminal, .files]
+
+    @Published var pinnedTools: [CodyNovaPinnedTool] {
+        didSet { persist() }
+    }
+
+    init() {
+        if let raw = UserDefaults.standard.stringArray(forKey: Self.storageKey) {
+            let decoded = raw.compactMap(CodyNovaPinnedTool.init(rawValue:))
+            self.pinnedTools = Array(decoded.prefix(Self.maxPinnedCount))
+        } else {
+            self.pinnedTools = Self.defaultPinned
         }
     }
 
-    var iconName: String {
-        switch self {
-        case .chat: "bubble.left.and.bubble.right"
-        case .explore: "square.grid.2x2"
-        case .files: "folder"
-        }
+    func isPinned(_ tool: CodyNovaPinnedTool) -> Bool {
+        pinnedTools.contains(tool)
     }
 
-    var selectedIconName: String {
-        switch self {
-        case .chat: "bubble.left.and.bubble.right.fill"
-        case .explore: "square.grid.2x2.fill"
-        case .files: "folder.fill"
+    func togglePin(_ tool: CodyNovaPinnedTool) {
+        if let idx = pinnedTools.firstIndex(of: tool) {
+            pinnedTools.remove(at: idx)
+        } else {
+            if pinnedTools.count >= Self.maxPinnedCount {
+                pinnedTools.removeLast()
+            }
+            pinnedTools.append(tool)
         }
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
+
+    private func persist() {
+        UserDefaults.standard.set(pinnedTools.map(\.rawValue), forKey: Self.storageKey)
+    }
+}
+
+/// Iconic two-bar unequal sidebar drawer glyph (longer top stroke, shorter bottom stroke).
+struct CodyDrawerGlyph: View {
+    var color: Color = CodyColors.iconPrimary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Capsule()
+                .fill(color)
+                .frame(width: 17, height: 2)
+            Capsule()
+                .fill(color)
+                .frame(width: 11, height: 2)
+        }
+        .frame(width: 20, height: 20)
+        .accessibilityHidden(true)
     }
 }
 
@@ -73,7 +231,7 @@ extension EnvironmentValues {
 }
 
 /// Lightweight keyboard visibility observer used by the Nova root shell to
-/// smoothly hide the floating bottom tab bar whenever the software keyboard is active.
+/// smoothly hide the bottom icon bar whenever the software keyboard is active.
 @MainActor
 final class CodyKeyboardObserver: ObservableObject {
     @Published private(set) var isVisible: Bool = false
