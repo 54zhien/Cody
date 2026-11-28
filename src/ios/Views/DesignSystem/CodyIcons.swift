@@ -193,3 +193,89 @@ struct CodyExploreIconView: View {
             .frame(width: size, height: size)
     }
 }
+
+/// Colorful file-type vector icons (`Assets.xcassets/CodyIcons/cody_file_*.imageset`)
+/// matching the attachment & file-browser icon taxonomy.
+enum CodyFileTypeIcon: String, CaseIterable {
+    case folder = "cody_mc_files"
+    case pdf = "cody_file_pdf"
+    case word = "cody_file_word"
+    case doc = "cody_file_doc"
+    case excel = "cody_file_excel"
+    case sheet = "cody_file_sheet"
+    case ppt = "cody_file_ppt"
+    case slide = "cody_file_slide"
+    case photo = "cody_file_photo"
+    case code = "cody_file_code"
+    case archive = "cody_file_archive"
+    case audio = "cody_file_audio"
+    case video = "cody_file_video"
+    case generic = "cody_file_generic"
+
+    static func forExtension(_ ext: String) -> CodyFileTypeIcon {
+        switch ext.lowercased() {
+        case "pdf":
+            return .pdf
+        case "doc", "docx":
+            return .word
+        case "pages", "rtf", "rtfd", "txt", "md", "markdown", "log":
+            return .doc
+        case "xls", "xlsx":
+            return .excel
+        case "csv", "tsv", "numbers":
+            return .sheet
+        case "ppt", "pptx":
+            return .ppt
+        case "key":
+            return .slide
+        case "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "heic", "svg":
+            return .photo
+        case "swift", "py", "js", "ts", "jsx", "tsx", "c", "cpp", "cc", "h", "hpp",
+             "rs", "go", "java", "kt", "rb", "php", "sh", "bash", "zsh",
+             "html", "htm", "css", "scss", "sql", "json", "yaml", "yml", "toml", "xml", "plist":
+            return .code
+        case "zip", "tar", "gz", "bz2", "xz", "7z", "rar":
+            return .archive
+        case "mp3", "m4a", "wav", "aac", "ogg", "flac":
+            return .audio
+        case "mp4", "mov", "m4v", "avi", "mkv", "webm":
+            return .video
+        default:
+            return .generic
+        }
+    }
+
+    static func forFileName(_ fileName: String, isDirectory: Bool = false) -> CodyFileTypeIcon {
+        if isDirectory { return .folder }
+        return forExtension((fileName as NSString).pathExtension)
+    }
+}
+
+/// Renders a colorful file-type vector SVG at an exact point size.
+struct CodyFileTypeIconView: View {
+    let icon: CodyFileTypeIcon
+    let size: CGFloat
+
+    init(_ icon: CodyFileTypeIcon, size: CGFloat = 24) {
+        self.icon = icon
+        self.size = size
+    }
+
+    init(fileName: String, isDirectory: Bool = false, size: CGFloat = 24) {
+        self.icon = CodyFileTypeIcon.forFileName(fileName, isDirectory: isDirectory)
+        self.size = size
+    }
+
+    init(fileExtension: String, size: CGFloat = 24) {
+        self.icon = CodyFileTypeIcon.forExtension(fileExtension)
+        self.size = size
+    }
+
+    var body: some View {
+        Image(icon.rawValue)
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    }
+}

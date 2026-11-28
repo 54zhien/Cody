@@ -8,11 +8,16 @@ struct NovaExploreView: View {
     let onOpenDrawer: () -> Void
     let onSelectTool: (CodyNovaPinnedTool) -> Void
     let onOpenSettings: () -> Void
+    var onReturnToChat: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
+    @State private var pullReturnProgress: CGFloat = 0
+    @State private var didTriggerPullReturn = false
+
+    private static let returnPullThreshold: CGFloat = 78
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
 
@@ -109,6 +114,34 @@ struct NovaExploreView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollDisabled(pinDragState.draggingTool != nil)
+        .modifier(NovaExplorePullToChatModifier(
+            isEnabled: onReturnToChat != nil && pinDragState.draggingTool == nil,
+            threshold: Self.returnPullThreshold,
+            progress: $pullReturnProgress,
+            didTrigger: $didTriggerPullReturn,
+            onTrigger: {
+                searchFocused = false
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                onReturnToChat?()
+            }
+        ))
+        .overlay(alignment: .top) {
+            if onReturnToChat != nil && pullReturnProgress > 0.12 {
+                HStack(spacing: CodySpacing.xsPlus) {
+                    CodyIconView(.chevronUp, size: 14)
+                    Text(pullReturnProgress >= 1 ? "Release to return to Chat" : "Pull down for Chat")
+                        .font(CodyTypography.labelMedium)
+                }
+                .foregroundStyle(CodyColors.textSecondary)
+                .padding(.horizontal, CodySpacing.md)
+                .padding(.vertical, CodySpacing.xsPlus)
+                .background(.ultraThinMaterial, in: Capsule())
+                .opacity(Double(min(1, (pullReturnProgress - 0.12) / 0.55)))
+                .padding(.top, CodySpacing.xs)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
     }
 
     private var header: some View {
@@ -366,6 +399,40 @@ struct NovaExploreCardBody: View {
                 .allowsHitTesting(false)
         }
         .contentShape(shape)
+    }
+}
+
+private struct NovaExplorePullToChatModifier: ViewModifier {
+    let isEnabled: Bool
+    let threshold: CGFloat
+    @Binding var progress: CGFloat
+    @Binding var didTrigger: Bool
+    let onTrigger: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geo in
+                max(0, -(geo.contentOffset.y + geo.contentInsets.top))
+            } action: { _, pull in
+                guard isEnabled else {
+                    if progress != 0 { progress = 0 }
+                    return
+                }
+                let next = min(1, pull / threshold)
+                if abs(next - progress) > 0.02 || next == 0 || next == 1 {
+                    progress = next
+                }
+                if pull >= threshold && !didTrigger {
+                    didTrigger = true
+                    onTrigger()
+                } else if pull < 10 && didTrigger {
+                    didTrigger = false
+                }
+            }
+        } else {
+            content
+        }
     }
 }
 

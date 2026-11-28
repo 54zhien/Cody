@@ -26,32 +26,39 @@ import WebKit
 struct MicButton: View {
     @ObservedObject var speechManager: SpeechRecognitionManager
     @Binding var inputFocused: Bool
-    /// Opens the voice-input (VAD) panel. The mic button no longer drives the
-    /// in-bar SFSpeech live dictation directly — the panel (with the configured
-    /// ASR provider, or the offline System fallback) is the single voice entry
-    /// point. The SpeechRecognitionManager path stays in place but is no longer
-    /// triggered from here.
+    /// Opens the voice-input (VAD) panel on quick tap or upward lock.
     var onTap: () -> Void = {}
-    /// True while inline voice mode is active — the button flips to a "T" glyph
+    /// Called if the user holds to dictate and slides left to cancel, passing the cancelled
+    /// recognized text so the composer can strip any partial transcript cleanly.
+    var onCancelHoldDictation: ((String) -> Void)? = nil
+    /// True while inline voice mode is active — the button flips to a keyboard glyph
     /// that switches back to text input.
     var isVoiceActive: Bool = false
     /// Press feedback for the custom-gesture button.
     @State private var micPressed = false
+    @State private var isHoldingDictation = false
+    @State private var holdTarget: HoldTarget = .finish
+    @State private var isTouchDown = false
+    @State private var holdArmTask: Task<Void, Never>? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private enum HoldTarget: Equatable {
+        case finish
+        case cancel
+        case lock
+    }
+
     private static let diameter = CodyMetrics.Composer.buttonVisualSize
+    private static let holdThresholdNs: UInt64 = 260_000_000
 
     private var isRecording: Bool { speechManager.state == .recording }
 
     var body: some View {
-        // NOT a Button: SwiftUI's Button has a generous system touch-slop / touch-
-        // up tolerance that fires when the finger lifts slightly outside, or moves
-        // a little during a scroll/drag — which made this toggle very easy to
-        // mis-tap. We use a DragGesture(minimumDistance: 0) and only activate when
-        // BOTH the press and release land inside the circle AND movement is tiny.
-        // In voice mode: a keyboard glyph = switch back to text input. The keyboard
-        // glyph is wider than the mic, so render it ~4pt smaller for parity.
+        // Supports both:
+        // - Quick tap (release inside within <0.26s, <10pt movement): toggles inline voice mode.
+        // - Press-and-hold (>=0.26s): lifts the mic button and starts live dictation;
+        //   slide left to cancel, slide up to lock into full voice mode, or release to finish.
         Group {
             if isVoiceActive {
                 Image(systemName: "keyboard")
@@ -60,36 +67,171 @@ struct MicButton: View {
                 CodyIconView(.mic, size: 26)
             }
         }
-            .foregroundStyle(isRecording ? CodyColors.statusErrorText : CodyColors.iconPrimary)
+            .foregroundStyle(glyphForeground)
             .frame(width: Self.diameter, height: Self.diameter)
             .background {
-                if isRecording {
+                if isHoldingDictation {
+                    Circle()
+                        .fill(holdTarget == .cancel ? CodyColors.statusErrorBg : CodyColors.textAccent.opacity(0.18))
+                        .overlay {
+                            Circle()
+                                .strokeBorder(holdTarget == .cancel ? CodyColors.statusErrorText : CodyColors.textAccent, lineWidth: 1.5)
+                        }
+                } else if isRecording {
                     Circle().fill(CodyColors.statusErrorBg)
                 }
             }
-            .opacity(micPressed ? CodyMotion.pressedOpacity : 1)
+            .scaleEffect(isHoldingDictation && !reduceMotion ? 1.22 : 1.0)
+            .offset(y: isHoldingDictation && !reduceMotion ? -4 : 0)
+            .opacity(micPressed && !isHoldingDictation ? CodyMotion.pressedOpacity : 1)
             .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isRecording)
             .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isVoiceActive)
+            .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isHoldingDictation)
+            .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: holdTarget)
+            .overlay(alignment: .topTrailing) {
+                if isHoldingDictation {
+                    holdStatusBadge
+                        .fixedSize()
+                        .offset(y: -42)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
             .contentShape(ComposerControlHitShape())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        micPressed = Self.isInside(value.location)
+                        if !isTouchDown {
+                            isTouchDown = true
+                            armHoldDictationIfEligible()
+                        }
+                        if isHoldingDictation {
+                            updateHoldTarget(for: value.translation)
+                        } else {
+                            let moved = hypot(value.translation.width, value.translation.height)
+                            if moved >= 12 {
+                                holdArmTask?.cancel()
+                                holdArmTask = nil
+                            }
+                            micPressed = Self.isInside(value.location)
+                        }
                     }
                     .onEnded { value in
+                        isTouchDown = false
+                        holdArmTask?.cancel()
+                        holdArmTask = nil
+                        micPressed = false
+
+                        if isHoldingDictation {
+                            finishHoldDictation()
+                            return
+                        }
+
                         let started = Self.isInside(value.startLocation)
                         let ended = Self.isInside(value.location)
                         let moved = hypot(value.translation.width, value.translation.height)
-                        micPressed = false
                         guard started, ended, moved < 10 else { return }
                         activate()
                     }
             )
+            .onDisappear {
+                isTouchDown = false
+                holdArmTask?.cancel()
+                holdArmTask = nil
+                if isHoldingDictation {
+                    speechManager.stopRecording()
+                    isHoldingDictation = false
+                }
+            }
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { activate() }
             .accessibilityLabel(isVoiceActive
                 ? Text("Switch to text input", comment: "Mic button exits voice mode")
                 : Text("Voice input", comment: "Mic button opens voice panel"))
+            .accessibilityHint(isVoiceActive
+                ? Text("")
+                : Text("Tap for voice panel, or press and hold to dictate"))
+    }
+
+    private var glyphForeground: Color {
+        if isHoldingDictation {
+            return holdTarget == .cancel ? CodyColors.statusErrorText : CodyColors.textAccent
+        }
+        return isRecording ? CodyColors.statusErrorText : CodyColors.iconPrimary
+    }
+
+    private var holdStatusBadge: some View {
+        let label: LocalizedStringKey = switch holdTarget {
+        case .cancel: "Release to cancel"
+        case .lock: "Release to lock voice"
+        case .finish: "Slide ← cancel · ↑ lock"
+        }
+        return Text(label)
+            .font(CodyTypography.labelMedium)
+            .foregroundStyle(holdTarget == .cancel ? CodyColors.statusErrorText : CodyColors.textPrimary)
+            .padding(.horizontal, CodySpacing.smPlus)
+            .padding(.vertical, CodySpacing.xsPlus)
+            .background(.regularMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(holdTarget == .cancel ? CodyColors.statusErrorText.opacity(0.5) : CodyColors.borderDefault, lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
+    }
+
+    private func armHoldDictationIfEligible() {
+        holdArmTask?.cancel()
+        guard !isVoiceActive && !isRecording else { return }
+        holdArmTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: Self.holdThresholdNs)
+            guard !Task.isCancelled, isTouchDown, !isVoiceActive else { return }
+            let granted = await speechManager.requestPermissions()
+            guard !Task.isCancelled, isTouchDown, granted else { return }
+            do {
+                try speechManager.startRecording()
+                inputFocused = false
+                holdTarget = .finish
+                isHoldingDictation = true
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            } catch {
+                // Fall back silently if audio session is unavailable.
+            }
+        }
+    }
+
+    private func updateHoldTarget(for translation: CGSize) {
+        let next: HoldTarget
+        if translation.width <= -52 {
+            next = .cancel
+        } else if translation.height <= -48 {
+            next = .lock
+        } else {
+            next = .finish
+        }
+        if next != holdTarget {
+            holdTarget = next
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    private func finishHoldDictation() {
+        let target = holdTarget
+        let captured = speechManager.recognizedText
+        isHoldingDictation = false
+        holdTarget = .finish
+        speechManager.stopRecording()
+
+        switch target {
+        case .cancel:
+            speechManager.recognizedText = ""
+            onCancelHoldDictation?(captured)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case .lock:
+            activate()
+        case .finish:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 
     /// Whether a point (in the button's local space) is within the visible circle.

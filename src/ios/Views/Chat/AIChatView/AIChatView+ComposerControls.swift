@@ -279,6 +279,10 @@ extension AIChatView {
                 VoiceModePreference.shared.enteredFromText = true
                 withAnimation(animation) { voiceInputActive = true }
             }
+        }, onCancelHoldDictation: { cancelled in
+            guard !cancelled.isEmpty, vm.inputText.hasSuffix(cancelled) else { return }
+            vm.inputText.removeLast(cancelled.count)
+            lastRecognizedLength = 0
         }, isVoiceActive: voiceInputActive)
     }
 

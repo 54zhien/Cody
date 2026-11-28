@@ -234,11 +234,12 @@ final class CodeBlockAttachment: NSTextAttachment {
         let codeStyle = NSMutableParagraphStyle()
         codeStyle.lineSpacing = 4
         codeStyle.lineBreakMode = .byClipping
-        let codeAttr = NSAttributedString(string: code, attributes: [
-            .font: theme.codeBlockFont,
-            .foregroundColor: theme.codeBlockTextColor,
-            .paragraphStyle: codeStyle,
-        ])
+        let codeAttr = CodySyntaxHighlighter.highlight(
+            code: code,
+            language: language,
+            font: theme.codeBlockFont,
+            paragraphStyle: codeStyle
+        )
         codeTextView.attributedText = codeAttr
 
         // Measure content size (unconstrained width)
@@ -348,11 +349,12 @@ final class CodeBlockAttachment: NSTextAttachment {
         let codeStyle = NSMutableParagraphStyle()
         codeStyle.lineSpacing = 4
         codeStyle.lineBreakMode = .byClipping
-        let codeAttr = NSAttributedString(string: code, attributes: [
-            .font: theme.codeBlockFont,
-            .foregroundColor: theme.codeBlockTextColor,
-            .paragraphStyle: codeStyle,
-        ])
+        let codeAttr = CodySyntaxHighlighter.highlight(
+            code: code,
+            language: language,
+            font: theme.codeBlockFont,
+            paragraphStyle: codeStyle
+        )
         codeTextView.attributedText = codeAttr
 
         let fitting = codeTextView.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
@@ -434,5 +436,153 @@ private final class CodeBlockSurface: UIView {
 
     private func updateBorderColor() {
         layer.borderColor = CodyUIColors.borderLight.resolvedColor(with: traitCollection).cgColor
+    }
+}
+
+// MARK: - Lightweight Syntax Highlighter (GitHub Light / One Dark palette)
+
+/// Fast, bounded token highlighter using `CodySyntaxColors` (dynamic Light/Dark UIColors)
+/// so fenced code blocks render full syntax coloring with zero layout overhead and instant theme updates.
+private enum CodySyntaxHighlighter {
+    private static let maxHighlightUTF16Length = 40_000
+    private static let cacheLimit = 64
+
+    private struct CacheKey: Hashable {
+        let codeHash: Int
+        let codeLength: Int
+        let language: String
+        let fontSize: Int
+    }
+
+    @MainActor
+    private static var cache: [CacheKey: NSAttributedString] = [:]
+    @MainActor
+    private static var cacheOrder: [CacheKey] = []
+
+    private static let numberRegex = try! NSRegularExpression(
+        pattern: #"\b(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)\b"#
+    )
+    private static let typeRegex = try! NSRegularExpression(
+        pattern: #"\b[A-Z][A-Za-z0-9_]*\b"#
+    )
+    private static let functionRegex = try! NSRegularExpression(
+        pattern: #"\b([a-z_][A-Za-z0-9_]*)\s*(?=\()"#
+    )
+    private static let metaRegex = try! NSRegularExpression(
+        pattern: #"(?:@[A-Za-z_][A-Za-z0-9_]*|^\s*#[A-Za-z_][A-Za-z0-9_]*)"#,
+        options: [.anchorsMatchLines]
+    )
+    private static let keywordRegex = try! NSRegularExpression(
+        pattern: #"\b(?:func|let|var|struct|class|enum|protocol|extension|import|return|if|else|guard|switch|case|default|for|while|repeat|break|continue|in|where|try|catch|throw|throws|async|await|actor|public|private|fileprivate|internal|open|static|final|override|mutating|weak|unowned|lazy|init|deinit|self|Self|super|nil|true|false|as|is|some|any|def|lambda|yield|pass|None|True|False|and|or|not|with|raise|except|finally|elif|from|global|nonlocal|const|function|export|new|this|typeof|instanceof|void|null|undefined|interface|type|readonly|implements|extends|package|fn|pub|mut|impl|trait|match|loop|mod|use|crate|ref|move|go|defer|chan|select|range|map|int|float|double|bool|char|auto|template|typename|namespace|using|nullptr|virtual|inline|extern|sizeof|SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP|BY|ORDER|LIMIT|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|ALTER|DROP|AS|AND|OR|NOT|NULL|DISTINCT|CASE|WHEN|THEN|ELSE|END|fi|then|elif|done|esac|local|echo)\b"#
+    )
+    private static let stringRegex = try! NSRegularExpression(
+        pattern: #"(?:\"\"\"[\s\S]*?\"\"\"|'''[\s\S]*?'''|\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)"#
+    )
+    private static let slashCommentRegex = try! NSRegularExpression(
+        pattern: #"(?://[^\n]*|/\*[\s\S]*?\*/)"#
+    )
+    private static let hashCommentRegex = try! NSRegularExpression(
+        pattern: #"#[^\n]*"#
+    )
+    private static let dashCommentRegex = try! NSRegularExpression(
+        pattern: #"--[^\n]*"#
+    )
+    private static let jsonKeyRegex = try! NSRegularExpression(
+        pattern: #"\"(?:\\.|[^\"\\\n])*\"(?=\s*:)"#
+    )
+    private static let diffAddRegex = try! NSRegularExpression(
+        pattern: #"^\+[^\n]*"#,
+        options: [.anchorsMatchLines]
+    )
+    private static let diffDelRegex = try! NSRegularExpression(
+        pattern: #"^-[^\n]*"#,
+        options: [.anchorsMatchLines]
+    )
+    private static let diffHunkRegex = try! NSRegularExpression(
+        pattern: #"^@@[^\n]*"#,
+        options: [.anchorsMatchLines]
+    )
+
+    @MainActor
+    static func highlight(
+        code: String,
+        language: String?,
+        font: UIFont,
+        paragraphStyle: NSParagraphStyle
+    ) -> NSAttributedString {
+        let lang = (language ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let baseAttrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: CodySyntaxColors.defaultText,
+            .paragraphStyle: paragraphStyle,
+        ]
+        let utf16Len = code.utf16.count
+        guard utf16Len > 0, utf16Len <= maxHighlightUTF16Length,
+              lang != "text", lang != "txt", lang != "plain", lang != "plaintext" else {
+            return NSAttributedString(string: code, attributes: baseAttrs)
+        }
+
+        let key = CacheKey(codeHash: code.hashValue, codeLength: utf16Len, language: lang, fontSize: Int((font.pointSize * 10).rounded()))
+        if let cached = cache[key] {
+            return cached
+        }
+
+        let result = NSMutableAttributedString(string: code, attributes: baseAttrs)
+        let fullRange = NSRange(location: 0, length: utf16Len)
+
+        if lang == "diff" || lang == "patch" {
+            paint(diffAddRegex, color: CodySyntaxColors.addition, in: code, range: fullRange, target: result)
+            paint(diffDelRegex, color: CodySyntaxColors.deletion, in: code, range: fullRange, target: result)
+            paint(diffHunkRegex, color: CodySyntaxColors.meta, in: code, range: fullRange, target: result)
+        } else if lang == "json" || lang == "jsonc" {
+            paint(numberRegex, color: CodySyntaxColors.number, in: code, range: fullRange, target: result)
+            paint(keywordRegex, color: CodySyntaxColors.keyword, in: code, range: fullRange, target: result)
+            paint(stringRegex, color: CodySyntaxColors.string, in: code, range: fullRange, target: result)
+            paint(jsonKeyRegex, color: CodySyntaxColors.attribute, in: code, range: fullRange, target: result)
+            paint(slashCommentRegex, color: CodySyntaxColors.comment, in: code, range: fullRange, target: result)
+        } else {
+            paint(typeRegex, color: CodySyntaxColors.type, in: code, range: fullRange, target: result)
+            paint(functionRegex, group: 1, color: CodySyntaxColors.function, in: code, range: fullRange, target: result)
+            paint(numberRegex, color: CodySyntaxColors.number, in: code, range: fullRange, target: result)
+            paint(metaRegex, color: CodySyntaxColors.meta, in: code, range: fullRange, target: result)
+            paint(keywordRegex, color: CodySyntaxColors.keyword, in: code, range: fullRange, target: result)
+            paint(stringRegex, color: CodySyntaxColors.string, in: code, range: fullRange, target: result)
+
+            let usesHashComments = ["py", "python", "sh", "bash", "zsh", "shell", "yaml", "yml", "toml", "rb", "ruby", "r", "dockerfile", "makefile", "perl"].contains(lang)
+            let usesDashComments = ["sql", "lua", "haskell", "hs"].contains(lang)
+            if usesHashComments {
+                paint(hashCommentRegex, color: CodySyntaxColors.comment, in: code, range: fullRange, target: result)
+            } else if usesDashComments {
+                paint(dashCommentRegex, color: CodySyntaxColors.comment, in: code, range: fullRange, target: result)
+                paint(slashCommentRegex, color: CodySyntaxColors.comment, in: code, range: fullRange, target: result)
+            } else {
+                paint(slashCommentRegex, color: CodySyntaxColors.comment, in: code, range: fullRange, target: result)
+            }
+        }
+
+        let frozen = NSAttributedString(attributedString: result)
+        cache[key] = frozen
+        cacheOrder.append(key)
+        if cacheOrder.count > cacheLimit, let evicted = cacheOrder.first {
+            cacheOrder.removeFirst()
+            cache.removeValue(forKey: evicted)
+        }
+        return frozen
+    }
+
+    private static func paint(
+        _ regex: NSRegularExpression,
+        group: Int = 0,
+        color: UIColor,
+        in source: String,
+        range: NSRange,
+        target: NSMutableAttributedString
+    ) {
+        regex.enumerateMatches(in: source, options: [], range: range) { match, _, _ in
+            guard let match, group < match.numberOfRanges else { return }
+            let r = match.range(at: group)
+            guard r.location != NSNotFound, r.length > 0 else { return }
+            target.addAttribute(.foregroundColor, value: color, range: r)
+        }
     }
 }

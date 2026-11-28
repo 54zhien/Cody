@@ -410,9 +410,8 @@ private struct CodyFileChipView: View {
             showShareSheet = true
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: codyFileIcon(for: ext))
-                    .font(.system(size: 13))
-                    .foregroundColor(ChatColors.accent)
+                CodyFileTypeIconView(fileExtension: ext, size: 17)
+                    .accessibilityHidden(true)
                 Text(filename)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(ChatColors.primaryText)

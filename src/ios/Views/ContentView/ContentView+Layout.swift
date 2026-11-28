@@ -30,9 +30,15 @@ extension ContentView {
         return CodyNovaTabBar.safeAreaProtrusion(safeAreaBottom: CodyDisplayGeometry.bottomSafeAreaInset)
     }
 
+    private var novaSidebarHasUnread: Bool {
+        let activeId = persistedSessionId(for: novaActiveSessionId)
+        return sidebarBadgeStore.unreadSessionIds.contains { $0 != activeId }
+    }
+
     var stackLayout: some View {
         CodySidebarDrawer(isOpen: $isNovaDrawerOpen, edgeDragEnabled: !isSelecting && navigationPath.isEmpty) {
             novaDestinationContent
+                .environment(\.novaSidebarHasUnread, novaSidebarHasUnread)
                 .accessibilityHidden(isNovaDrawerOpen)
                 .overlay(alignment: .bottom) {
                     if showNovaTabBar {
@@ -129,7 +135,8 @@ extension ContentView {
             bottomClearance: isWide ? 0 : novaBottomClearance,
             onOpenDrawer: isWide ? { columnVisibility = .all } : openNovaDrawer,
             onSelectTool: { selectNovaDestination(.tool($0)) },
-            onOpenSettings: { activeToolSheet = .settings }
+            onOpenSettings: { activeToolSheet = .settings },
+            onReturnToChat: isWide ? nil : { selectNovaDestination(.home) }
         )
     }
 

@@ -743,9 +743,7 @@ private struct FileInfoView: View {
         List {
             Section {
                 VStack(spacing: CodySpacing.md) {
-                    Image(systemName: item.iconName)
-                        .font(.system(size: 32, weight: .medium))
-                        .foregroundStyle(CodyColors.iconTertiary)
+                    CodyFileTypeIconView(fileName: item.name, isDirectory: item.isDirectory, size: 36)
                         .frame(width: CodySpacing.s64, height: CodySpacing.s64)
                         .background(
                             CodyColors.bgListIcon,
@@ -879,12 +877,11 @@ struct FileItemRow: View {
 
     var body: some View {
         HStack(spacing: CodySpacing.md) {
-            // Icon
+            // Colorful file-type / folder vector icon
             ZStack(alignment: .bottomLeading) {
-                CodyListIconBadge(
-                    systemImage: item.iconName,
-                    tint: item.isDirectory ? .blue : .neutral
-                )
+                CodyFileTypeIconView(fileName: item.name, isDirectory: item.isDirectory, size: 28)
+                    .frame(width: 34, height: 34)
+                    .accessibilityHidden(true)
                 if item.isSymlink {
                     Image(systemName: "arrow.turn.right.down")
                         .font(.system(size: 10, weight: .bold))

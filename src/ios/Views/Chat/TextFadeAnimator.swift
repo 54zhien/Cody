@@ -215,10 +215,21 @@ final class TextFadeAnimator {
             let opacity: CGFloat
             let tintAmount: CGFloat
             if let delay {
-                let reveal = min(1, progress / 0.18)
-                opacity = CGFloat(reveal * reveal * (3 - 2 * reveal))
-                let settling = max(0, (elapsed - delay) / (duration - delay))
-                tintAmount = 0.40 * CGFloat(1 - Self.easeOutCubic(settling))
+                // Exact 3-stop reveal curve (0.06 -> 0.18, 0.12 -> 0.72, 0.15 -> 1.00)
+                // paired with a crisp accent sweep that settles into the final ink color.
+                if progress < 0.06 {
+                    opacity = CGFloat((progress / 0.06) * 0.18)
+                } else if progress < 0.12 {
+                    let t = (progress - 0.06) / 0.06
+                    opacity = CGFloat(0.18 + t * 0.54)
+                } else if progress < 0.15 {
+                    let t = (progress - 0.12) / 0.03
+                    opacity = CGFloat(0.72 + t * 0.28)
+                } else {
+                    opacity = 1.0
+                }
+                let settling = max(0, (elapsed - delay) / max(0.001, duration - delay))
+                tintAmount = 0.68 * CGFloat(1 - Self.easeOutCubic(settling))
             } else {
                 opacity = CGFloat(Self.easeOutCubic(progress))
                 tintAmount = 0

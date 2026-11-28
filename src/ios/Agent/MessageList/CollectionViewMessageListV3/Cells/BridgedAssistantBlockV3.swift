@@ -78,6 +78,18 @@ struct BridgedAssistantBlockV3: View {
         .environment(\.chatSearchMessageId, message.id)
         .environment(\.chatSearchDimmed, message.isCompactedHistory)
         .opacity(message.isCompactedHistory ? 0.5 : 1.0)
+        .overlay(alignment: .bottomLeading) {
+            if bridge.isStreaming,
+               case .text = block.kind,
+               Self.isUsageAnchor(block: block, in: message) {
+                NovaStreamingCursorDot()
+                    .padding(.leading, CodyMetrics.Conversation.rowPaddingH)
+                    .padding(.bottom, 2)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityAddTraits(bridge.isStreaming ? .updatesFrequently : [])
         .accessibilityIdentifier(blockAccessibilityId)
         // Context menu on zero-size overlay so it doesn't inflate self-sizing
         // (same pattern as BridgedAssistantFooterV3).
@@ -194,5 +206,26 @@ struct BridgedAssistantBlockV3: View {
                 withAnimation(.easeInOut(duration: 0.2)) { bridge.usageContentVisible = true }
             }
         }
+    }
+}
+
+/// Subtle pulsing dot appended beneath the active streaming text block (removed immediately
+/// once streaming completes so no stray glyph remains in the transcript).
+private struct NovaStreamingCursorDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(CodyColors.textPrimary)
+            .frame(width: 7, height: 7)
+            .opacity(reduceMotion ? 0.75 : (pulsing ? 0.28 : 0.85))
+            .scaleEffect(reduceMotion ? 1.0 : (pulsing ? 0.84 : 1.0))
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: CodyMotion.shimmerCycleSeconds * 0.45).repeatForever(autoreverses: true)) {
+                    pulsing = true
+                }
+            }
     }
 }

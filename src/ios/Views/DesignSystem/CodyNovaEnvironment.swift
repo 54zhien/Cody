@@ -280,16 +280,37 @@ enum CodyDisplayGeometry {
     }
 }
 
-/// Iconic two-bar unequal sidebar drawer glyph backed by our self-drawn vector SVG asset.
+/// Iconic two-bar unequal sidebar drawer glyph backed by our self-drawn vector SVG asset,
+/// with an optional 8×8pt unread badge dot (matching `SideMenuBadgedIcon`).
 struct CodyDrawerGlyph: View {
     var color: Color = CodyColors.iconPrimary
     var size: CGFloat = 24
+    var showsUnreadBadge: Bool = true
+    @Environment(\.novaSidebarHasUnread) private var hasUnread
 
     var body: some View {
         CodyIconView(.drawer, size: size)
             .foregroundStyle(color)
+            .overlay(alignment: .topTrailing) {
+                if showsUnreadBadge && hasUnread {
+                    Circle()
+                        .fill(CodyColors.statusErrorText)
+                        .frame(width: CodySpacing.sm, height: CodySpacing.sm)
+                        .overlay {
+                            Circle()
+                                .stroke(CodyColors.bgCanvas, lineWidth: 1.5)
+                        }
+                        .offset(x: 3, y: -3)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             .accessibilityHidden(true)
     }
+}
+
+private struct NovaSidebarHasUnreadKey: EnvironmentKey {
+    static let defaultValue: Bool = false
 }
 
 private struct OpenNovaDrawerKey: EnvironmentKey {
@@ -327,6 +348,11 @@ extension EnvironmentValues {
     var isNovaHostedChat: Bool {
         get { self[NovaHostedChatKey.self] }
         set { self[NovaHostedChatKey.self] = newValue }
+    }
+
+    var novaSidebarHasUnread: Bool {
+        get { self[NovaSidebarHasUnreadKey.self] }
+        set { self[NovaSidebarHasUnreadKey.self] = newValue }
     }
 }
 

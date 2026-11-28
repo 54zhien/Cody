@@ -458,13 +458,12 @@ private struct AttachmentChip: View {
         }
     }
 
-    /// Non-image attachment: icon on top, filename on bottom, same size as image thumbnails.
+    /// Non-image attachment: colorful file-type icon on top, filename on bottom.
     private var fileChip: some View {
         VStack(spacing: CodySpacing.xxs) {
-            Image(systemName: fileIconName)
-                .font(.system(size: 20))
-                .foregroundStyle(CodyColors.iconSecondary)
+            CodyFileTypeIconView(fileName: attachment.fileName, size: 24)
                 .frame(maxHeight: .infinity, alignment: .bottom)
+                .accessibilityHidden(true)
 
             Text(attachment.fileName)
                 .font(CodyTypography.labelSmall)
@@ -907,10 +906,9 @@ struct UserAttachmentList: View {
             if let url = URL(string: meta.codyURL) { openURL(url) }
         } label: {
             VStack(spacing: 2) {
-                Image(systemName: fileIconName(for: meta.fileName))
-                    .font(.system(size: 20))
-                    .foregroundStyle(ChatColors.secondaryText)
+                CodyFileTypeIconView(fileName: meta.fileName, size: 24)
                     .frame(maxHeight: .infinity, alignment: .bottom)
+                    .accessibilityHidden(true)
 
                 SearchHighlightText(meta.fileName, key: searchKey)
                     .font(.system(size: 9))
