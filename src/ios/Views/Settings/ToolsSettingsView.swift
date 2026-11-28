@@ -130,20 +130,15 @@ struct ToolsSettingsView: View {
     @State private var notificationsDenied = false
 
     var body: some View {
-        Form {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection(
+                footer: "Browse the web in the in-app browser: open pages, read them, click and type. Stable and on by default. When off, the tool is removed from every conversation — the model does not see it at all."
+            ) {
                 toolRow(AppLocalized("Browser Use"), tool: "browser_use", icon: "globe", isOn: $browserEnabled)
-                    .settingsRowSurface()
-            } footer: {
-                Text(AppLocalized("Browse the web in the in-app browser: open pages, read them, click and type. Stable and on by default. When off, the tool is removed from every conversation — the model does not see it at all."))
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             }
             userAskSections
-            // [T-sub-agents-v1] No Agents section here, and deliberately not
-            // even a read-only pointer row: the switch belongs to the Sub Agents
-            // page, next to the definitions it governs.
         }
-        .settingsGroupedCanvas()
         .navigationTitle(AppLocalized("Agent Tools"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -154,16 +149,28 @@ struct ToolsSettingsView: View {
 
     // MARK: - [T-user-ask] User interaction
 
-    @ViewBuilder
     private var userAskSections: some View {
-        Section {
-            toolRow(AppLocalized("User Interaction"), tool: "user_ask", icon: "questionmark.bubble", isOn: $userAskEnabled)
-                .settingsRowSurface()
-            if userAskEnabled {
-                // [T-tools-subrow-indent] Sub-settings of the tool: their labels
-                // line up with the tool's title, past the icon column. The
-                // indent is on the label, so the value / switch stays at the
-                // trailing edge and the row separator follows the label in.
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            CodySettingsNovaSection(
+                footer: "Lets the assistant ask you to choose between options, or to confirm a risky action before doing it, on a card in the chat. Only in chats you are in — never for sub agents, Shortcuts or scheduled tasks. When off, the assistant decides for itself and does not take risky actions without your go-ahead."
+            ) {
+                toolRow(AppLocalized("User Interaction"), tool: "user_ask", icon: "questionmark.bubble", isOn: $userAskEnabled)
+                    .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+                userAskControls
+            }
+            if userAskEnabled && userAskNotify && notificationsDenied {
+                Text(AppLocalized("Notifications are off for Cody in iOS Settings — questions will only show when you open the app."))
+                    .foregroundStyle(CodyColors.statusWarningText)
+                    .settingsNovaFooter()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var userAskControls: some View {
+        if userAskEnabled {
+            VStack(spacing: 0) {
+                CodySettingsNovaDivider(leadingInset: CodyMetrics.Settings.rowPaddingH + Self.subRowIndent)
                 Picker(selection: $userAskTimeout) {
                     ForEach(UserAskSettings.timeoutChoices, id: \.self) { m in
                         Text(m == 0 ? AppLocalized("Indefinitely") : AppLocalized("\(m) min")).tag(m)
@@ -171,21 +178,14 @@ struct ToolsSettingsView: View {
                 } label: {
                     Text(AppLocalized("Wait for an answer")).padding(.leading, Self.subRowIndent)
                 }
-                    .settingsRowSurface()
+                .pickerStyle(.menu)
+                .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: CodyMetrics.Settings.rowPaddingH + Self.subRowIndent)
                 Toggle(isOn: $userAskNotify) {
                     Text(AppLocalized("Notify when in the background")).padding(.leading, Self.subRowIndent)
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
             }
-        } footer: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(AppLocalized("Lets the assistant ask you to choose between options, or to confirm a risky action before doing it, on a card in the chat. Only in chats you are in — never for sub agents, Shortcuts or scheduled tasks. When off, the assistant decides for itself and does not take risky actions without your go-ahead."))
-                if userAskEnabled && userAskNotify && notificationsDenied {
-                    Text(AppLocalized("Notifications are off for Cody in iOS Settings — questions will only show when you open the app."))
-                        .foregroundStyle(CodyColors.statusWarningText)
-                }
-            }
-                .settingsSectionFooter()
         }
     }
 

@@ -32,15 +32,15 @@ struct MountedFoldersSettingsView: View {
     @State private var errorText: String?
 
     var body: some View {
-        List {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection {
                 InfoBanner()
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
 
             if model.entries.isEmpty {
-                Section {
-                    VStack(spacing: 10) {
+                CodySettingsNovaSection {
+                    VStack(spacing: CodySpacing.smPlus) {
                         CodySettingsIconBadge(systemImage: "externaldrive.badge.plus", tint: .orange)
                         Text("No mounted folders")
                             .font(.headline)
@@ -50,53 +50,13 @@ struct MountedFoldersSettingsView: View {
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
-                        .settingsRowSurface()
+                    .padding(.vertical, CodySpacing.lg)
+                    .settingsNovaControlRow()
                 }
             } else {
-                Section {
-                    ForEach(model.entries) { entry in
-                        NavigationLink {
-                            MountDetailView(
-                                context: detailContext(for: entry),
-                                onDismiss: { model.refresh() }
-                            )
-                        } label: {
-                            MountedFolderRow(
-                                entry: entry,
-                                state: model.state(for: entry.id),
-                                sourceURL: model.resolvedURL(for: entry.id)
-                            )
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                model.remove(id: entry.id)
-                            } label: {
-                                Label("Remove", systemImage: "trash")
-                            }
-                        }
-                            .settingsRowSurface()
-                    }
-                } header: {
-                    HStack {
-                        Text("Mounted Folders")
-                        Spacer()
-                        Text("\(model.entries.count) / \(MountedFoldersManager.maxMountCount)")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(model.isAtCapacity ? CodyColors.statusWarningText : CodyColors.textSecondary)
-                    }
-                        .settingsSectionHeading()
-                } footer: {
-                    if model.isAtCapacity {
-                        Text("Mount limit reached. Remove an existing mount before adding a new one.")
-                            .foregroundStyle(CodyColors.statusWarningText)
-                            .settingsSectionFooter()
-                    }
-                }
+                mountList
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .navigationTitle("Mount External Folders")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -175,6 +135,52 @@ struct MountedFoldersSettingsView: View {
     }
 
     /// Build the MountDetailView context for an external-mount entry.
+    private var mountList: some View {
+        CodySettingsNovaSection(
+            "Mounted Folders",
+            footer: model.isAtCapacity
+                ? "Mount limit reached. Remove an existing mount before adding a new one."
+                : nil
+        ) {
+            ForEach(model.entries) { entry in
+                if entry.id != model.entries.first?.id {
+                    CodySettingsNovaDivider()
+                }
+                HStack(spacing: 0) {
+                    NavigationLink {
+                        MountDetailView(
+                            context: detailContext(for: entry),
+                            onDismiss: { model.refresh() }
+                        )
+                    } label: {
+                        MountedFolderRow(
+                            entry: entry,
+                            state: model.state(for: entry.id),
+                            sourceURL: model.resolvedURL(for: entry.id)
+                        )
+                        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+                    }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    SettingsNovaRowMenu(title: "Actions for \(entry.name)") {
+                        Button(role: .destructive) {
+                            model.remove(id: entry.id)
+                        } label: {
+                            Label("Remove", systemImage: "trash")
+                        }
+                    }
+                    .padding(.trailing, CodySpacing.sm)
+                }
+            }
+            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            LabeledContent("Mounted Folders") {
+                Text("\(model.entries.count) / \(MountedFoldersManager.maxMountCount)")
+                    .monospacedDigit()
+                    .foregroundStyle(model.isAtCapacity ? CodyColors.statusWarningText : CodyColors.textSecondary)
+            }
+            .settingsNovaControlRow()
+        }
+    }
+
     private func detailContext(for entry: MountedFolderEntry) -> MountDetailContext {
         // Host URL for Browse Files goes through the fakefs symlink so the
         // breadcrumb shows /var/cody/mounts/<name>.

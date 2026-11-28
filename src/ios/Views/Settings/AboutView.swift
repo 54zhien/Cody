@@ -69,95 +69,80 @@ struct AboutView: View {
     }()
 
     var body: some View {
-        List {
-            // MARK: - Project Info
-            Section {
-                VStack(spacing: CodySpacing.sm) {
-                    if let icon = UIImage(named: "AppIcon60x60") ?? UIImage(named: "AppIcon") {
-                        Image(uiImage: icon)
-                            .resizable()
-                            .frame(width: 80, height: 80)
-                            .clipShape(RoundedRectangle(cornerRadius: CodyRadius.surface))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: CodyRadius.surface)
-                                    .strokeBorder(CodyColors.borderDefault, lineWidth: CodySpacing.px)
-                            }
-                            .accessibilityHidden(true)
-                    }
-                    Text("Cody")
-                        .font(CodyTypography.headlineSmall)
-                        .foregroundStyle(CodyColors.textPrimary)
-                    Text("Version \(appVersion)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Built \(buildDate)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        // Selectable so it can be copied into a bug report.
-                        .textSelection(.enabled)
-                    // [T-env-diagnostic-line] Sits with the build date because
-                    // it answers the same question — "what exactly is running?"
-                    // — and gets copied into the same bug reports.
-                    Text(environmentLine)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .textSelection(.enabled)
-                    Text("Cody is Your Fully Local, Fully Private On-Device Agent.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, CodySpacing.lg)
-                .multilineTextAlignment(.center)
-                .settingsRowSurface()
+        CodySettingsScrollPage {
+            brandingHeader
+            CodySettingsNovaSection {
+                detailsRow("Version", value: appVersion)
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                detailsRow("Built", value: buildDate)
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                detailsRow("Environment", value: environmentLine)
             }
-
-            // MARK: - Links
-            Section {
-                Link(destination: URL(string: "https://github.com/54zhien/Cody")!) {
-                    Label {
-                        HStack {
-                            Text("GitHub Repository")
-                                .foregroundStyle(CodyColors.textPrimary)
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(CodyTypography.labelMedium)
-                                .foregroundStyle(CodyColors.iconDisclosure)
-                                .accessibilityHidden(true)
-                        }
-                    } icon: {
-                        CodySettingsIconBadge(systemImage: "link", tint: .blue)
-                    }
-                    .settingsRowActionLabel()
-                }
-                .buttonStyle(CodyPressableButtonStyle())
-                .settingsRowSurface()
-                Link(destination: URL(string: "https://github.com/54zhien/Cody/issues")!) {
-                    Label {
-                        HStack {
-                            Text("Report an Issue")
-                                .foregroundStyle(CodyColors.textPrimary)
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(CodyTypography.labelMedium)
-                                .foregroundStyle(CodyColors.iconDisclosure)
-                                .accessibilityHidden(true)
-                        }
-                    } icon: {
-                        CodySettingsIconBadge(systemImage: "exclamationmark.bubble", tint: .orange)
-                    }
-                    .settingsRowActionLabel()
-                }
-                .buttonStyle(CodyPressableButtonStyle())
-                .settingsRowSurface()
-            } header: {
-                Text("Links")
-                    .settingsSectionHeading()
+            CodySettingsNovaSection("Licenses") {
+                externalLink("Cody License", systemImage: "doc.text", tint: .neutral,
+                             url: "https://github.com/54zhien/Cody/blob/main/LICENSE")
+                CodySettingsNovaDivider()
+                externalLink("Third-Party Licenses", systemImage: "doc.on.doc", tint: .neutral,
+                             url: "https://github.com/54zhien/Cody/blob/main/THIRD_PARTY_LICENSES.md")
+            }
+            CodySettingsNovaSection("Links") {
+                externalLink("GitHub Repository", systemImage: "link", tint: .blue,
+                             url: "https://github.com/54zhien/Cody")
+                CodySettingsNovaDivider()
+                externalLink("Report an Issue", systemImage: "exclamationmark.bubble", tint: .orange,
+                             url: "https://github.com/54zhien/Cody/issues")
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var brandingHeader: some View {
+        VStack(spacing: CodySpacing.sm) {
+            if let icon = UIImage(named: "AppIcon60x60") ?? UIImage(named: "AppIcon") {
+                let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+                Image(uiImage: icon)
+                    .resizable()
+                    .frame(width: 80, height: 80)
+                    .clipShape(shape)
+                    .overlay { shape.strokeBorder(CodyColors.borderDefault, lineWidth: CodySpacing.px) }
+                    .accessibilityHidden(true)
+            }
+            Text("Cody")
+                .font(CodyTypography.headlineSmall)
+                .foregroundStyle(CodyColors.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Text("Cody is Your Fully Local, Fully Private On-Device Agent.")
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, CodySpacing.lg)
+        .multilineTextAlignment(.center)
+    }
+
+    private func detailsRow(_ title: LocalizedStringKey, value: String) -> some View {
+        VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+            Text(title)
+                .font(CodyTypography.bodyLarge)
+                .foregroundStyle(CodyColors.textPrimary)
+            Text(verbatim: value)
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textSecondary)
+                .textSelection(.enabled)
+        }
+        .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+    }
+
+    private func externalLink(_ title: LocalizedStringKey, systemImage: String, tint: CodyCategoryTint, url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            CodySettingsNovaRowContent(title: title, subtitle: nil, systemImage: systemImage, tint: tint) {
+                Image(systemName: "arrow.up.right.square")
+                    .font(CodyTypography.labelMedium)
+                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .accessibilityHidden(true)
+            }
+        }
+        .buttonStyle(CodyPressableButtonStyle())
     }
 }

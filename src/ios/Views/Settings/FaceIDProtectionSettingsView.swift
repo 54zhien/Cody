@@ -20,9 +20,9 @@ struct FaceIDProtectionSettingsView: View {
     @AppStorage(SessionLockDefaultsKey.appLockIdleSeconds) private var appLockIdleSeconds: Int = -1
 
     var body: some View {
-        Form {
+        CodySettingsScrollPage {
             // MARK: - App Lock
-            Section {
+            CodySettingsNovaSection(footer: "When enabled, \(BiometricAuth.biometryDisplayName) (or device passcode) is required every time you open the app.") {
                 Toggle(isOn: $appLockEnabled) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Lock App")
@@ -47,34 +47,26 @@ struct FaceIDProtectionSettingsView: View {
                         }
                     }
                 }
-                    .settingsRowSurface()
-            } footer: {
-                Text("When enabled, \(BiometricAuth.biometryDisplayName) (or device passcode) is required every time you open the app.")
-                    .settingsSectionFooter()
+                .settingsNovaControlRow()
             }
 
             if appLockEnabled {
-                Section {
+                CodySettingsNovaSection("App Lock Timeout", footer: "How long after leaving the app before the lock re-engages.") {
                     Picker(AppLocalized("Require unlock"), selection: $appLockIdleSeconds) {
                         ForEach(SessionLockIdleOption.allOptions) { opt in
                             Text(opt.labelKey).tag(opt.seconds)
                         }
                     }
+                    .pickerStyle(.menu)
                     .onChange(of: appLockIdleSeconds) { newValue in
                         store.appLockIdleSeconds = newValue
                     }
-                        .settingsRowSurface()
-                } header: {
-                    Text("App Lock Timeout")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("How long after leaving the app before the lock re-engages.")
-                        .settingsSectionFooter()
+                    .settingsNovaControlRow()
                 }
             }
 
             // MARK: - Per-Session Lock
-            Section {
+            CodySettingsNovaSection(footer: "When enabled, locked sessions require \(BiometricAuth.biometryDisplayName) (or device passcode) before their contents are revealed.") {
                 Toggle(isOn: $enabled) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Lock Sessions")
@@ -93,32 +85,21 @@ struct FaceIDProtectionSettingsView: View {
                         }
                     }
                 }
-                    .settingsRowSurface()
-            } footer: {
-                Text("When enabled, locked sessions require \(BiometricAuth.biometryDisplayName) (or device passcode) before their contents are revealed.")
-                    .settingsSectionFooter()
+                .settingsNovaControlRow()
             }
 
             if enabled {
-                Section {
+                CodySettingsNovaSection("Session Lock Timeout", footer: "After leaving an unlocked session, the lock re-engages once the idle window elapses.") {
                     Picker(AppLocalized("Re-lock after idle"), selection: $idleSeconds) {
                         ForEach(SessionLockIdleOption.allOptions) { opt in
                             Text(opt.labelKey).tag(opt.seconds)
                         }
                     }
-                        .settingsRowSurface()
-                } header: {
-                    // Session-only timeout (bound to `idleSeconds`). The app-level
-                    // lock has its own separate "App Lock Timeout" above bound to
-                    // `appLockIdleSeconds` — so this stays session-scoped.
-                    Text("Session Lock Timeout")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("After leaving an unlocked session, the lock re-engages once the idle window elapses.")
-                        .settingsSectionFooter()
+                    .pickerStyle(.menu)
+                    .settingsNovaControlRow()
                 }
 
-                Section {
+                CodySettingsNovaSection {
                     HStack {
                         Text("Locked sessions")
                         Spacer()
@@ -126,8 +107,9 @@ struct FaceIDProtectionSettingsView: View {
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
-                        .settingsRowSurface()
+                    .settingsNovaControlRow()
                     if !store.lockedSessionIds.isEmpty {
+                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                         Button(role: .destructive) {
                             Task { @MainActor in
                                 let reason = AppLocalized("Remove all session locks")
@@ -140,13 +122,14 @@ struct FaceIDProtectionSettingsView: View {
                             }
                         } label: {
                             SettingsIconLabel(title: Text("Remove All Locks"), systemImage: "lock.open", tint: .red)
+                                .foregroundStyle(CodyColors.statusErrorText)
+                                .settingsNovaControlRow()
                         }
-                            .settingsRowSurface()
+                        .buttonStyle(CodyPressableButtonStyle())
                     }
                 }
             }
         }
-        .settingsGroupedCanvas()
         .navigationTitle("\(BiometricAuth.biometryDisplayName) Protection")
         .navigationBarTitleDisplayMode(.inline)
     }

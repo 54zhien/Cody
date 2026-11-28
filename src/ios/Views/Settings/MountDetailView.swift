@@ -110,7 +110,7 @@ struct MountDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        List {
+        CodySettingsScrollPage {
             headerSection
 
             if context.canRename {
@@ -131,8 +131,7 @@ struct MountDetailView: View {
                 unmountSection
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle(context.canRename ? AppLocalized("Edit Mount") : AppLocalized("Folder Details"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -187,7 +186,7 @@ struct MountDetailView: View {
     }
 
     private var headerSection: some View {
-        Section {
+        CodySettingsNovaSection {
             HStack(alignment: .top, spacing: 12) {
                 CodySettingsIconBadge(systemImage: context.iconName, tint: headerBadgeTint)
                 VStack(alignment: .leading, spacing: 4) {
@@ -213,33 +212,28 @@ struct MountDetailView: View {
                 Spacer()
             }
             .padding(.vertical, 4)
-                .settingsRowSurface()
+                .settingsNovaControlRow()
         }
     }
 
     private var nameSection: some View {
-        Section {
+        CodySettingsNovaSection("Name", footer: "Becomes the folder name under /var/cody/mounts/") {
             TextField("name", text: $nameText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .settingsRowSurface()
+                .settingsNovaControlRow()
             if nameChanged && !nameIsValid {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 Text("Mount name must not be empty, contain '/', or be '.' or '..'.")
                     .font(CodyTypography.bodySmall)
                     .foregroundStyle(CodyColors.statusErrorText)
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
-        } header: {
-            Text("Name")
-                .settingsSectionHeading()
-        } footer: {
-            Text("Becomes the folder name under /var/cody/mounts/")
-                .settingsSectionFooter()
         }
     }
 
     private var allowWriteSection: some View {
-        Section {
+        CodySettingsNovaSection("Permissions", footer: "When off, the iSH shell and AI tools cannot create, edit, or delete files in this mount.") {
             Toggle(isOn: $allowWrite) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Allow writes")
@@ -250,18 +244,12 @@ struct MountDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-                .settingsRowSurface()
-        } header: {
-            Text("Permissions")
-                .settingsSectionHeading()
-        } footer: {
-            Text("When off, the iSH shell and AI tools cannot create, edit, or delete files in this mount.")
-                .settingsSectionFooter()
+            .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
         }
     }
 
     private var visibilitySection: some View {
-        Section {
+        CodySettingsNovaSection("Files app") {
             Toggle(isOn: $visibleInFiles) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Show in Files app")
@@ -272,46 +260,30 @@ struct MountDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-                .settingsRowSurface()
+            .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             if context.isReadOnlyFromFiles {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 Text("Read-only from the Files app. The app itself can always read and write.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
             }
-        } header: {
-            Text("Files app")
-                .settingsSectionHeading()
         }
     }
 
     private var browseSection: some View {
-        Section {
-            Button {
+        CodySettingsNovaSection {
+            CodySettingsNovaActionRow("Browse Files", systemImage: "folder.fill", tint: .blue) {
                 showingBrowser = true
-            } label: {
-                Label {
-                    Text("Browse Files")
-                } icon: {
-                    CodySettingsIconBadge(systemImage: "folder.fill", tint: .blue)
-                }
             }
-                .settingsRowSurface()
         }
     }
 
     private var unmountSection: some View {
-        Section {
-            Button(role: .destructive) {
+        CodySettingsNovaSection {
+            CodySettingsNovaActionRow("Unmount", systemImage: "xmark", isDestructive: true) {
                 showingUnmountConfirm = true
-            } label: {
-                Label {
-                    Text("Unmount")
-                } icon: {
-                    CodySettingsIconBadge(systemImage: "xmark", tint: .red)
-                }
             }
-                .settingsRowSurface()
         }
     }
 

@@ -2,6 +2,7 @@ import AVFoundation
 import SwiftUI
 
 struct EnhancedBackgroundSettingsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var keepAlive = BackgroundKeepAliveManager.shared
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
     // Owns the preview synthesizer and routes its audio-session intent through
@@ -21,14 +22,13 @@ struct EnhancedBackgroundSettingsView: View {
     }
 
     var body: some View {
-        List {
-            Section {
+        CodySettingsScrollPage {
+            SettingsKeepAwakeSection()
+
+            CodySettingsNovaSection(footer: "Keeps agent tasks running when the app is in the background. Shows progress via Live Activity on the Lock Screen and Dynamic Island. Also turns on Background Speak so text-to-speech narration keeps playing.") {
                 Toggle("Enhanced Background Execution", isOn: $keepAlive.enhancedBackgroundEnabled)
-                    .focusHighlight(shouldFocus("enhancedBackgroundExecution", current: keepAlive.enhancedBackgroundEnabled))
-                    .settingsRowSurface()
-            } footer: {
-                Text("Keeps agent tasks running when the app is in the background. Shows progress via Live Activity on the Lock Screen and Dynamic Island. Also turns on Background Speak so text-to-speech narration keeps playing.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
+                    .focusHighlight(shouldFocus("enhancedBackgroundExecution", current: keepAlive.enhancedBackgroundEnabled), reduceMotion: reduceMotion)
             }
 
             // [T-bka-continued-setting] iOS 26+ only (BGContinuedProcessingTask).
@@ -36,13 +36,10 @@ struct EnhancedBackgroundSettingsView: View {
             // fallback keep-alive exactly when that (or Background Speak) is
             // off, so the switch must be reachable then too.
             if #available(iOS 26.0, *) {
-                Section {
+                CodySettingsNovaSection(footer: "Shows a Cody task status on screen so the task keeps processing in the background.") {
                     Toggle("Prefer Continued Background Processing (iOS 26+)", isOn: $keepAlive.continuedProcessingPreferred)
-                        .focusHighlight(shouldFocus("continuedProcessingPreferred", current: keepAlive.continuedProcessingPreferred))
-                        .settingsRowSurface()
-                } footer: {
-                    Text("Shows a Cody task status on screen so the task keeps processing in the background.")
-                        .settingsSectionFooter()
+                        .settingsNovaControlRow()
+                        .focusHighlight(shouldFocus("continuedProcessingPreferred", current: keepAlive.continuedProcessingPreferred), reduceMotion: reduceMotion)
                 }
             }
 
@@ -52,53 +49,37 @@ struct EnhancedBackgroundSettingsView: View {
             // GH#82 showed this device class is exactly where ActivityKit
             // must never be touched.
             if AgentLiveActivityManager.isLiveActivitySupported {
-                Section {
+                CodySettingsNovaSection(footer: "Show agent task progress on the Lock Screen and in the Dynamic Island. Turning this off also removes the currently displayed Live Activity. Tip: enable Location Tracking below so the Live Activity keeps refreshing while the app stays in the background — without it, updates pause about 30 seconds after you leave the app.") {
                     Toggle("Live Activity", isOn: $keepAlive.liveActivityEnabled)
-                        .focusHighlight(shouldFocus("liveActivityEnabled", current: keepAlive.liveActivityEnabled))
-                        .settingsRowSurface()
-                } footer: {
-                    // [T-keepalive-survival-tier] Nudge: without a keep-alive
-                    // leg the app suspends ~30s after backgrounding and the
-                    // Live Activity freezes; the location heartbeat is what
-                    // keeps it refreshing.
-                    Text("Show agent task progress on the Lock Screen and in the Dynamic Island. Turning this off also removes the currently displayed Live Activity. Tip: enable Location Tracking below so the Live Activity keeps refreshing while the app stays in the background — without it, updates pause about 30 seconds after you leave the app.")
-                        .settingsSectionFooter()
+                        .settingsNovaControlRow()
+                        .focusHighlight(shouldFocus("liveActivityEnabled", current: keepAlive.liveActivityEnabled), reduceMotion: reduceMotion)
                 }
             }
 
-            Section {
+            CodySettingsNovaSection(footer: "Show local notifications when agent tasks start and complete, including tasks triggered by Shortcuts.") {
                 Toggle("Task Notifications", isOn: $keepAlive.backgroundNotificationsEnabled)
-                    .settingsRowSurface()
-            } footer: {
-                Text("Show local notifications when agent tasks start and complete, including tasks triggered by Shortcuts.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
             }
 
             // [T-ios-live-activity-privacy-mode] Sits right after the two
             // surfaces it governs (Live Activity above, Task Notifications
             // directly above), since it redacts both.
-            Section {
+            CodySettingsNovaSection(footer: "Hide session content on the Lock Screen, in the Dynamic Island and in notifications. Only the number of completed tasks and the elapsed time are shown — no session titles, tool status or reply content.") {
                 // Display name only — the persisted key stays
                 // `liveActivityPrivacyMode` so existing installs keep their setting.
                 Toggle("Task Status Privacy", isOn: $keepAlive.liveActivityPrivacyMode)
-                    .settingsRowSurface()
-            } footer: {
-                Text("Hide session content on the Lock Screen, in the Dynamic Island and in notifications. Only the number of completed tasks and the elapsed time are shown — no session titles, tool status or reply content.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
             }
 
-            Section {
+            CodySettingsNovaSection(footer: "Enables background audio playback for text-to-speech narration and music/audio playback while the app is in the background.") {
                 Toggle("Background Speak", isOn: $keepAlive.backgroundSpeakEnabled)
-                    .focusHighlight(shouldFocus("backgroundSpeakEnabled", current: keepAlive.backgroundSpeakEnabled))
-                    .settingsRowSurface()
-            } footer: {
-                Text("Enables background audio playback for text-to-speech narration and music/audio playback while the app is in the background.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
+                    .focusHighlight(shouldFocus("backgroundSpeakEnabled", current: keepAlive.backgroundSpeakEnabled), reduceMotion: reduceMotion)
             }
 
             // MARK: - Speech Settings
 
-            Section {
+            CodySettingsNovaSection("Speech") {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Rate")
@@ -115,8 +96,9 @@ struct EnhancedBackgroundSettingsView: View {
                     .tint(CodyColors.interactiveProgressFill)
                     .accessibilityLabel(Text("Rate"))
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
 
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Pitch")
@@ -129,8 +111,9 @@ struct EnhancedBackgroundSettingsView: View {
                         .tint(CodyColors.interactiveProgressFill)
                         .accessibilityLabel(Text("Pitch"))
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
 
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Volume")
@@ -143,58 +126,41 @@ struct EnhancedBackgroundSettingsView: View {
                         .tint(CodyColors.interactiveProgressFill)
                         .accessibilityLabel(Text("Volume"))
                 }
-                    .settingsRowSurface()
-            } header: {
-                Text("Speech")
-                    .settingsSectionHeading()
+                .settingsNovaControlRow()
             }
 
-            Section {
+            CodySettingsNovaSection("Voice", footer: "Choose a specific voice for each language. Download more voices in Settings > Accessibility > Spoken Content > Voices.") {
                 voicePicker(label: "English Voice", language: "en", selection: $keepAlive.speechVoiceEn)
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 voicePicker(label: "中文语音", language: "zh", selection: $keepAlive.speechVoiceZh)
-                    .settingsRowSurface()
-            } header: {
-                Text("Voice")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Choose a specific voice for each language. Download more voices in Settings > Accessibility > Spoken Content > Voices.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
             }
 
-            Section {
-                Button("Reset to Defaults") {
+            CodySettingsNovaSection {
+                CodySettingsNovaActionRow("Reset to Defaults") {
                     keepAlive.resetSpeechSettings()
                 }
-                    .settingsRowSurface()
-
-                Button {
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaActionRow("Preview", systemImage: "play", tint: .blue) {
                     previewSpeech()
-                } label: {
-                    SettingsIconLabel(title: Text("Preview"), systemImage: "play", tint: .blue)
-                        .settingsRowActionLabel()
                 }
-                .buttonStyle(CodyPressableButtonStyle())
-                .settingsRowSurface()
             }
 
             // MARK: - Other Settings
 
-            Section {
+            CodySettingsNovaSection(footer: "Lets the agent keep working in the background and keeps the task Live Activity refreshing in real time. Uses coarse, low-accuracy location only as a background heartbeat — it does not track or store your precise location.") {
                 Toggle("Location Tracking", isOn: $keepAlive.locationTrackingEnabled)
-                    .focusHighlight(shouldFocus("locationTrackingEnabled", current: keepAlive.locationTrackingEnabled))
                     .onChange(of: keepAlive.locationTrackingEnabled) { enabled in
                         if enabled && keepAlive.locationAuthStatus == .notDetermined {
                             keepAlive.requestLocationPermission()
                         }
                     }
-                    .settingsRowSurface()
-            } footer: {
-                Text("Lets the agent keep working in the background and keeps the task Live Activity refreshing in real time. Uses coarse, low-accuracy location only as a background heartbeat — it does not track or store your precise location.")
-                    .settingsSectionFooter()
+                    .settingsNovaControlRow()
+                    .focusHighlight(shouldFocus("locationTrackingEnabled", current: keepAlive.locationTrackingEnabled), reduceMotion: reduceMotion)
             }
 
-            Section {
+            CodySettingsNovaSection("Status", footer: "How long the app can keep working after moving to the background. Without any keep-alive mechanism, iOS suspends apps after roughly 30 seconds; enabling Location Tracking (and granting location permission) or Background Speak extends this for the duration of a task.") {
                 // [T-keepalive-survival-tier] Shows the app's background
                 // SURVIVAL CAPABILITY tier, not whether a task is running:
                 // ~30s system grace by default, long-lived when the location
@@ -217,26 +183,19 @@ struct EnhancedBackgroundSettingsView: View {
                         }
                     }
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
 
+                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 HStack {
                     Text("Location Permission")
                     Spacer()
                     Text(locationStatusText)
                         .foregroundColor(locationStatusColor)
                 }
-                    .settingsRowSurface()
-            } header: {
-                Text("Status")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("How long the app can keep working after moving to the background. Without any keep-alive mechanism, iOS suspends apps after roughly 30 seconds; enabling Location Tracking (and granting location permission) or Background Speak extends this for the duration of a task.")
-                    .settingsSectionFooter()
+                .settingsNovaControlRow()
             }
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
-        .navigationTitle("Background")
+        .navigationTitle("Background & Awake")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             // [T-settings-focus-highlight] One-shot consume of the parsed focus
@@ -268,6 +227,7 @@ struct EnhancedBackgroundSettingsView: View {
                 Text(voiceDisplayName(voice)).tag(voice.identifier)
             }
         }
+        .pickerStyle(.menu)
     }
 
     private func voiceDisplayName(_ voice: AVSpeechSynthesisVoice) -> String {
@@ -352,19 +312,16 @@ private extension View {
     /// row recommended by a `?focus=…` deep-link. The border fades out once
     /// `focused` flips to false (i.e. the user interacted with the row).
     @ViewBuilder
-    func focusHighlight(_ focused: Bool) -> some View {
+    func focusHighlight(_ focused: Bool, reduceMotion: Bool) -> some View {
         self
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(Color.yellow, lineWidth: 2)
-                    // Expand the border outward so it isn't cramped against the
-                    // row text — more breathing room above/below in particular.
-                    .padding(.horizontal, -10)
-                    .padding(.vertical, -12)
+                    .padding(CodySpacing.xs)
                     .opacity(focused ? 1 : 0)
                     .allowsHitTesting(false)
             )
-            .animation(.easeInOut(duration: 0.3), value: focused)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: focused)
     }
 }
 
