@@ -445,19 +445,12 @@ private final class CodeBlockSurface: UIView {
 /// so fenced code blocks render full syntax coloring with zero layout overhead and instant theme updates.
 private enum CodySyntaxHighlighter {
     private static let maxHighlightUTF16Length = 40_000
-    private static let cacheLimit = 64
 
-    private struct CacheKey: Hashable {
-        let codeHash: Int
-        let codeLength: Int
-        let language: String
-        let fontSize: Int
-    }
-
-    @MainActor
-    private static var cache: [CacheKey: NSAttributedString] = [:]
-    @MainActor
-    private static var cacheOrder: [CacheKey] = []
+    private static let cache: NSCache<NSString, NSAttributedString> = {
+        let c = NSCache<NSString, NSAttributedString>()
+        c.countLimit = 64
+        return c
+    }()
 
     private static let numberRegex = try! NSRegularExpression(
         pattern: #"\b(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)\b"#
@@ -503,7 +496,6 @@ private enum CodySyntaxHighlighter {
         options: [.anchorsMatchLines]
     )
 
-    @MainActor
     static func highlight(
         code: String,
         language: String?,
@@ -522,8 +514,8 @@ private enum CodySyntaxHighlighter {
             return NSAttributedString(string: code, attributes: baseAttrs)
         }
 
-        let key = CacheKey(codeHash: code.hashValue, codeLength: utf16Len, language: lang, fontSize: Int((font.pointSize * 10).rounded()))
-        if let cached = cache[key] {
+        let key = "\(code.hashValue):\(utf16Len):\(lang):\(Int((font.pointSize * 10).rounded()))" as NSString
+        if let cached = cache.object(forKey: key) {
             return cached
         }
 
@@ -561,12 +553,7 @@ private enum CodySyntaxHighlighter {
         }
 
         let frozen = NSAttributedString(attributedString: result)
-        cache[key] = frozen
-        cacheOrder.append(key)
-        if cacheOrder.count > cacheLimit, let evicted = cacheOrder.first {
-            cacheOrder.removeFirst()
-            cache.removeValue(forKey: evicted)
-        }
+        cache.setObject(frozen, forKey: key)
         return frozen
     }
 
