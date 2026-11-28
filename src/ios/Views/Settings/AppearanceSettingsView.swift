@@ -16,7 +16,6 @@ import SwiftUI
 private struct AppIconOption: Identifiable {
     let id: Int
     let title: String
-    let subtitle: String
     let iconName: String?  // nil = automatic (default asset catalog icon)
     let imageName: String  // bundle image file name for preview
 }
@@ -227,23 +226,20 @@ struct AppearanceSettingsView: View {
     /// [T-fold-consecutive-tools] Mirrors `ToolFoldPlanner.settingsKey`.
     @AppStorage("chat.foldConsecutiveTools") private var foldConsecutiveTools: Bool = false
     @ObservedObject private var fontSettings = FontSettings.shared
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
 
     private let iconOptions: [AppIconOption] = [
-        AppIconOption(id: 0, title: "Automatic", subtitle: "Follows system", iconName: nil, imageName: "AlternateIcons/AppIcon-Light"),
-        AppIconOption(id: 1, title: "Light", subtitle: "Always light", iconName: "AppIcon-Light", imageName: "AlternateIcons/AppIcon-Light"),
-        AppIconOption(id: 2, title: "Dark", subtitle: "Always dark", iconName: "AppIcon-Dark", imageName: "AlternateIcons/AppIcon-Dark"),
-        AppIconOption(id: 3, title: "Light (Legacy)", subtitle: "Classic light icon", iconName: "AppIcon-LegacyLight", imageName: "AlternateIcons/AppIcon-LegacyLight"),
-        AppIconOption(id: 4, title: "Dark (Legacy)", subtitle: "Classic dark icon", iconName: "AppIcon-LegacyDark", imageName: "AlternateIcons/AppIcon-LegacyDark"),
+        AppIconOption(id: 0, title: "Automatic", iconName: nil, imageName: "AlternateIcons/AppIcon-Light"),
+        AppIconOption(id: 1, title: "Light", iconName: "AppIcon-Light", imageName: "AlternateIcons/AppIcon-Light"),
+        AppIconOption(id: 2, title: "Dark", iconName: "AppIcon-Dark", imageName: "AlternateIcons/AppIcon-Dark"),
+        AppIconOption(id: 3, title: "Light (Legacy)", iconName: "AppIcon-LegacyLight", imageName: "AlternateIcons/AppIcon-LegacyLight"),
+        AppIconOption(id: 4, title: "Dark (Legacy)", iconName: "AppIcon-LegacyDark", imageName: "AlternateIcons/AppIcon-LegacyDark"),
     ]
 
     var body: some View {
         CodySettingsScrollPage {
             themeSection
-            if UIApplication.shared.supportsAlternateIcons {
-                iconSection
-            }
-            languageSection
+            displaySection
             fontSection
             launchSection
             chatSections
@@ -255,15 +251,23 @@ struct AppearanceSettingsView: View {
     }
 
     private var themeSection: some View {
-        CodySettingsNovaSection("Theme", footer: "Override the system appearance for this app.") {
-            if dynamicTypeSize.isAccessibilitySize {
-                themePicker
-                    .pickerStyle(.menu)
-                    .settingsNovaControlRow()
-            } else {
-                themePicker
-                    .pickerStyle(.segmented)
-                    .settingsNovaControlRow()
+        CodySettingsNovaSection(footer: UIApplication.shared.supportsAlternateIcons
+            ? "\"Automatic\" uses the system icon which adapts to Dark Mode on iOS 18+."
+            : nil) {
+            Menu {
+                Picker("Appearance", selection: $appearanceMode) {
+                    Text("System").tag(0)
+                    Text("Light").tag(1)
+                    Text("Dark").tag(2)
+                }
+            } label: {
+                SettingsNovaPickerLabel(title: "Appearance", value: Text(appearanceLabel))
+            }
+            .buttonStyle(CodyPressableButtonStyle())
+
+            if UIApplication.shared.supportsAlternateIcons {
+                CodySettingsNovaDivider(leadingInset: 18)
+                appIconPicker
             }
         }
         .onChange(of: appearanceMode) { _ in
@@ -274,106 +278,73 @@ struct AppearanceSettingsView: View {
         }
     }
 
-    private var themePicker: some View {
-        Picker("Theme", selection: $appearanceMode) {
-            Text("System").tag(0)
-            Text("Light").tag(1)
-            Text("Dark").tag(2)
+    private var appearanceLabel: LocalizedStringKey {
+        switch appearanceMode {
+        case 1: "Light"
+        case 2: "Dark"
+        default: "System"
         }
     }
 
-    private var iconSection: some View {
-        CodySettingsNovaSection(
-            "App Icon",
-            footer: "\"Automatic\" uses the system icon which adapts to Dark Mode on iOS 18+."
-        ) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: CodySpacing.sm) {
-                    ForEach(iconOptions) { option in
-                        iconButton(option)
-                    }
-                }
-                .padding(CodySpacing.lg)
-            }
-        }
-    }
-
-    private func iconButton(_ option: AppIconOption) -> some View {
-        let isSelected = appIconMode == option.id
-        let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
-        return Button {
-            guard !isSelected else { return }
-            appIconMode = option.id
-            UIApplication.shared.setAlternateIconName(option.iconName) { error in
-                if let error {
-                    print("[AppIcon] Failed to set icon: \(error.localizedDescription)")
+    private var appIconPicker: some View {
+        let current = iconOptions.first { $0.id == appIconMode } ?? iconOptions[0]
+        let previewName = current.iconName == nil && colorScheme == .dark
+            ? "AlternateIcons/AppIcon-Dark"
+            : current.imageName
+        return Menu {
+            Picker("App Icon", selection: Binding(get: { appIconMode }, set: changeAppIcon)) {
+                ForEach(iconOptions) { option in
+                    Text(LocalizedStringKey(option.title)).tag(option.id)
                 }
             }
         } label: {
-            VStack(spacing: CodySpacing.xs) {
-                if let image = UIImage(named: option.imageName) {
+            CodySettingsNovaRowContent(title: "App Icon", subtitle: nil, systemImage: nil, tint: nil, showsDisclosure: false) {
+                if let image = UIImage(named: previewName) {
                     Image(uiImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: CodySpacing.s56, height: CodySpacing.s56)
-                        .clipShape(shape)
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: CodyRadius.sm, style: .continuous))
                         .accessibilityHidden(true)
                 }
-                Text(LocalizedStringKey(option.title))
-                    .font(CodyTypography.titleSmall)
-                    .foregroundStyle(CodyColors.textPrimary)
-                Text(LocalizedStringKey(option.subtitle))
+                Text(LocalizedStringKey(current.title))
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+                SettingsNovaDisclosure(systemImage: "chevron.up.chevron.down")
+            }
+        }
+        .buttonStyle(CodyPressableButtonStyle())
+    }
+
+    private func changeAppIcon(_ id: Int) {
+        guard id != appIconMode, let option = iconOptions.first(where: { $0.id == id }) else { return }
+        appIconMode = id
+        UIApplication.shared.setAlternateIconName(option.iconName) { error in
+            if let error {
+                print("[AppIcon] Failed to set icon: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private var languagePicker: some View {
+        Menu {
+            Picker("Language", selection: Binding(get: { appLanguage }, set: changeLanguage)) {
+                ForEach(supportedLanguages) { lang in
+                    if lang.flag.isEmpty {
+                        Text("System").tag(lang.id)
+                    } else {
+                        Text("\(lang.flag) \(lang.name)").tag(lang.id)
+                    }
+                }
+            }
+        } label: {
+            CodySettingsNovaRowContent(title: "App Language", subtitle: nil, systemImage: nil, tint: nil) {
+                Text(verbatim: languageLabel)
                     .font(CodyTypography.bodySmall)
                     .foregroundStyle(CodyColors.textSecondary)
             }
-            .multilineTextAlignment(.center)
-            .padding(CodySpacing.md)
-            .frame(minWidth: 112)
-            .background(isSelected ? CodyColors.interactiveSecondaryBg : Color.clear, in: shape)
-            .overlay {
-                shape.strokeBorder(isSelected ? CodyColors.iconAccent : CodyColors.borderLight, lineWidth: CodySpacing.px)
-                    .allowsHitTesting(false)
-            }
-            .overlay(alignment: .topTrailing) {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(CodyTypography.labelMedium)
-                        .foregroundStyle(CodyColors.iconAccent)
-                        .padding(CodySpacing.sm)
-                        .accessibilityHidden(true)
-                }
-            }
-            .contentShape(shape)
         }
         .buttonStyle(CodyPressableButtonStyle())
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityElement(children: .combine)
-    }
-
-    private var languageSection: some View {
-        CodySettingsNovaSection(
-            "Language",
-            footer: "Override the display language for this app. \"System\" follows your device language."
-        ) {
-            Menu {
-                Picker("Language", selection: Binding(get: { appLanguage }, set: changeLanguage)) {
-                    ForEach(supportedLanguages) { lang in
-                        if lang.flag.isEmpty {
-                            Text("System").tag(lang.id)
-                        } else {
-                            Text("\(lang.flag) \(lang.name)").tag(lang.id)
-                        }
-                    }
-                }
-            } label: {
-                CodySettingsNovaRowContent(title: "Language", subtitle: nil, systemImage: "globe", tint: .neutral) {
-                    Text(languageLabel)
-                        .font(CodyTypography.bodySmall)
-                        .foregroundStyle(CodyColors.textSecondary)
-                }
-            }
-            .buttonStyle(CodyPressableButtonStyle())
-        }
     }
 
     private var languageLabel: String {
@@ -393,19 +364,19 @@ struct AppearanceSettingsView: View {
 
     private var fontSection: some View {
         CodySettingsNovaSection(
-            "Font Size",
+            "Font Scale",
             footer: "Scale fonts for chat input, message content, and general app text. Changes apply immediately."
         ) {
             FontScaleRow(label: "Chat Input", level: $fontSettings.chatInputScale)
                 .settingsNovaControlRow()
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             FontScaleRow(label: "Message Text", level: $fontSettings.messageBaseScale)
                 .settingsNovaControlRow()
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             FontScaleRow(label: "App Base", level: $fontSettings.appBaseScale)
                 .settingsNovaControlRow()
             if fontSettings.isModified {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 CodySettingsNovaActionRow("Reset to Defaults", isDestructive: true) {
                     fontSettings.resetToDefaults()
                 }
@@ -415,17 +386,28 @@ struct AppearanceSettingsView: View {
 
     private var launchSection: some View {
         CodySettingsNovaSection(
-            "Launch Session",
             footer: "Choose what to show when the app starts. \"Auto\" opens a new chat if the last session is older than 15 minutes."
         ) {
-            Picker("Launch Session", selection: $launchScreen) {
-                Text("Auto").tag(0)
-                Text("Last Session").tag(1)
-                Text("New Chat").tag(2)
-                Text("Home").tag(3)
+            Menu {
+                Picker("Launch Session", selection: $launchScreen) {
+                    Text("Auto").tag(0)
+                    Text("Last Session").tag(1)
+                    Text("New Chat").tag(2)
+                    Text("Home").tag(3)
+                }
+            } label: {
+                SettingsNovaPickerLabel(title: "Launch Session", value: Text(launchScreenLabel))
             }
-            .pickerStyle(.menu)
-            .settingsNovaControlRow()
+            .buttonStyle(CodyPressableButtonStyle())
+        }
+    }
+
+    private var launchScreenLabel: LocalizedStringKey {
+        switch launchScreen {
+        case 1: "Last Session"
+        case 2: "New Chat"
+        case 3: "Home"
+        default: "Auto"
         }
     }
 
@@ -436,6 +418,7 @@ struct AppearanceSettingsView: View {
             footer: "When a chat's title is first generated, also file it into a matching existing group. Runs once per chat, only uses groups you already created, and leaves the chat ungrouped when nothing matches."
         ) {
             Toggle("Auto-Grouping", isOn: autoGroupingBinding)
+                .tint(.green)
                 .settingsNovaControlRow()
         }
 
@@ -450,24 +433,28 @@ struct AppearanceSettingsView: View {
             .pickerStyle(.segmented)
             .settingsNovaControlRow()
         }
+    }
 
-        CodySettingsNovaSection("Chat Display") {
+    private var displaySection: some View {
+        CodySettingsNovaSection(footer: "Override the display language for this app. \"System\" follows your device language.") {
+            languagePicker
+            CodySettingsNovaDivider(leadingInset: 18)
             displayToggle(description: "When on, the keyboard pops up automatically after the model finishes replying so the input is ready for a follow-up. On by default; turn off if you prefer to read the response without an unexpected keyboard.") {
                 Toggle(AppLocalized("Auto-Focus Input After Reply"), isOn: $autoFocusAfterReply)
             }
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             displayToggle(description: "Ask for confirmation when you tap the stop button while a task is running, so an accidental tap does not end a long run. Off by default. You can also long-press the stop button to switch.") {
                 Toggle(AppLocalized("Confirm Before Stopping"), isOn: $confirmBeforeStopping)
             }
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             displayToggle(description: "Show a live preview thumbnail alongside the tool status bar during agent execution.") {
                 Toggle(AppLocalized("Tool Preview Window"), isOn: $toolPreviewEnabled)
             }
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             displayToggle(description: "When on, a new thinking block expands automatically while the model is reasoning and collapses when it finishes. When off, thinking blocks stay collapsed — tap one to read it.") {
                 Toggle(AppLocalized("Expand Thinking While Streaming"), isOn: $autoExpandThinking)
             }
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             displayToggle(description: "Consecutive tool calls are shown as one line. Tap it to see each call.") {
                 Toggle(AppLocalized("Fold Consecutive Tool Calls"), isOn: $foldConsecutiveTools)
                     .onChange(of: foldConsecutiveTools) { _ in
@@ -483,6 +470,7 @@ struct AppearanceSettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: CodySpacing.xs) {
             control()
+                .tint(.green)
             Text(description)
                 .font(CodyTypography.bodySmall)
                 .foregroundStyle(CodyColors.textSecondary)
@@ -531,6 +519,7 @@ struct SettingsKeepAwakeSection: View {
         VStack(alignment: .leading, spacing: CodySpacing.sm) {
             CodySettingsNovaSection("Keep Screen Awake") {
                 Toggle(AppLocalized("Keep Screen Awake"), isOn: $keepScreenAwakeDuringTasks)
+                    .tint(.green)
                     .settingsNovaControlRow()
                 if keepScreenAwakeDuringTasks {
                     Picker(AppLocalized("Screen Saver"), selection: $alwaysOnIdleSeconds) {
@@ -538,10 +527,20 @@ struct SettingsKeepAwakeSection: View {
                             Text(Self.screenSaverLabel(seconds)).tag(seconds)
                         }
                     }
+                    .labelsHidden()
                     .pickerStyle(.menu)
+                    .tint(CodyColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .overlay(alignment: .leading) {
+                        Text(AppLocalized("Screen Saver"))
+                            .font(CodyTypography.bodyLarge)
+                            .foregroundStyle(CodyColors.textPrimary)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
                     .settingsNovaControlRow()
                     .overlay(alignment: .top) {
-                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                        CodySettingsNovaDivider(leadingInset: 18)
                     }
                 }
             }

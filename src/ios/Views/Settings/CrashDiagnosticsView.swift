@@ -139,8 +139,8 @@ struct CrashDiagnosticsView: View {
     @State private var exportError: String?
 
     var body: some View {
-        List {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection(footer: "A zip of the breadcrumbs, crash contexts, MetricKit reports and the last 2 MB of the log. Keys, tokens, URL parameters, e-mail addresses and request bodies are removed first.") {
                 Button {
                     export()
                 } label: {
@@ -158,18 +158,13 @@ struct CrashDiagnosticsView: View {
                 .buttonStyle(CodyPrimaryCapsuleButtonStyle())
                 .disabled(exporting)
                 .padding(.vertical, CodySpacing.xs)
-                    .settingsRowSurface()
-            } footer: {
-                Text("A zip of the breadcrumbs, crash contexts, MetricKit reports and the last 2 MB of the log. Keys, tokens, URL parameters, e-mail addresses and request bodies are removed first.")
-                    .settingsSectionFooter()
+                .settingsNovaControlRow()
             }
             section("Earlier Runs", kinds: [.breadcrumbs])
             section("Crash Contexts", kinds: [.context])
             section("MetricKit Reports", kinds: [.metricKit])
             section("This Run", kinds: [.currentRun])
         }
-        .listStyle(.insetGrouped)
-        .settingsGroupedCanvas()
         .navigationTitle("Crash Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { items = CrashDiagnostics.items() }
@@ -186,29 +181,35 @@ struct CrashDiagnosticsView: View {
     @ViewBuilder
     private func section(_ title: LocalizedStringKey, kinds: Set<CrashDiagnostics.Item.Kind>) -> some View {
         let rows = items.filter { kinds.contains($0.kind) }
-        Section {
+        CodySettingsNovaSection(title) {
             if rows.isEmpty {
-                Text("None").foregroundStyle(.secondary)
-                    .settingsRowSurface()
+                Text("None")
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .settingsNovaControlRow()
             } else {
                 ForEach(rows) { item in
+                    if item.id != rows.first?.id {
+                        CodySettingsNovaDivider(leadingInset: 18)
+                    }
                     NavigationLink {
                         CrashDiagnosticTextView(id: item.id, title: item.title)
                     } label: {
-                        HStack {
-                            CodySettingsIconBadge(systemImage: "doc.text", tint: .neutral)
-                            Text(item.title).lineLimit(1)
-                            Spacer()
+                        HStack(spacing: CodySpacing.sm) {
+                            Text(verbatim: item.title)
+                                .font(CodyTypography.bodyLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
+                                .lineLimit(1)
+                            Spacer(minLength: CodySpacing.sm)
                             Text(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall.monospacedDigit())
+                                .foregroundStyle(CodyColors.textSecondary)
+                            SettingsNovaDisclosure()
                         }
+                        .settingsNovaControlRow()
                     }
-                        .settingsRowSurface()
+                    .buttonStyle(CodyPressableButtonStyle())
                 }
             }
-        } header: {
-            Text(title)
-                .settingsSectionHeading()
         }
     }
 
@@ -239,14 +240,17 @@ private struct CrashDiagnosticTextView: View {
 
     var body: some View {
         ScrollView {
-            Text(text)
+            Text(verbatim: text)
                 .font(CodyTypography.code)
                 .foregroundStyle(CodyColors.textPrimary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                .padding(CodySpacing.lg)
+                .codySettingsCapsulePill()
+                .padding(.horizontal, CodySpacing.lg)
+                .padding(.vertical, CodySpacing.md)
         }
-        .background(CodyColors.bgGrouped)
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task {

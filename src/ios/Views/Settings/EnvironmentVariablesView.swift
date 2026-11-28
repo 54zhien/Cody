@@ -31,6 +31,7 @@ struct EnvironmentVariablesView: View {
         List {
             Section {
                 Toggle("Privacy Mode", isOn: $privacy.enabled)
+                    .tint(.green)
                     .settingsNovaListCardRow()
             } footer: {
                 Text("When enabled, any environment variable value that appears in shell-execute output is replaced with a masked form (e.g. `sk-1********ajhks`) before reaching the model. Values shorter than 8 characters become all `*`. The user-visible output in chat is unchanged.")
@@ -40,7 +41,10 @@ struct EnvironmentVariablesView: View {
             if store.entries.isEmpty {
                 Section {
                     VStack(spacing: 8) {
-                        CodySettingsIconBadge(systemImage: "terminal", tint: .green)
+                        Image(systemName: "terminal")
+                            .font(CodyTypography.headlineSmall)
+                            .foregroundStyle(CodyColors.iconPrimary)
+                            .accessibilityHidden(true)
                         Text("No Environment Variables")
                             .font(.headline)
                         Text("Add variables like API keys or tokens that will be available in the shell environment.")
@@ -271,8 +275,8 @@ private struct EnvVarFormSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            CodySettingsScrollPage {
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
                     TextField("NAME", text: Binding(
                         get: { key },
                         set: { key = $0.uppercased() }
@@ -283,103 +287,85 @@ private struct EnvVarFormSheet: View {
                     .focused($focusedField, equals: .key)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .value }
-                        .settingsRowSurface()
-                } header: {
-                    Text("Name")
-                        .settingsSectionHeading()
-                } footer: {
+                    .settingsNovaField("Name")
+
                     if !key.isEmpty && !isValid {
                         Text("Must start with a letter and contain only letters, digits, and underscores.")
+                            .settingsNovaFooter()
                             .foregroundStyle(CodyColors.statusErrorText)
-                            .settingsSectionFooter()
                     }
                 }
 
-                Section {
-                    if EnvVarStore.isShortcutKey(key) {
-                        // [T-shortcut-envvar] Shortcut-stored text (an SMS, a
-                        // note) can span lines; a single-line field would
-                        // flatten it on save.
-                        TextField("Value", text: $value, axis: .vertical)
-                            .lineLimit(1...8)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                            .focused($focusedField, equals: .value)
-                            .settingsRowSurface()
-                    } else {
-                        TextField("Value", text: $value)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                            .focused($focusedField, equals: .value)
-                            .submitLabel(.next)
-                            .onSubmit { focusedField = .note }
-                            .settingsRowSurface()
-                    }
-                } header: {
-                    Text("Value")
-                        .settingsSectionHeading()
+                if EnvVarStore.isShortcutKey(key) {
+                    // [T-shortcut-envvar] Shortcut values can span lines.
+                    TextField("Value", text: $value, axis: .vertical)
+                        .lineLimit(1...8)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .value)
+                        .settingsNovaField("Value")
+                } else {
+                    TextField("Value", text: $value)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .value)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .note }
+                        .settingsNovaField("Value")
                 }
 
-                Section {
-                    ZStack(alignment: .topLeading) {
+                TextEditor(text: $note)
+                    .frame(minHeight: 80)
+                    .focused($focusedField, equals: .note)
+                    .scrollContentBackground(.hidden)
+                    .overlay(alignment: .topLeading) {
                         if note.isEmpty {
                             Text("Describe what this variable is for (optional)")
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 4)
+                                .foregroundStyle(CodyColors.textSecondary)
+                                .padding(.horizontal, 5)
                                 .padding(.vertical, 8)
                                 .allowsHitTesting(false)
+                                .accessibilityHidden(true)
                         }
-                        TextEditor(text: $note)
-                            .frame(minHeight: 80)
-                            .focused($focusedField, equals: .note)
-                            .scrollContentBackground(.hidden)
                     }
-                        .settingsRowSurface()
-                } header: {
-                    Text("Note")
-                        .settingsSectionHeading()
-                }
+                    .settingsNovaField("Note")
 
                 if mode == .edit, initialEnabled != nil {
-                    Section {
+                    CodySettingsNovaSection {
                         Toggle(AppLocalized("Enabled"), isOn: $enabled)
-                            .listRowBackground(highlightEnabled && !enabled
-                                               ? Color.orange.opacity(0.18)
-                                               : CodyColors.bgGroupedSurface)
+                            .tint(.green)
+                            .settingsNovaControlRow()
+                    }
+                    .overlay {
+                        if highlightEnabled && !enabled {
+                            RoundedRectangle(cornerRadius: CodySettingsHairline.capsuleRadius, style: .continuous)
+                                .strokeBorder(CodyColors.statusWarningText, lineWidth: CodySpacing.px)
+                                .allowsHitTesting(false)
+                        }
                     }
                 }
 
                 if mode == .edit, onDelete != nil {
-                    Section {
-                        Button(role: .destructive) {
+                    CodySettingsNovaSection {
+                        CodySettingsNovaActionRow("Delete Variable", systemImage: nil, isDestructive: true) {
                             showingDeleteConfirm = true
-                        } label: {
-                            Label {
-                                Text("Delete Variable")
-                            } icon: {
-                                CodySettingsIconBadge(systemImage: "trash.fill", tint: .red)
-                            }
                         }
-                            .settingsRowSurface()
                     }
                 }
-            }
-            .settingsGroupedCanvas()
-            .navigationTitle(mode == .add ? "Add Variable" : "Edit Variable")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(mode == .add ? "Add" : "Save") {
+
+                SettingsNovaEditorActions(
+                    title: mode == .add ? "Add" : "Save",
+                    isSaveDisabled: !isValid,
+                    save: {
                         onSave(key, value, note.trimmingCharacters(in: .whitespacesAndNewlines),
                                initialEnabled == nil ? nil : enabled)
                         dismiss()
-                    }
-                    .disabled(!isValid)
-                }
+                    },
+                    cancel: { dismiss() }
+                )
             }
+            .navigationTitle(mode == .add ? "Add Variable" : "Edit Variable")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
         .alert(

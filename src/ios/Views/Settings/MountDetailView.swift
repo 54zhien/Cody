@@ -31,10 +31,6 @@ struct MountDetailContext: Equatable {
     let sourceDisplayName: String?
     /// The resolved host URL for the "Browse Files" action.
     let hostURL: URL
-    /// SF Symbol name used in the header icon.
-    let iconName: String
-    /// Icon background color.
-    let iconColor: Color
     /// Shown in a subtitle line; optional.
     let subtitle: String?
 
@@ -130,18 +126,14 @@ struct MountDetailView: View {
             if context.kind == .external {
                 unmountSection
             }
+
+            SettingsNovaEditorActions(isSaveDisabled: !canSave, save: save) {
+                dismissEnvironment()
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(context.canRename ? AppLocalized("Edit Mount") : AppLocalized("Folder Details"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(AppLocalized("Save")) {
-                    save()
-                }
-                .disabled(!canSave)
-            }
-        }
         .sheet(isPresented: $showingBrowser) {
             NavigationStack {
                 FileBrowserView(
@@ -176,19 +168,9 @@ struct MountDetailView: View {
 
     // MARK: - Sections
 
-    private var headerBadgeTint: CodyCategoryTint {
-        guard context.kind == .shared else { return .orange }
-        switch context.sharedFolderName {
-        case "shared": return .blue
-        case "skills": return .purple
-        default: return .green
-        }
-    }
-
     private var headerSection: some View {
         CodySettingsNovaSection {
             HStack(alignment: .top, spacing: 12) {
-                CodySettingsIconBadge(systemImage: context.iconName, tint: headerBadgeTint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(context.initialName)
                         .font(.headline)
@@ -212,22 +194,22 @@ struct MountDetailView: View {
                 Spacer()
             }
             .padding(.vertical, 4)
-                .settingsNovaControlRow()
+            .settingsNovaControlRow()
         }
     }
 
     private var nameSection: some View {
-        CodySettingsNovaSection("Name", footer: "Becomes the folder name under /var/cody/mounts/") {
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
             TextField("name", text: $nameText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .settingsNovaControlRow()
+                .settingsNovaField("Name")
+            Text("Becomes the folder name under /var/cody/mounts/")
+                .settingsNovaFooter()
             if nameChanged && !nameIsValid {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
                 Text("Mount name must not be empty, contain '/', or be '.' or '..'.")
-                    .font(CodyTypography.bodySmall)
+                    .settingsNovaFooter()
                     .foregroundStyle(CodyColors.statusErrorText)
-                    .settingsNovaControlRow()
             }
         }
     }
@@ -244,6 +226,7 @@ struct MountDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .tint(.green)
             .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
         }
     }
@@ -260,9 +243,10 @@ struct MountDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .tint(.green)
             .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             if context.isReadOnlyFromFiles {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 Text("Read-only from the Files app. The app itself can always read and write.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -273,7 +257,7 @@ struct MountDetailView: View {
 
     private var browseSection: some View {
         CodySettingsNovaSection {
-            CodySettingsNovaActionRow("Browse Files", systemImage: "folder.fill", tint: .blue) {
+            CodySettingsNovaActionRow("Browse Files", systemImage: nil, showsDisclosure: true) {
                 showingBrowser = true
             }
         }
@@ -281,7 +265,7 @@ struct MountDetailView: View {
 
     private var unmountSection: some View {
         CodySettingsNovaSection {
-            CodySettingsNovaActionRow("Unmount", systemImage: "xmark", isDestructive: true) {
+            CodySettingsNovaActionRow("Unmount", systemImage: nil, isDestructive: true) {
                 showingUnmountConfirm = true
             }
         }

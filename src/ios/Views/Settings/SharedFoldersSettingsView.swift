@@ -22,7 +22,7 @@ struct SharedFoldersSettingsView: View {
             ) {
                 ForEach(model.entries) { entry in
                     if entry.id != model.entries.first?.id {
-                        CodySettingsNovaDivider()
+                        CodySettingsNovaDivider(leadingInset: 18)
                     }
                     NavigationLink {
                         MountDetailView(
@@ -50,8 +50,6 @@ struct SharedFoldersSettingsView: View {
             linuxPath: entry.linuxPath,
             sourceDisplayName: nil,
             hostURL: entry.hostURL,
-            iconName: entry.iconName,
-            iconColor: entry.iconColor,
             subtitle: nil,
             initialName: entry.displayName,
             canRename: false,
@@ -73,8 +71,6 @@ private struct SharedFolderRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CodySettingsIconBadge(systemImage: entry.iconName, tint: entry.badgeTint)
-
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(entry.displayName)
@@ -97,6 +93,8 @@ private struct SharedFolderRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+            Spacer(minLength: CodySpacing.sm)
+            SettingsNovaDisclosure()
         }
         .padding(.vertical, 2)
     }
@@ -136,8 +134,6 @@ struct SharedFolderEntry: Identifiable, Hashable {
     let linuxPath: String
     /// Host filesystem URL (App Group container) for FileBrowserView.
     let hostURL: URL
-    let iconName: String
-    let iconColor: Color
     /// Whether the Files app (via FileProvider extension) can write to this
     /// folder. `memory` and `skills` are read-only from Files; `shared` is r/w.
     /// Note: the CodyApp itself always reads/writes all three — this flag only
@@ -146,14 +142,6 @@ struct SharedFolderEntry: Identifiable, Hashable {
 
     var id: String { name }
 
-    var badgeTint: CodyCategoryTint {
-        switch name {
-        case "shared": return .blue
-        case "skills": return .purple
-        case "memory": return .green
-        default: return .green
-        }
-    }
 }
 
 @MainActor
@@ -200,8 +188,6 @@ final class SharedFoldersViewModel: ObservableObject {
                 displayName: AppLocalized("Shared"),
                 linuxPath: "/var/cody/shared",
                 hostURL: root.appendingPathComponent("shared", isDirectory: true),
-                iconName: "folder.fill",
-                iconColor: .blue,
                 isWritableFromFiles: true
             ),
             SharedFolderEntry(
@@ -209,8 +195,6 @@ final class SharedFoldersViewModel: ObservableObject {
                 displayName: AppLocalized("Skills"),
                 linuxPath: "/var/cody/skills",
                 hostURL: root.appendingPathComponent("skills", isDirectory: true),
-                iconName: "sparkles",
-                iconColor: .purple,
                 isWritableFromFiles: false
             ),
             SharedFolderEntry(
@@ -218,8 +202,6 @@ final class SharedFoldersViewModel: ObservableObject {
                 displayName: AppLocalized("Memory"),
                 linuxPath: "/var/cody/memory",
                 hostURL: root.appendingPathComponent("memory", isDirectory: true),
-                iconName: "brain.head.profile",
-                iconColor: .pink,
                 isWritableFromFiles: false
             ),
         ]

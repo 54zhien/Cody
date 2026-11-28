@@ -125,7 +125,7 @@ struct BackupSettingsView: View {
 
             if !embedded {
                 CodySettingsNovaSection(footer: "Restoring merges a backup into your existing data. Nothing is deleted.") {
-                    CodySettingsNovaNavRow("Restore from Backup…", systemImage: "arrow.down.doc", tint: .purple) {
+                    CodySettingsNovaNavRow("Restore from Backup…", systemImage: nil) {
                         BackupRestoreView()
                     }
                 }
@@ -210,13 +210,11 @@ struct BackupSettingsView: View {
         VStack(alignment: .leading, spacing: CodySpacing.sm) {
             CodySettingsNovaSection("Include") {
                 ForEach(BackupCategory.backupable, id: \.self) { category in
-                    if category != BackupCategory.backupable.first { CodySettingsNovaDivider() }
+                    if category != BackupCategory.backupable.first { CodySettingsNovaDivider(leadingInset: 18) }
                     Toggle(isOn: binding(for: category)) {
-                        HStack(spacing: 12) {
-                            SettingsBackupCategoryBadge(category: category)
-                            Text(displayName(category))
-                        }
+                        Text(displayName(category))
                     }
+                    .tint(.green)
                     .settingsNovaControlRow()
                 }
 
@@ -224,27 +222,25 @@ struct BackupSettingsView: View {
                 // actually carries files is selected — with only DB-backed
                 // categories on, nothing would ever hit it.
                 if selected.contains(where: \.carriesFileTree) {
-                    CodySettingsNovaDivider()
+                    CodySettingsNovaDivider(leadingInset: 18)
                     // Ordered smallest to largest, with "no files at all" at
                     // the top as the extreme of the same axis.
-                    Picker(selection: $maxFileSizeMB) {
-                        Text("Don't back up files").tag(BackupSettingsView.noFilesTag)
-                        Text("1 MB").tag(1)
-                        Text("2 MB").tag(2)
-                        Text("5 MB").tag(5)
-                        Text("10 MB").tag(10)
-                        Text("50 MB").tag(50)
-                        Text("100 MB").tag(100)
-                        Text("500 MB").tag(500)
-                        Text("Unlimited").tag(BackupSettingsView.unlimitedTag)
-                    } label: {
-                        HStack(spacing: 12) {
-                            CodySettingsIconBadge(systemImage: "doc.zipper", tint: .neutral)
-                            Text("Max Per-File Size")
+                    Menu {
+                        Picker("Max Per-File Size", selection: $maxFileSizeMB) {
+                            Text("Don't back up files").tag(BackupSettingsView.noFilesTag)
+                            Text("1 MB").tag(1)
+                            Text("2 MB").tag(2)
+                            Text("5 MB").tag(5)
+                            Text("10 MB").tag(10)
+                            Text("50 MB").tag(50)
+                            Text("100 MB").tag(100)
+                            Text("500 MB").tag(500)
+                            Text("Unlimited").tag(BackupSettingsView.unlimitedTag)
                         }
+                    } label: {
+                        SettingsNovaPickerLabel(title: "Max Per-File Size", value: Text(fileSizeLabel))
                     }
-                    .pickerStyle(.menu)
-                    .settingsNovaControlRow()
+                    .buttonStyle(CodyPressableButtonStyle())
                 }
             }
             // The cap's consequence is stated, because §3.4's whole point is
@@ -269,6 +265,14 @@ struct BackupSettingsView: View {
         }
     }
 
+    private var fileSizeLabel: LocalizedStringKey {
+        switch maxFileSizeMB {
+        case Self.noFilesTag: "Don't back up files"
+        case Self.unlimitedTag: "Unlimited"
+        default: "\(maxFileSizeMB) MB"
+        }
+    }
+
     private var encryptionSection: some View {
         // Encryption is a CHOICE; the passphrase only appears once it's on.
         //
@@ -282,33 +286,22 @@ struct BackupSettingsView: View {
         // inventing one.
         VStack(alignment: .leading, spacing: CodySpacing.sm) {
             CodySettingsNovaSection("Encryption") {
-                Toggle(isOn: $encryptBackup.animation(reduceMotion ? nil : .default)) {
-                    HStack(spacing: 12) {
-                        CodySettingsIconBadge(
-                            systemImage: encryptBackup ? "lock.fill" : "lock.open.fill",
-                            tint: encryptBackup ? .green : .neutral
-                        )
-                        Text("Encrypt Backup")
-                    }
-                }
-                .settingsNovaControlRow()
-                if encryptBackup {
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                    SecureField("Passphrase", text: $passphrase)
+                Toggle("Encrypt Backup", isOn: $encryptBackup.animation(reduceMotion ? nil : .default))
+                    .tint(.green)
+                    .settingsNovaControlRow()
+            }
+            if encryptBackup {
+                SecureField("Passphrase", text: $passphrase)
+                    .textContentType(.newPassword)
+                    .settingsNovaField("Passphrase")
+                if !passphrase.isEmpty {
+                    SecureField("Confirm passphrase", text: $confirmPassphrase)
                         .textContentType(.newPassword)
-                        .settingsNovaControlRow()
-                    if !passphrase.isEmpty {
-                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                        SecureField("Confirm passphrase", text: $confirmPassphrase)
-                            .textContentType(.newPassword)
-                            .settingsNovaControlRow()
-                        if passphrase != confirmPassphrase {
-                            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                            Text("Passphrases don't match.")
-                                .font(CodyTypography.sectionHeader)
-                                .foregroundStyle(CodyColors.statusErrorText)
-                                .settingsNovaControlRow()
-                        }
+                        .settingsNovaField("Confirm passphrase")
+                    if passphrase != confirmPassphrase {
+                        Text("Passphrases don't match.")
+                            .foregroundStyle(CodyColors.statusErrorText)
+                            .settingsNovaFooter()
                     }
                 }
             }
@@ -382,7 +375,7 @@ struct BackupSettingsView: View {
             transferRows
 
             if let errorText {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 Text(errorText)
                     .font(CodyTypography.sectionHeader)
                     .foregroundStyle(CodyColors.statusErrorText)
@@ -397,7 +390,7 @@ struct BackupSettingsView: View {
                 LabeledContent("Size", value: byteText(result.totalBytes))
                     .settingsNovaControlRow()
                 if result.skippedFiles > 0 {
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    CodySettingsNovaDivider(leadingInset: 18)
                     // §3.4: a size-capped export has gaps, and the user is
                     // told here rather than discovering it at restore time.
                     // "too large" would be wrong when files were left out
@@ -433,12 +426,12 @@ struct BackupSettingsView: View {
                 // footer states the local copy was kept, so the package is
                 // still reachable from Files (Cody ▸ Backups).
                 if shareURL != nil, deliveryResults.isEmpty {
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                    CodySettingsNovaActionRow("Share…", systemImage: "square.and.arrow.up", tint: .blue) {
+                    CodySettingsNovaDivider(leadingInset: 18)
+                    CodySettingsNovaActionRow("Share…", systemImage: nil) {
                         showShare = true
                     }
-                    CodySettingsNovaDivider()
-                    CodySettingsNovaActionRow("Save to Files…", systemImage: "folder", tint: .blue) {
+                    CodySettingsNovaDivider(leadingInset: 18)
+                    CodySettingsNovaActionRow("Save to Files…", systemImage: nil) {
                         showSaveToFiles = true
                     }
                 }
@@ -447,7 +440,7 @@ struct BackupSettingsView: View {
                 // than as one combined status: "2 of 3 saved" is only
                 // actionable if the user can see WHICH one failed.
                 ForEach(deliveryResults) { r in
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    CodySettingsNovaDivider(leadingInset: 18)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Image(systemName: r.succeeded
                               ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -551,7 +544,7 @@ struct BackupSettingsView: View {
         // otherwise only move when the byte counter did.
         let _ = transfer.tick
         ForEach(transfer.destinations) { d in
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: d.error != nil ? "exclamationmark.triangle.fill"
@@ -584,7 +577,7 @@ struct BackupSettingsView: View {
         }
 
         if let note = transfer.cleanupNote {
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             Label {
                 Text(note).font(CodyTypography.bodySmall)
             } icon: {
@@ -675,31 +668,19 @@ struct BackupSettingsView: View {
     }
 
     private var deviceNameSection: some View {
-        CodySettingsNovaSection("Device Name", footer: "Used to identify this device in backup filenames and in the iCloud sync device list. Leave empty to use “\(DeviceIdentity.automaticName)”.") {
-            HStack(spacing: 12) {
-                CodySettingsIconBadge(systemImage: "iphone", tint: .blue)
-                // The placeholder is the automatic name, so an untouched field
-                // shows the user what will be used rather than sitting blank.
-                TextField(DeviceIdentity.automaticName, text: $deviceNameDraft)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.words)
-                    .submitLabel(.done)
-                    .onSubmit { commitDeviceName() }
-                    // Committed on every change, not only on submit: this
-                    // screen is usually left by swiping back or by tapping
-                    // Create Backup, neither of which fires onSubmit — and a
-                    // name that silently failed to save would be worse than
-                    // no field at all.
-                    //
-                    // Single-parameter `onChange`, because the deployment
-                    // target is iOS 16 and the two-parameter overload is 17+.
-                    .onChange(of: deviceNameDraft) { _ in commitDeviceName() }
-            }
-            .settingsNovaControlRow()
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
+            // A placeholder shows the automatic name while the override is empty.
+            TextField(DeviceIdentity.automaticName, text: $deviceNameDraft)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+                .onSubmit { commitDeviceName() }
+                // Persist edits even when the user leaves without submitting.
+                .onChange(of: deviceNameDraft) { _ in commitDeviceName() }
+                .settingsNovaField("Device Name")
+            Text("Used to identify this device in backup filenames and in the iCloud sync device list. Leave empty to use “\(DeviceIdentity.automaticName)”.")
+                .settingsNovaFooter()
         }
-        // Seeded in onAppear rather than defaulted, so reopening the screen
-        // shows what is actually stored instead of an empty field over a set
-        // name.
         .onAppear { deviceNameDraft = DeviceIdentity.customName ?? "" }
     }
 
@@ -715,7 +696,7 @@ struct BackupSettingsView: View {
         if !history.records.isEmpty {
             CodySettingsNovaSection("Backup History", footer: "Records from the past month. Older ones are removed automatically.") {
                 ForEach(history.records) { record in
-                    if record.id != history.records.first?.id { CodySettingsNovaDivider() }
+                    if record.id != history.records.first?.id { CodySettingsNovaDivider(leadingInset: 18) }
                     HStack(spacing: 0) {
                         NavigationLink {
                             BackupHistoryDetailView(record: record)
@@ -756,23 +737,23 @@ struct BackupSettingsView: View {
         ) {
             ForEach(remotes) { remote in
                 remoteDestinationRow(remote)
-                CodySettingsNovaDivider()
+                CodySettingsNovaDivider(leadingInset: 18)
             }
             ForEach(eligible) { folder in
                 folderDestinationRow(folder)
-                CodySettingsNovaDivider()
+                CodySettingsNovaDivider(leadingInset: 18)
             }
             if eligible.isEmpty && remotes.isEmpty {
                 Text("No destinations yet — add one to back up.")
                     .foregroundStyle(CodyColors.textSecondary)
                     .settingsNovaControlRow()
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
             }
-            CodySettingsNovaActionRow("Add Backup Destination…", systemImage: "plus", tint: .green) {
+            CodySettingsNovaActionRow("Add Backup Destination…", systemImage: nil) {
                 showAddDestination = true
             }
             if let destinationWarning {
-                CodySettingsNovaDivider()
+                CodySettingsNovaDivider(leadingInset: 18)
                 Text(destinationWarning)
                     .font(CodyTypography.bodySmall)
                     .foregroundStyle(CodyColors.statusWarningText)
@@ -785,8 +766,6 @@ struct BackupSettingsView: View {
         destinationRow(
             remote.name,
             subtitle: "\(remote.backend.uppercased()) · /\(remote.path)",
-            icon: RcloneBackendCatalog.backend(for: remote.backend)?.icon ?? "externaldrive.connected.to.line.below",
-            tint: .blue,
             enabled: Binding(
                 get: { remote.enabled },
                 set: { on in
@@ -809,8 +788,6 @@ struct BackupSettingsView: View {
         destinationRow(
             folder.name,
             subtitle: folder.sourceDisplayName,
-            icon: "folder.fill",
-            tint: .purple,
             enabled: destinationBinding(for: folder),
             remove: {
                 BackupDestinations.forget(folder.id)
@@ -826,15 +803,14 @@ struct BackupSettingsView: View {
     private func destinationRow<Destination: View>(
         _ name: String,
         subtitle: String,
-        icon: String,
-        tint: CodyCategoryTint,
         enabled: Binding<Bool>,
         remove: @escaping () -> Void,
         @ViewBuilder destination: @escaping () -> Destination
     ) -> some View {
         HStack(spacing: CodySpacing.xs) {
-            CodySettingsNovaNavRow("\(name)", subtitle: "\(subtitle)", systemImage: icon, tint: tint, destination: destination)
+            CodySettingsNovaNavRow("\(name)", subtitle: "\(subtitle)", systemImage: nil, destination: destination)
             Toggle(name, isOn: enabled)
+                .tint(.green)
                 .labelsHidden()
                 .accessibilityLabel(Text(name))
                 .fixedSize()
@@ -1069,28 +1045,7 @@ struct BackupSettingsView: View {
         }
     }
 
-    /// Glyph + colour per category, matching the iCloud Sync list's visual
-    /// language (and reusing its choices where the categories correspond).
-
-
     private func byteText(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
-    }
-}
-
-struct SettingsBackupCategoryBadge: View {
-    let category: BackupCategory
-
-    private var tint: CodyCategoryTint {
-        switch category {
-        case .chats: .blue
-        case .sharedFiles, .memory, .voiceCorrections: .purple
-        case .skills, .environmentVariables: .orange
-        case .providers, .mcpServers: .green
-        }
-    }
-
-    var body: some View {
-        CodySettingsIconBadge(systemImage: BackupCategoryIcon.symbol(for: category), tint: tint)
     }
 }
