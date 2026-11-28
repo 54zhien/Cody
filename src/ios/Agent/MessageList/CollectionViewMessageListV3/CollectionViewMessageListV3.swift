@@ -133,6 +133,7 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> MessageListViewController {
         let vc = MessageListViewController()
+        context.coordinator.onRetryLast = onRetryLast
         context.coordinator.attach(to: vc, vm: vm)
         // Drops are handled exclusively by the SwiftUI `.onDrop` on the chat
         // root view. Previously a UIDropInteraction here intercepted drops on
@@ -172,7 +173,8 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         coord.onShareMessages = onShareMessages
         coord.maxContentWidth = maxContentWidth
 
-        // Bottom inset base = input bar + tool bar overlay height + breathing room.
+        // The measured input bar already includes any bottom tab bar clearance.
+        // Add the tool overlay and the list's own breathing room here.
         // applySubViewportCompensation is the only writer of cv.contentInset.bottom;
         // it reads coord.baseBottomInset and adds overflow on top when needed.
         //

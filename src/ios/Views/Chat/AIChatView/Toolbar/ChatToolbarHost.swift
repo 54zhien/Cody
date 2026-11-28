@@ -114,6 +114,8 @@ struct NavTitleKey: Equatable {
     /// gate too. Without this field the chat body unblurred on unlock while
     /// the navbar title stayed frozen at blur 8 (user report 2026-07-24).
     let titleLocked: Bool
+    let modelInstanceId: String?
+    let modelId: String?
 }
 
 /// [T-ios-navbar-toolbar-host] Combined display key for the WHOLE toolbar:
@@ -136,6 +138,8 @@ struct ChatToolbarKey: Equatable {
     /// Ultrafast submenu is offered for the active model.
     let speedTier: SpeedTier
     let showUltrafast: Bool
+    let showsNovaDrawer: Bool
+    let showsNovaNewChat: Bool
     /// [T-always-on] Without it here the toolbar host never rebuilds and the
     /// menu's checkmark goes stale.
     let keepAwakeEnabled: Bool
@@ -160,6 +164,7 @@ struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
     /// owns the "..." as a real UIBarButtonItem: the SwiftUI trailing item is
     /// then left out entirely, so the bridge has nothing of ours to push.
     var showsTrailing = true
+    let onNewChat: () -> Void
     @ViewBuilder let title: () -> Title
     @ViewBuilder let trailing: () -> Trailing
 
@@ -185,6 +190,7 @@ struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
                 if l.fallbackTrigger != r.fallbackTrigger { diffs.append("fallbackTrigger") }
                 if l.fallbackPulse != r.fallbackPulse { diffs.append("fallbackPulse") }
                 if l.titleLocked != r.titleLocked { diffs.append("titleLocked") }
+                if l.modelInstanceId != r.modelInstanceId || l.modelId != r.modelId { diffs.append("quotaModel") }
             }
             if lhs.key.messagesEmpty != rhs.key.messagesEmpty { diffs.append("messagesEmpty") }
             if lhs.key.hasSession != rhs.key.hasSession { diffs.append("hasSession") }
@@ -199,6 +205,8 @@ struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
             if lhs.key.showUltrafast != rhs.key.showUltrafast { diffs.append("showUltrafast") }
             if lhs.key.keepAwakeEnabled != rhs.key.keepAwakeEnabled { diffs.append("keepAwakeEnabled") }
             if lhs.key.screenSaverNowEnabled != rhs.key.screenSaverNowEnabled { diffs.append("screenSaverNowEnabled") }
+            if lhs.key.showsNovaDrawer != rhs.key.showsNovaDrawer { diffs.append("showsNovaDrawer") }
+            if lhs.key.showsNovaNewChat != rhs.key.showsNovaNewChat { diffs.append("showsNovaNewChat") }
             NavbarEvalStats.logger.info("[NavbarEval] host == FALSE diffs=[\(diffs.joined(separator: ","))]")
         }
         #endif
@@ -216,11 +224,51 @@ struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
             .toolbar {
+                if key.showsNovaDrawer {
+                    ToolbarItem(placement: .topBarLeading) { ChatNovaDrawerButton() }
+                }
                 ToolbarItem(placement: .principal) { title() }
+                if key.showsNovaNewChat {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ChatNovaNewChatButton(fallback: onNewChat)
+                    }
+                }
                 if showsTrailing {
                     ToolbarItem(placement: .topBarTrailing) { trailing() }
                 }
             }
+    }
+}
+
+// Keep action updates independent of the equatable toolbar's layout.
+private struct ChatNovaDrawerButton: View {
+    @Environment(\.openNovaDrawer) private var openNovaDrawer
+
+    var body: some View {
+        Button {
+            openNovaDrawer?()
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(CodyColors.iconPrimary)
+        }
+        .accessibilityLabel(Text("Open sidebar"))
+    }
+}
+
+private struct ChatNovaNewChatButton: View {
+    @Environment(\.novaNewChatAction) private var novaNewChatAction
+    let fallback: () -> Void
+
+    var body: some View {
+        Button {
+            novaNewChatAction?() ?? fallback()
+        } label: {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(CodyColors.iconPrimary)
+        }
+        .accessibilityLabel(Text("New Chat"))
     }
 }
 

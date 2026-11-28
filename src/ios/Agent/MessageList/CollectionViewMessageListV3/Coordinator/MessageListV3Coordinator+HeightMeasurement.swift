@@ -80,7 +80,7 @@ extension CollectionViewMessageListV3.Coordinator {
         ///
         /// Layout constants mirror AIChatView.userRow:
         ///   - font: .system(size: scaledMessage(16.5))
-        ///   - bubble: .padding(.horizontal,14) .padding(.vertical,10)  → +20 height, -28 width
+        ///   - bubble: horizontal and vertical insets from UserMessageBubbleMetrics
         ///   - row:   HStack { Spacer(minLength: 60); VStack(spacing:6){ attachments?; bubble } }
         ///   - cell:  .padding(.horizontal, 16) on the whole row
         /// No on-screen view is touched; pure TextKit measurement (usedRect).
@@ -107,7 +107,7 @@ extension CollectionViewMessageListV3.Coordinator {
             // [T-ios-queued-bubble-withdraw-width] A QUEUED message renders a
             // withdraw button beside the bubble:
             //
-            //     HStack(spacing: 6) { Text(...).padding(.horizontal, 14)
+            //     HStack(spacing: 6) { Text(...).padding(.horizontal, 16)
             //                          if isQueued { Button(xmark, size 22) } }
             //
             // (ChatMessageViews.swift userRow). That button and its spacing eat
@@ -127,7 +127,8 @@ extension CollectionViewMessageListV3.Coordinator {
             // Under-estimates are the harmful direction (over-estimates merely
             // leave a gap); subtract the button when it is actually rendered.
             let withdrawButtonWidth: CGFloat = message.isQueued ? (22 /*icon*/ + 6 /*HStack spacing*/) : 0
-            let usableTextWidth = max(cvWidth - 32 /*cell*/ - 60 /*Spacer*/ - 28 /*bubble pad*/ - withdrawButtonWidth, 80)
+            let bubblePadding = 2 * UserMessageBubbleMetrics.horizontalPadding
+            let usableTextWidth = max(cvWidth - 32 /*cell*/ - 60 /*Spacer*/ - bubblePadding - withdrawButtonWidth, 80)
 
             let attachH = UserAttachmentTileMetrics.blockHeight(
                 count: attachCount,
@@ -222,7 +223,7 @@ extension CollectionViewMessageListV3.Coordinator {
             // bubble it is absorbed silently.
             let rowChrome: CGFloat = 7
             // bubble vertical padding (10*2) + row chrome + attachment block + 1pt safety.
-            let total = textH + 20 + rowChrome + attachH + 1
+            let total = textH + 2 * UserMessageBubbleMetrics.verticalPadding + rowChrome + attachH + 1
             cache[key] = total
             #if DEBUG
             // [BottomGapDiag][user-bubble-estimate] Cheap trace of what this

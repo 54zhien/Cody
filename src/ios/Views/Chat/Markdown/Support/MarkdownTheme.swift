@@ -42,7 +42,7 @@ let codyInlineCodeBackgroundColor = CodyUIColors.bgInlineCode
 /// Mirrors the `.codyChat` MarkdownUI theme using UIKit types.
 struct SelectableMarkdownTheme {
     let baseFontSize: CGFloat
-    let codeBlockCornerRadius: CGFloat = 8
+    let codeBlockCornerRadius = CodyRadius.control
     let inlineCodeCornerRadius: CGFloat = 5
 
     init(baseFontSize: CGFloat? = nil) {

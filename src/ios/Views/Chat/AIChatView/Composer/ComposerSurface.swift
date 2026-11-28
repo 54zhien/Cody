@@ -24,6 +24,93 @@ import WebKit
 
 // MARK: - Composer Surface
 
+private struct ComposerCornerRadiusKey: EnvironmentKey {
+    static let defaultValue = CodyMetrics.Composer.cornerRadius
+}
+
+extension EnvironmentValues {
+    var composerCornerRadius: CGFloat {
+        get { self[ComposerCornerRadiusKey.self] }
+        set { self[ComposerCornerRadiusKey.self] = newValue }
+    }
+}
+
+/// Positions the same editor and controls in both modes so changing rows
+/// keeps the UIKit text view's first responder, selection and marked text.
+struct ComposerRowsLayout: Layout {
+    let compact: Bool
+    private let spacing = CodyMetrics.Composer.buttonSpacing
+    private static let compactHorizontalPadding: CGFloat = 10
+
+    static var compactChromeWidth: CGFloat {
+        2 * compactHorizontalPadding + 2 * CodyMetrics.Composer.buttonVisualSize
+        + ChatSendButton.visualSize + 3 * CodyMetrics.Composer.buttonSpacing
+    }
+
+    private struct Rows {
+        var field: CGRect
+        var leading: CGRect
+        var center: CGRect
+        var trailing: CGRect
+        var height: CGFloat
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width: CGFloat
+        if let proposedWidth = proposal.width, proposedWidth.isFinite {
+            width = proposedWidth
+        } else {
+            let fieldWidth = subviews[1].sizeThatFits(.unspecified).width
+            width = compact ? fieldWidth + Self.compactChromeWidth : fieldWidth
+        }
+        return CGSize(width: width, height: rows(width: width, subviews: subviews).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = rows(width: bounds.width, subviews: subviews)
+        for (view, frame) in zip(subviews, [rows.leading, rows.field, rows.center, rows.trailing]) {
+            view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                       anchor: .topLeading, proposal: ProposedViewSize(frame.size))
+        }
+    }
+
+    private func rows(width: CGFloat, subviews: Subviews) -> Rows {
+        let leading = subviews[0].sizeThatFits(.unspecified)
+        let trailing = subviews[3].sizeThatFits(.unspecified)
+        let horizontal = compact ? Self.compactHorizontalPadding : CodyMetrics.Composer.paddingH
+        let rowWidth = max(0, width - 2 * horizontal - leading.width - trailing.width - 2 * spacing)
+
+        if compact {
+            let vertical: CGFloat = 6
+            let field = subviews[1].sizeThatFits(ProposedViewSize(width: rowWidth, height: nil))
+            let height = max(CodyControlHeight.lg, max(field.height, leading.height, trailing.height) + 2 * vertical)
+            let bottom = height - vertical
+            return Rows(
+                field: CGRect(x: horizontal + leading.width + spacing, y: (height - field.height) / 2,
+                              width: rowWidth, height: field.height),
+                leading: CGRect(origin: CGPoint(x: horizontal, y: bottom - leading.height), size: leading),
+                center: .zero,
+                trailing: CGRect(origin: CGPoint(x: width - horizontal - trailing.width, y: bottom - trailing.height), size: trailing),
+                height: height
+            )
+        }
+
+        let field = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let center = subviews[2].sizeThatFits(ProposedViewSize(width: rowWidth, height: nil))
+        let rowHeight = max(leading.height, center.height, trailing.height)
+        let rowTop = field.height + CodySpacing.xs
+        return Rows(
+            field: CGRect(x: 0, y: 0, width: width, height: field.height),
+            leading: CGRect(origin: CGPoint(x: horizontal, y: rowTop + (rowHeight - leading.height) / 2), size: leading),
+            center: CGRect(x: horizontal + leading.width + spacing, y: rowTop + (rowHeight - center.height) / 2,
+                           width: rowWidth, height: center.height),
+            trailing: CGRect(origin: CGPoint(x: width - horizontal - trailing.width, y: rowTop + (rowHeight - trailing.height) / 2),
+                             size: trailing),
+            height: rowTop + rowHeight + CodyMetrics.Composer.paddingV
+        )
+    }
+}
+
 /// Circular surface for the small floating buttons over the message list
 /// (scroll up / down, browser downloads).
 ///
@@ -96,9 +183,10 @@ struct FloatingCircleButtonSurface: ViewModifier {
 /// border and lift on earlier systems and when Reduce Transparency is enabled.
 struct ComposerSurface: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.composerCornerRadius) private var cornerRadius
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
     func body(content: Content) -> some View {
@@ -150,12 +238,13 @@ struct ComposerContextGlow: View {
     let tier: ContextUsage.Tier
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.composerCornerRadius) private var cornerRadius
     @State private var breathing = false
 
     /// Must match ComposerSurface's shape exactly: it is the stroke path and
     /// the clip that keeps the glow inside the wall.
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
     private var color: Color {
         tier == .critical ? Color(UIColor.systemRed) : Color(UIColor.systemOrange)

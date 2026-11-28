@@ -179,6 +179,7 @@ final class CodeBlockAttachment: NSTextAttachment {
         let container = CodeBlockSurface(frame: .zero)
         container.backgroundColor = theme.codeBlockBackground
         container.layer.cornerRadius = theme.codeBlockCornerRadius
+        container.layer.cornerCurve = .continuous
         container.clipsToBounds = true
 
         let copyWidth = CodyControlHeight.standard
@@ -269,13 +270,21 @@ final class CodeBlockAttachment: NSTextAttachment {
         container.frame = CGRect(x: inset, y: 0, width: contentWidth, height: totalHeight)
 
         // Copy button — 44x44 hit area per Apple HIG, icon stays small visually
-        let iconConfig = UIImage.SymbolConfiguration(pointSize: CodySpacing.md, weight: .medium)
+        let iconConfig = UIImage.SymbolConfiguration(pointSize: CodySpacing.mdPlus, weight: .medium)
         let copyButton = UIButton(type: .system)
         copyButton.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: iconConfig), for: .normal)
         copyButton.tintColor = CodyUIColors.iconSecondary
         copyButton.frame = CGRect(x: contentWidth - copyWidth, y: 0, width: copyWidth, height: copyWidth)
         copyButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: copyWidth - Self.headerHeight, right: 0)
         copyButton.accessibilityLabel = AppLocalized("Copy")
+        let pillSize = CGSize(width: CodySpacing.xxxl, height: CodySpacing.xxl)
+        let pill = UIView(frame: CGRect(x: (copyWidth - pillSize.width) / 2,
+                                        y: (Self.headerHeight - pillSize.height) / 2,
+                                        width: pillSize.width, height: pillSize.height))
+        pill.backgroundColor = CodyUIColors.interactiveSecondaryBg
+        pill.layer.cornerRadius = pillSize.height / 2
+        pill.isUserInteractionEnabled = false
+        copyButton.insertSubview(pill, at: 0)
         let debounce = CopyDebounce()
         let performCopy: () -> Void = { [weak codeTextView, weak copyButton] in
             // [T-ios17-codeblock-copy-dead] Double-fire guard: on versions
@@ -378,7 +387,7 @@ final class CodeBlockAttachment: NSTextAttachment {
             scrollView.frame = newScrollFrame
             container.frame.size.height = totalHeight
         }
-        if heightGrew {
+        if heightGrew && !UIAccessibility.isReduceMotionEnabled {
             UIView.animate(withDuration: 0.20,
                            delay: 0,
                            options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState],

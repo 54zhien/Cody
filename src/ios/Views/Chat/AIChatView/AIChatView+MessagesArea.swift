@@ -87,19 +87,18 @@ extension AIChatView {
                     .contentShape(Rectangle())
                     .onTapGesture { inputFocused = false }
             }
-            // Empty-chat onboarding tip: a single card explaining the
-            // per-session vs cross-session /var/cody/ layout. Only shown
-            // on a true draft (vm.sessionId == nil) — opening an existing
-            // session would otherwise flash the card during the brief
-            // window before its messages load. Returning users with any
-            // prior chat skip the tip even on a fresh draft (so it's a
-            // genuine first-launch hint).
-            if vm.sessionId == nil
-                && vm.messages.isEmpty
-                && !vm.isLoadingSession
-                && (totalSessionCount ?? Int.max) == 0 {
-                EmptyChatDirectoryTimeline(onBrowse: { showFileBrowser = true })
-                    .padding(.horizontal, 24)
+            if vm.messages.isEmpty && !vm.isLoadingSession
+                && !titleIsVisuallyLocked && !isChatSearchActive && !isReadOnly {
+                NovaChatGreeting { prompt in
+                    guard vm.editingMessageIndex == nil, !voiceInputActive,
+                          speechManager.state != .recording else { return }
+                    vm.inputText = vm.inputText.isEmpty ? prompt : vm.inputText + "\n" + prompt
+                    inputFocused = true
+                }
+                .disabled(vm.editingMessageIndex != nil || voiceInputActive || speechManager.state == .recording)
+                .padding(.horizontal, CodySpacing.lg)
+                .padding(.top, Self.listTopInset(forTopBanners: topBannersHeight))
+                .padding(.bottom, inputBarHeight)
             }
         }
         .overlay(alignment: .bottom) {

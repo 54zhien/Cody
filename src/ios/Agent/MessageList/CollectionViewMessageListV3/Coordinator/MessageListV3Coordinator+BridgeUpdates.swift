@@ -87,6 +87,10 @@ extension CollectionViewMessageListV3.Coordinator {
             // "Read from Start": replay this whole reply via TTS. Only for assistant
             // messages; disabled while it's the actively-streaming reply.
             bridge.isStreaming = isActive
+            let showsReplyActions = !isActive && isReplyActionCandidate(message, vm: vm)
+            if bridge.showsReplyActions != showsReplyActions {
+                bridge.showsReplyActions = showsReplyActions
+            }
             bridge.onReadAloud = (message.role == .assistant)
                 ? { [weak vm] in vm?.readReplyFromStart(message) }
                 : nil
@@ -178,6 +182,7 @@ extension CollectionViewMessageListV3.Coordinator {
             let canResume: Bool
             let showUsage: Bool
             let hasRetryRow: Bool
+            let showsReplyActions: Bool
             // [T-ios-first-block-footer-gap] The typing indicator's OTHER
             // input. This shape once tracked only `isActiveMessage`, so when
             // the indicator stopped being drawn the shape still compared EQUAL,
@@ -199,6 +204,7 @@ extension CollectionViewMessageListV3.Coordinator {
                 // Zero/non-zero only — see the note in updateBridge about the
                 // per-second countdown tick.
                 hasRetryRow = bridge.autoRetryAttempt != 0
+                showsReplyActions = bridge.showsReplyActions
                 showsTypingIndicator = bridge.isActiveMessage
                     && message.shouldShowTypingIndicator
             }
