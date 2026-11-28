@@ -118,7 +118,7 @@ extension ContentView {
 
     /// Tiny indicator next to the "Cody" title showing the sync state.
     @ViewBuilder
-    private func titleSyncIndicator(for state: SyncSubtitleState?) -> some View {
+    func titleSyncIndicator(for state: SyncSubtitleState?) -> some View {
         switch state {
         case .none, .upToDate:
             Image(systemName: "checkmark.circle.fill")
@@ -237,6 +237,13 @@ extension ContentView {
         }
         return scaled.withRenderingMode(.alwaysTemplate)
     }()
+
+    #if DEBUG
+    func toggleDebugScreenAwake() {
+        keepScreenAwake.toggle()
+        IdleTimerLease.set(.debugMenu, held: keepScreenAwake, reason: "debug menu")
+    }
+    #endif
 
     @ToolbarContentBuilder
     var sidebarToolbarContent: some ToolbarContent {
@@ -407,10 +414,7 @@ extension ContentView {
                     // [debug] Keep Screen Awake — disables auto-lock while the app
                     // is foregrounded. Tap toggles; a checkmark shows the current
                     // state. Memory-only (not persisted). DEBUG builds only.
-                    Button {
-                        keepScreenAwake.toggle()
-                        IdleTimerLease.set(.debugMenu, held: keepScreenAwake, reason: "debug menu")
-                    } label: {
+                    Button(action: toggleDebugScreenAwake) {
                         Label("Keep Screen Awake", systemImage: keepScreenAwake ? "checkmark.circle.fill" : "sun.max")
                     }
                     #endif

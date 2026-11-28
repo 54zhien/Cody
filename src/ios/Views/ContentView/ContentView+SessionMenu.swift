@@ -116,7 +116,7 @@ extension ContentView {
                 Task { @MainActor in
                     if let dup = await SessionForkManager.shared.duplicateSession(sessionId: sid) {
                         refreshSessionList()
-                        selectedSessionId = dup.id
+                        switchToSession(dup.id)
                     }
                 }
             case .forceSync(let sid):

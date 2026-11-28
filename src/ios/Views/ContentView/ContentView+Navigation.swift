@@ -160,23 +160,8 @@ extension ContentView {
 
     // MARK: - Navigation Helper
 
-    /// Handle a "new chat" request (notification or Quick Action trigger).
-    ///
-    /// Contract: "land on a fresh new chat, never hijack an existing one."
-    /// Concretely:
-    ///
-    ///   1. If any chat is currently open (real OR draft, on iPad detail
-    ///      OR iPhone navigation stack), unwind back to the session list
-    ///      root WITHOUT animation — animated transitions race the
-    ///      subsequent `openSession()` and the new chat sometimes never
-    ///      appears (push coalesced into the running pop).
-    ///   2. Once the unwind has settled (NavigationStack path empty on
-    ///      iPhone, `selectedSessionId == nil` on iPad), open the new
-    ///      draft session.
-    ///   3. AIChatView's onAppear then consumes any
-    ///      `QuickActionRouter.pendingChatAction` (.startVoice / .openCamera)
-    ///      so voice / camera fires *inside* the new chat — never inside
-    ///      the previous one.
+    /// Open a fresh draft, or let the shortcut workflow first unwind any
+    /// pushed destination before dispatching to its own draft.
     func handleNewChatRequest() {
         let newId = Self.makeNewSessionId()
         // Clear any stale flags left over from a prior quick-action
@@ -201,7 +186,6 @@ extension ContentView {
             openSession(newId)
         } else {
             commitNavigationPath(NavigationPath([newId]))
-            currentStackSessionId = newId
         }
     }
 
@@ -235,7 +219,6 @@ extension ContentView {
                 selectedSessionId = nil
             } else {
                 navigationPath = NavigationPath()
-                currentStackSessionId = nil
             }
         }
         // `onChange(navigationPath)` / `onChange(selectedSessionId)`
@@ -254,42 +237,12 @@ extension ContentView {
             openSession(newId)
         } else {
             commitNavigationPath(NavigationPath([newId]))
-            currentStackSessionId = newId
         }
         QuickActionWorkflow.shared.attachTargetSession(newId)
     }
 
-    /// Switch to `id` as the one and only session on screen, replacing whatever
-    /// is currently there.
-    ///
-    /// [T-ios-moveto-transfer-race] Use this for any "jump straight to session
-    /// X" navigation that can fire while another session is already on the
-    /// stack (move-to, notification/intent opens). The compact branch must NOT
-    /// do "animated pop, then push after a blind delay": the push lands inside
-    /// the ~0.35s pop animation and SwiftUI coalesces or drops it, leaving the
-    /// user on the session list with `currentStackSessionId` already updated —
-    /// which then makes the retry guard swallow a second attempt at the same
-    /// target. Replacing the path atomically inside a disabled-animation
-    /// transaction is the pattern `handleNewChatRequest` already proved safe,
-    /// and it commits in one runloop with no window for the race.
-    /// [T-ios-bg-nav-push-watchdog] Commit a compact-layout `navigationPath`
-    /// change, or hold it until the app is active again.
-    ///
-    /// Every compact navigation helper routes its path write through here so
-    /// the background gate cannot be bypassed by adding a new caller. See
-    /// `pendingBackgroundNavigation` for the crash evidence.
-    ///
-    /// `currentStackSessionId` is still assigned by the callers, exactly as
-    /// before — it is the app's own "which session did we navigate to" record,
-    /// read by the quick-action / move-to retry guards, and it must reflect the
-    /// requested target immediately even when the UIKit push is deferred.
-    /// `previousStackSessionId` stays in lockstep because it is maintained by
-    /// the `onChange(of: navigationPath)` observer, which simply runs later —
-    /// when the deferred path is actually committed.
-    ///
-    /// [T-nav-row-push-animation] `animated` lets ONE caller - a list row tap,
-    /// see `switchToSession` - keep the system push animation. Everything else
-    /// still commits inside a disabled-animation transaction, exactly as before.
+    /// [T-ios-bg-nav-push-watchdog] Coalesce compact route requests during
+    /// background execution and apply the newest request once visible.
     private func commitNavigationPath(_ newPath: NavigationPath, animated: Bool = false,
                                       target: String? = nil,
                                       file: String = #fileID, line: Int = #line) {
@@ -321,19 +274,23 @@ extension ContentView {
             return
         }
         pendingBackgroundNavigation = nil
+        // The last string in a compact route request selects the Nova root.
+        // Only destinations pushed inside that root occupy the live stack.
+        let target = target ?? NavDiag.ids(newPath)?.last
+        let newPath = target == nil ? newPath : NavigationPath()
         NavDiag.write(event: "commit", target: target, before: navigationPath, after: newPath,
                       animated: animated, outcome: "committed", caller: caller)
+        if target != nil { closeNovaDrawer() }
         if animated {
-            // A plain assignment: NavigationStack animates a push of a new
-            // element by default, the same push the row's old NavigationLink
-            // performed.
             navigationPath = newPath
+            if let target { activateNovaSession(target) }
             return
         }
         var tx = Transaction()
         tx.disablesAnimations = true
         withTransaction(tx) {
             navigationPath = newPath
+            if let target { activateNovaSession(target) }
         }
     }
 
@@ -388,24 +345,25 @@ extension ContentView {
             return
         }
         shareLog.info("🔄SESSION flushing deferred nav commit (count=\(pending.path.count) age=\(Int(age))s)")
-        NavDiag.write(event: "flush", target: nil, before: navigationPath, after: pending.path,
+        let target = NavDiag.ids(pending.path)?.last
+        let path = target == nil ? pending.path : NavigationPath()
+        NavDiag.write(event: "flush", target: target, before: navigationPath, after: path,
                       animated: false, outcome: "flushed", caller: "flushPendingBackgroundNavigation")
         var tx = Transaction()
         tx.disablesAnimations = true
         withTransaction(tx) {
-            navigationPath = pending.path
+            if isWideLayout, let target {
+                openSession(target)
+            } else {
+                navigationPath = path
+                if let target { activateNovaSession(target) }
+            }
         }
+        closeNovaDrawer()
     }
 
-    /// [T-nav-ghost-row-link] Also the entry for everything started FROM the home
-    /// list on iPhone - row taps, the New Chat FAB, folder-card and empty-state
-    /// "new chat": the result is always exactly one page, so nothing already on
-    /// the path can end up underneath it.
-    ///
-    /// [T-nav-row-push-animation] `animated` (list-row taps only) changes the
-    /// transaction of the write and nothing else: the path is still REPLACED
-    /// with `[id]`, exactly as 5d912c58f (T-nav-ghost-row-link) made it, and
-    /// every other caller is unchanged.
+    /// Replace the displayed conversation in one transaction for a sidebar
+    /// tap, move-to transfer, or external route.
     func switchToSession(_ id: String, animated: Bool = false,
                          file: String = #fileID, line: Int = #line) {
         if isWideLayout {
@@ -419,7 +377,138 @@ extension ContentView {
             hasPendingBackgroundNavigation: pendingBackgroundNavigation != nil,
             appIsActive: UIApplication.shared.applicationState == .active)
         commitNavigationPath(NavigationPath([id]), animated: animate, target: id, file: file, line: line)
+    }
+
+    func openNovaDrawer() {
+        dismissNovaKeyboard()
+        withAnimation(CodyMotion.resolved(CodyMotion.drawer, reduceMotion: reduceMotion)) {
+            isNovaDrawerOpen = true
+        }
+    }
+
+    func closeNovaDrawer() {
+        searchFocused = false
+        withAnimation(CodyMotion.resolved(CodyMotion.drawer, reduceMotion: reduceMotion)) {
+            isNovaDrawerOpen = false
+        }
+    }
+
+    func dismissNovaKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    func startNewNovaChat() {
+        handleNewChatRequest()
+    }
+
+    func selectNovaTab(_ tab: CodyNovaTab) {
+        closeNovaDrawer()
+        novaTab = tab
+    }
+
+    func novaTabChanged(_ tab: CodyNovaTab) {
+        if tab != .chat {
+            let leaving = isWideLayout ? selectedSessionId : currentStackSessionId
+            suspendNovaSessionForTransition(leaving.flatMap { persistedSessionId(for: $0) })
+            AIChatViewModel.activeSessionId = nil
+            AlwaysOnController.shared.chatSelectionChanged(to: nil)
+        }
+    }
+
+    func updateNovaLayout(wide: Bool) {
+        if wide {
+            closeNovaDrawer()
+            if !searchText.isEmpty { showSearchBar = true }
+            selectedSessionId = navigationPath.isEmpty ? novaActiveSessionId : currentStackSessionId
+            if selectedSessionId != activeDraftId { clearDraftTracking() }
+        } else {
+            novaActiveSessionId = selectedSessionId ?? Self.makeNewSessionId()
+            currentStackSessionId = novaActiveSessionId
+            selectedSessionId = novaActiveSessionId
+        }
+        navigationPath = NavigationPath()
+        previousStackSessionId = nil
+        isWideLayout = wide
+    }
+
+    var splitSessionSelection: Binding<String?> {
+        Binding(get: { novaTab == .chat ? selectedSessionId : nil }, set: { id in
+            if let id { openSession(id) }
+            else { selectedSessionId = nil }
+        })
+    }
+
+    private func activateNovaSession(_ id: String) {
+        let route = draftRoute(for: id)
+        if route != novaActiveSessionId {
+            let outgoing = persistedSessionId(for: novaActiveSessionId)
+            suspendNovaSessionForTransition(outgoing)
+            if outgoing != nil { scheduleOutgoingPreviewRefresh() }
+            clearDraftTracking()
+            novaActiveSessionId = route
+        }
+        currentStackSessionId = route
+        selectedSessionId = route
+        novaTab = .chat
+        clearNovaUnread(route)
+    }
+
+    private func draftRoute(for id: String) -> String {
+        if id == newSessionRealId, let activeDraftId { return activeDraftId }
+        return id
+    }
+
+    private func clearDraftTracking() {
+        newSessionRealId = nil
+        activeDraftId = nil
+    }
+
+    func persistedSessionId(for route: String) -> String? {
+        if let remote = Self.remoteSessionRoute(route) { return remote.sessionId }
+        if Self.isNewSessionId(route) { return route == activeDraftId ? newSessionRealId : nil }
+        return route
+    }
+
+    func handlePersistedDraft(_ sessionId: String, draftId: String?) {
+        let route = isWideLayout ? selectedSessionId : novaActiveSessionId
+        if let draftId, Self.isNewSessionId(draftId), draftId == route {
+            newSessionRealId = sessionId
+            activeDraftId = draftId
+            if novaTab == .chat, isWideLayout || navigationPath.isEmpty {
+                SessionBadgeStore.shared.remove(.unread, for: sessionId)
+            }
+            draftLog.info("🔑DRAFT sessionDidCreate ACCEPTED newSessionRealId=\(sessionId) activeDraftId=\(draftId)")
+        }
+        refreshSessionList()
+    }
+
+    func novaChatAppeared(_ id: String, isPushed: Bool = false) {
+        guard !isWideLayout, novaTab == .chat, isPushed || navigationPath.isEmpty else { return }
         currentStackSessionId = id
+        selectedSessionId = id
+        clearNovaUnread(id)
+        let localId = Self.remoteSessionRoute(id) == nil ? persistedSessionId(for: id) : nil
+        AIChatViewModel.activeSessionId = localId
+        AlwaysOnController.shared.chatSelectionChanged(to: id)
+    }
+
+    func suspendNovaSessionForTransition(_ id: String?) {
+        guard let id, let vm = ViewModelCache.shared.get(for: id) else { return }
+        vm.setSuspendedForTransition(true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak vm] in
+            vm?.setSuspendedForTransition(false)
+        }
+    }
+
+    private func clearNovaUnread(_ id: String) {
+        SessionBadgeStore.shared.remove(.unread, for: persistedSessionId(for: id) ?? id)
+    }
+
+    static func remoteSessionRoute(_ id: String) -> (deviceId: String, sessionId: String)? {
+        guard id.hasPrefix("remote:") else { return nil }
+        let parts = id.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
+        guard parts.count == 3, !parts[1].isEmpty, !parts[2].isEmpty else { return nil }
+        return (String(parts[1]), String(parts[2]))
     }
 
     /// Opens a session in the appropriate layout mode.
@@ -428,24 +517,16 @@ extension ContentView {
         // Dismiss keyboard when navigating to a session
         searchFocused = false
         if isWideLayout {
-            // Reset new-session tracking when navigating away
-            if Self.isNewSessionId(id) {
-                newSessionRealId = nil
-                activeDraftId = nil
-            } else if let current = selectedSessionId, Self.isNewSessionId(current) {
-                newSessionRealId = nil
-                activeDraftId = nil
-            }
-            selectedSessionId = id
+            let route = draftRoute(for: id)
+            if route != selectedSessionId { clearDraftTracking() }
+            novaTab = .chat
+            selectedSessionId = route
             draftLog.info("🔑DRAFT openSession DONE selectedSessionId=\(id)")
         } else {
-            // [T-ios-bg-nav-push-watchdog] Append onto whatever the path WILL
-            // be — a deferred commit is the newer truth, so basing the append
-            // on the still-stale live `navigationPath` would drop it.
+            // Preserve the latest route even if another request is deferred.
             var next = pendingBackgroundNavigation?.path ?? navigationPath
             next.append(id)
             commitNavigationPath(next, target: id, file: file, line: line)
-            currentStackSessionId = id
         }
     }
 }

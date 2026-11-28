@@ -82,9 +82,7 @@ extension ContentView {
         // (user report: iPad/macOS split view). Clearing the selection resets
         // the detail pane to the empty state; onChange(selectedSessionId)
         // clears the draft tracking ids.
-        if isSessionHighlighted(session.id) {
-            selectedSessionId = nil
-        }
+        closeSessionsIfDeleted([session.id])
         withAnimation {
             sessions.removeAll { $0.id == session.id }
         }
@@ -98,15 +96,23 @@ extension ContentView {
     func handleSessionsDeletedElsewhere(_ note: Notification) {
         guard let ids = (note.userInfo?["ids"] as? [String]).map(Set.init), !ids.isEmpty else { return }
         Task { @MainActor in
-            if ids.contains(where: { isSessionHighlighted($0) }) {
-                selectedSessionId = nil
-            }
-            if !isWideLayout, let current = currentStackSessionId, ids.contains(current) {
-                navigationPath = NavigationPath()
-                currentStackSessionId = nil
-            }
+            closeSessionsIfDeleted(ids)
             sessions.removeAll { ids.contains($0.id) }
             refreshSessionList()
+        }
+    }
+
+    private func closeSessionsIfDeleted(_ ids: Set<String>) {
+        if let pending = pendingBackgroundNavigation, let target = NavDiag.ids(pending.path)?.last,
+           ids.contains(target) {
+            pendingBackgroundNavigation = nil
+        }
+        if !isWideLayout, let current = currentStackSessionId, ids.contains(current) {
+            if pendingBackgroundNavigation == nil { startNewNovaChat() }
+        } else if isWideLayout {
+            if ids.contains(where: { isSessionHighlighted($0) }) { selectedSessionId = nil }
+        } else if ids.contains(where: { isSessionHighlighted($0) || $0 == persistedSessionId(for: novaActiveSessionId) }) {
+            if pendingBackgroundNavigation == nil { startNewNovaChat() }
         }
     }
 
@@ -134,9 +140,7 @@ extension ContentView {
         // Same draft-id-aware matching as deleteSession: clear the selection
         // when ANY deleted id is the one currently displayed (including a
         // draft-created session whose selection id differs from its row id).
-        if ids.contains(where: { isSessionHighlighted($0) }) {
-            selectedSessionId = nil
-        }
+        closeSessionsIfDeleted(ids)
         withAnimation {
             sessions.removeAll { ids.contains($0.id) }
         }
