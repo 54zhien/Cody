@@ -69,7 +69,7 @@ extension ContentView {
                 }
             }
             .overlay {
-                if let tool = novaPinDragState.draggingTool {
+                if let tool = novaPinDragState.draggingTool, novaPinDragState.hasLiftedCard {
                     NovaToolDragPreview(
                         tool: tool,
                         isPinned: novaTabStore.isPinned(tool),
@@ -250,7 +250,7 @@ private struct NovaToolDragPreview: View {
         GeometryReader { geometry in
             let origin = geometry.frame(in: .global).origin
             let landing = state.landingFrame
-            let point = landing.map { CGPoint(x: $0.midX, y: $0.midY) } ?? state.dragLocation
+            let point = landing.map { CGPoint(x: $0.midX, y: $0.midY) } ?? state.previewLocation
             let showsIcon = landing == nil ? state.isHoveringTabBar : state.isLandingOnBar
             let width = state.cardFrames[tool]?.width ?? 164
 

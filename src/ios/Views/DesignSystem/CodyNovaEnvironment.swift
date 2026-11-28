@@ -225,6 +225,7 @@ final class CodyNovaTabStore: ObservableObject {
 final class CodyNovaPinDragState: ObservableObject {
     @Published private(set) var draggingTool: CodyNovaPinnedTool?
     @Published private(set) var dragLocation: CGPoint = .zero
+    @Published private(set) var hasLiftedCard = false
     @Published private(set) var previewOrder: [CodyNovaPinnedTool]?
     @Published private(set) var insertionIndex: Int?
     @Published private(set) var landingFrame: CGRect?
@@ -234,13 +235,21 @@ final class CodyNovaPinDragState: ObservableObject {
     var previewFrame: CGRect = .zero
     var cardFrames: [CodyNovaPinnedTool: CGRect] = [:]
     private var sourceFrame: CGRect = .zero
+    private var initialTouch: CGPoint = .zero
+
+    var previewLocation: CGPoint {
+        guard !isHoveringTabBar, !sourceFrame.isEmpty else { return dragLocation }
+        return CGPoint(x: sourceFrame.midX + dragLocation.x - initialTouch.x,
+                       y: sourceFrame.midY + dragLocation.y - initialTouch.y)
+    }
     private let crossingFeedback = UIImpactFeedbackGenerator(style: .light)
 
     var isHoveringTabBar: Bool { insertionIndex != nil }
 
-    func begin(tool: CodyNovaPinnedTool, at location: CGPoint, order: [CodyNovaPinnedTool]) {
+    func begin(tool: CodyNovaPinnedTool, at location: CGPoint, frame: CGRect, order: [CodyNovaPinnedTool]) {
         guard draggingTool == nil else { return }
-        sourceFrame = cardFrames[tool] ?? .zero
+        sourceFrame = cardFrames[tool] ?? frame
+        initialTouch = location
         dragLocation = location
         previewOrder = order
         draggingTool = tool
@@ -250,6 +259,13 @@ final class CodyNovaPinDragState: ObservableObject {
 
     func update(location: CGPoint, pinned: [CodyNovaPinnedTool], reduceMotion: Bool, allowsReordering: Bool) {
         guard let tool = draggingTool, landingFrame == nil else { return }
+        if !hasLiftedCard {
+            let travel = hypot(location.x - initialTouch.x, location.y - initialTouch.y)
+            guard travel >= 6 else { return }
+            withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                hasLiftedCard = true
+            }
+        }
         dragLocation = location
         let fits = pinned.contains(tool) || pinned.count < CodyNovaTabStore.maxPinnedCount
         let hitsBar = fits && !tabBarFrame.isEmpty && tabBarFrame.insetBy(dx: -12, dy: -18).contains(location)
@@ -278,16 +294,15 @@ final class CodyNovaPinDragState: ObservableObject {
     func end(at location: CGPoint, in store: CodyNovaTabStore, reduceMotion: Bool, allowsReordering: Bool) {
         guard let tool = draggingTool, landingFrame == nil else { return }
         update(location: location, pinned: store.pinnedTools, reduceMotion: reduceMotion, allowsReordering: allowsReordering)
+        guard hasLiftedCard else { reset(); return }
         if let insertionIndex {
             let target = previewFrame.isEmpty ? (tabFrames[.more] ?? tabBarFrame) : previewFrame
-            settle(at: target, intoBar: true, reduceMotion: reduceMotion) {
-                store.pin(tool, at: insertionIndex)
-            }
+            store.pin(tool, at: insertionIndex)
+            settle(at: target, intoBar: true, reduceMotion: reduceMotion)
         } else if allowsReordering, let order = previewOrder, order != store.exploreOrder,
                   cardFrames.values.contains(where: { $0.contains(location) }) {
-            settle(at: cardFrames[tool] ?? sourceFrame, intoBar: false, reduceMotion: reduceMotion) {
-                store.saveExploreOrder(order)
-            }
+            store.saveExploreOrder(order)
+            settle(at: cardFrames[tool] ?? sourceFrame, intoBar: false, reduceMotion: reduceMotion)
         } else {
             cancel(reduceMotion: reduceMotion)
         }
@@ -295,12 +310,12 @@ final class CodyNovaPinDragState: ObservableObject {
 
     func cancel(reduceMotion: Bool) {
         guard draggingTool != nil, landingFrame == nil else { return }
-        settle(at: sourceFrame, intoBar: false, reduceMotion: reduceMotion) {}
+        guard hasLiftedCard else { reset(); return }
+        settle(at: sourceFrame, intoBar: false, reduceMotion: reduceMotion)
     }
 
-    private func settle(at frame: CGRect, intoBar: Bool, reduceMotion: Bool, commit: @escaping () -> Void) {
+    private func settle(at frame: CGRect, intoBar: Bool, reduceMotion: Bool) {
         guard #available(iOS 17.0, *), !reduceMotion, !frame.isEmpty else {
-            commit()
             reset()
             return
         }
@@ -310,13 +325,13 @@ final class CodyNovaPinDragState: ObservableObject {
             landingFrame = frame
         } completion: {
             guard self.landingFrame != nil else { return }
-            commit()
             self.reset()
         }
     }
 
     func reset() {
         draggingTool = nil
+        hasLiftedCard = false
         landingFrame = nil
         isLandingOnBar = false
         insertionIndex = nil

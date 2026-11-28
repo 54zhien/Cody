@@ -103,12 +103,12 @@ struct CodyNovaTabBar: View {
             }
         }
         .simultaneousGesture(scrubGesture(items: items))
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-            pinDragState.tabBarFrame = $0
-        }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
         .frame(height: Self.barHeight)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            pinDragState.tabBarFrame = $0
+        }
         .padding(.bottom, Self.bottomPadding)
         .onDisappear {
             pinDragState.tabBarFrame = .zero
