@@ -116,6 +116,7 @@ struct NovaExploreView: View {
             headerButton("Open sidebar", action: onOpenDrawer) {
                 CodyDrawerGlyph(size: 24)
             }
+            .modifier(CodyDrawerAccessibility())
             Spacer()
             headerButton("Settings", action: onOpenSettings) {
                 CodyIconView(.settings, size: 25)

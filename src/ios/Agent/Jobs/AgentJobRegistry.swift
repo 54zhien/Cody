@@ -99,6 +99,18 @@ enum AgentJobThen: Equatable {
     case followUpParent(template: String?)
 }
 
+enum SubAgentActivity: Int {
+    case unread, failed, running
+
+    var title: String {
+        switch self {
+        case .unread: AppLocalized("Unread result")
+        case .failed: AppLocalized("Failed")
+        case .running: AppLocalized("Running")
+        }
+    }
+}
+
 enum AgentJobState: String {
     case pending, running, done, cancelled, failed
     /// The wall-clock budget elapsed and the run was cut short.
@@ -407,6 +419,36 @@ final class AgentJobRegistry: ObservableObject {
     }
 
     @Published private(set) var jobs: [String: AgentJob] = [:]
+    @Published private(set) var subAgentActivities: [String: SubAgentActivity] = [:]
+    private var viewedSubAgentJobs: Set<String> = []
+
+    func markSubAgentResultViewed(sessionId: String) {
+        guard let job = jobs.values.first(where: {
+            $0.runSessionId == sessionId && $0.target.isChildOfCurrent && $0.origin == .tool
+        }), job.state == .done || job.state == .failed || job.state == .timeout else { return }
+        guard viewedSubAgentJobs.insert(job.id).inserted else { return }
+        updateSubAgentActivities()
+    }
+
+    private func updateSubAgentActivities() {
+        viewedSubAgentJobs.formIntersection(jobs.keys)
+        var activities: [String: SubAgentActivity] = [:]
+        for job in jobs.values where job.target.isChildOfCurrent && job.origin == .tool {
+            guard let sessionId = job.runSessionId else { continue }
+            switch job.state {
+            case .running:
+                activities[sessionId] = .running
+            case .failed where !viewedSubAgentJobs.contains(job.id),
+                 .timeout where !viewedSubAgentJobs.contains(job.id):
+                activities[sessionId] = .failed
+            case .done where !viewedSubAgentJobs.contains(job.id) && job.resultText?.isEmpty == false:
+                activities[sessionId] = .unread
+            default:
+                break
+            }
+        }
+        if activities != subAgentActivities { subAgentActivities = activities }
+    }
     /// runSessionId → jobId, for closing jobs from the loop-end notification.
     private var jobBySession: [String: String] = [:]
     private var loopEndObserver: Any?
@@ -888,6 +930,7 @@ final class AgentJobRegistry: ObservableObject {
     /// otherwise see a timer end. Cheap (a pass over a small map); the tracker
     /// publishes only when a set actually changes.
     func jobsDidChange() {
+        updateSubAgentActivities()
         SessionActivityTracker.shared.setJobSessions(scheduled: sessionsKeptActiveBySchedule,
                                                      delegating: parentsWithActiveChildren)
         // [T-scheduled-banner] The chat's top banner shows the next of these.

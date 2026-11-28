@@ -14,6 +14,12 @@ struct HelperSettingsView: View {
     /// `AgentToolSwitch.migrateLegacyIfNeeded()` can still consult it.
     static let legacyEnabledKey = "agent.helpers.enabled"
 
+    let showsRunActivity: Bool
+
+    init(showsRunActivity: Bool = false) {
+        self.showsRunActivity = showsRunActivity
+    }
+
     @AppStorage(AgentToolSwitch.agents.key) private var agentsEnabled: Bool = AgentToolSwitch.agents.defaultValue
     @ObservedObject private var store = SubAgentStore.shared
     @State private var editorTarget: SubAgentEditorTarget?
@@ -22,6 +28,7 @@ struct HelperSettingsView: View {
 
     var body: some View {
         CodySettingsScrollPage {
+            if showsRunActivity { SubAgentRunActivitySection() }
             CodySettingsNovaSection(
                 footer: "Delegate self-contained sub-tasks to a sub agent that works in its own hidden session and reports back. The same tool also lets the assistant check on or stop what it started. Several agents can run at once, so a large fan-out uses correspondingly more of your quota. On by default; when off, it is not offered to the model at all."
             ) {
@@ -155,6 +162,36 @@ struct HelperSettingsView: View {
         store.reorderSubAgents(ids)
     }
 
+}
+
+private struct SubAgentRunActivitySection: View {
+    @ObservedObject private var registry = AgentJobRegistry.shared
+    @State private var transcript: HelperSheetTarget?
+
+    var body: some View {
+        let jobs = registry.jobs.values.sorted { $0.createdAt > $1.createdAt }.filter { job in
+            job.origin == .tool && job.target.isChildOfCurrent
+                && job.runSessionId.flatMap { registry.subAgentActivities[$0] } != nil
+        }
+        if !jobs.isEmpty || transcript != nil {
+            CodySettingsNovaSection("Activity") {
+                ForEach(jobs) { job in
+                    if let id = job.runSessionId, let activity = registry.subAgentActivities[id] {
+                        CodySettingsNovaActionRow(
+                            LocalizedStringKey(job.title), subtitle: LocalizedStringKey(activity.title),
+                            showsDisclosure: true
+                        ) {
+                            transcript = HelperSheetTarget(id: id, title: job.title)
+                        }
+                    }
+                }
+            }
+            .sheet(item: $transcript) { target in
+                HelperTranscriptPage(target: target)
+                    .helperTranscriptSheetStyle()
+            }
+        }
+    }
 }
 
 /// What the editor sheet should open with. `.sheet(item:)` rather than a Bool

@@ -252,7 +252,7 @@ private struct ChatNovaDrawerButton: View {
             // Bare glyph (no fixed 40pt frame) so iOS 26 wraps it in a perfect 1:1 circular Liquid Glass button.
             CodyDrawerGlyph(size: 23)
         }
-        .accessibilityLabel(Text("Open sidebar"))
+        .modifier(CodyDrawerAccessibility())
     }
 }
 

@@ -296,17 +296,23 @@ struct CodyDrawerGlyph: View {
                 if showsUnreadBadge && hasUnread {
                     Circle()
                         .fill(CodyColors.statusErrorText)
-                        .frame(width: CodySpacing.sm, height: CodySpacing.sm)
-                        .overlay {
-                            Circle()
-                                .stroke(CodyColors.bgCanvas, lineWidth: 1.5)
-                        }
+                        .frame(width: 8, height: 8)
                         .offset(x: 3, y: -3)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
             }
             .accessibilityHidden(true)
+    }
+}
+
+struct CodyDrawerAccessibility: ViewModifier {
+    @Environment(\.novaSidebarHasUnread) private var hasUnread
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityLabel(Text("Open sidebar"))
+            .accessibilityValue(hasUnread ? Text("Unread messages") : Text(""))
     }
 }
 

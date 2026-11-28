@@ -82,6 +82,7 @@ struct HelperTranscriptPage: View {
     let target: HelperSheetTarget
     @Environment(\.dismiss) private var dismiss
     @State private var childVM: AIChatViewModel?
+    @ObservedObject private var jobs = AgentJobRegistry.shared
     @State private var startedAt = Date()
     /// [T-agent-transcript-navbar-lost] Mirrors `childVM.isProcessing`.
     ///
@@ -216,7 +217,9 @@ struct HelperTranscriptPage: View {
             // watches skips them). Claimed before loading so the load renders.
             if !onScreenClaimed { ViewModelCache.shared.setOnScreen(target.id, true); onScreenClaimed = true }
             if fresh || vm.messages.isEmpty { await vm.loadSession() }
+            guard !Task.isCancelled else { return }
             childVM = vm
+            jobs.markSubAgentResultViewed(sessionId: target.id)
             log.info("[agent] transcript loaded child=\(target.id.prefix(8)) fresh=\(fresh) msgs=\(vm.messages.count) running=\(vm.isProcessing)")
             isRunning = vm.isProcessing
             if let job = AgentJobRegistry.shared.list().first(where: { $0.runSessionId == target.id }),
@@ -224,6 +227,11 @@ struct HelperTranscriptPage: View {
                 startedAt = s
             }
             identity = await HelperModelIdentity.recover(childSessionId: target.id)
+        }
+        .onChange(of: jobs.subAgentActivities[target.id]) { _ in
+            if childVM != nil, onScreenClaimed {
+                jobs.markSubAgentResultViewed(sessionId: target.id)
+            }
         }
         .onDisappear {
             AppLogger(category: "HelperSheet").info("[agent] transcript disappear child=\(target.id.prefix(8))")

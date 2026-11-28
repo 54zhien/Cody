@@ -30,7 +30,8 @@ extension ContentView {
     }
 
     private var novaSidebarHasUnread: Bool {
-        let activeId = persistedSessionId(for: novaActiveSessionId)
+        let visibleRoute = isWideLayout ? selectedSessionId : currentStackSessionId
+        let activeId = novaDestination == .home ? visibleRoute.flatMap { persistedSessionId(for: $0) } : nil
         return sidebarBadgeStore.unreadSessionIds.contains { $0 != activeId }
     }
 
@@ -151,7 +152,7 @@ extension ContentView {
         case .skills: SkillsManagementView()
         case .mcp: MCPIntegrationsView()
         case .agentTools: ToolsSettingsView()
-        case .subAgents: HelperSettingsView()
+        case .subAgents: HelperSettingsView(showsRunActivity: true)
         case .soul: SoulSettingsView()
         case .memory: MemoryManagementView()
         case .providers: ProviderInstancesView()
@@ -227,7 +228,7 @@ private struct NovaDestinationToolbar: ViewModifier {
                     Button(action: onOpenDrawer) {
                         CodyDrawerGlyph(size: 23)
                     }
-                    .accessibilityLabel("Open sidebar")
+                    .modifier(CodyDrawerAccessibility())
                 }
             }
         }

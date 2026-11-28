@@ -18,6 +18,7 @@ struct CodyNovaTabBar: View {
     @Binding var selection: CodyNovaDestination
     @ObservedObject var tabStore: CodyNovaTabStore
     @ObservedObject var pinDragState: CodyNovaPinDragState
+    @ObservedObject private var jobs = AgentJobRegistry.shared
     var onSelectDestination: ((CodyNovaDestination) -> Void)? = nil
     var onReselect: ((CodyNovaDestination) -> Void)? = nil
 
@@ -45,6 +46,10 @@ struct CodyNovaTabBar: View {
     private static let minSlotWidth: CGFloat = 48
     private static let maxSlotWidth: CGFloat = 74
     private static let slotSpacing: CGFloat = 4
+
+    private var subAgentActivity: SubAgentActivity? {
+        jobs.subAgentActivities.values.max { $0.rawValue < $1.rawValue }
+    }
 
     private var allDestinations: [CodyNovaDestination] {
         var items: [CodyNovaDestination] = [.home]
@@ -134,18 +139,31 @@ struct CodyNovaTabBar: View {
     private func tabSlot(for dest: CodyNovaDestination) -> some View {
         let isSelected = (selection == dest)
         let isVisuallyActive = isScrubbing ? (scrubHoveredDestination == dest) : isSelected
+        let activity = dest == .tool(.subAgents) ? subAgentActivity : nil
+        let showsActivity = activity != nil && !isScrubbing
 
         let capsuleLabel = ZStack {
             if isSelected && !isScrubbing {
                 restingMaterialPill
+                    .scaleEffect(x: showsActivity ? 1.04 : 1, y: showsActivity ? 1.08 : 1)
                     .matchedGeometryEffect(id: "novaRestingTabPill", in: activeIndicatorNamespace)
             }
 
             tabIcon(for: dest, selected: isVisuallyActive)
                 .foregroundStyle(isVisuallyActive ? CodyColors.iconPrimary : CodyColors.iconSecondary)
+                .modifier(CodyTabActivityMark(activity: isScrubbing ? nil : activity))
         }
         .frame(minWidth: Self.restingPillMinWidth, maxWidth: Self.restingPillWidth)
         .frame(height: Self.restingPillHeight)
+        .background {
+            if dest == .tool(.subAgents) {
+                Capsule()
+                    .fill(CodyColors.interactiveSecondaryBg)
+                    .frame(width: showsActivity ? 60 : 42, height: showsActivity ? 38 : 30)
+                    .opacity(showsActivity && !isSelected ? 1 : 0)
+            }
+        }
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: activity)
         .contentShape(Capsule())
 
         let button = Button {
@@ -161,6 +179,7 @@ struct CodyNovaTabBar: View {
         }
         .buttonStyle(CodyPressableButtonStyle())
         .accessibilityLabel(accessibilityLabel(for: dest))
+        .accessibilityValue(Text(activity?.title ?? ""))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
 
         Group {
@@ -292,6 +311,63 @@ struct CodyNovaTabBar: View {
         case .home: Text("Home")
         case .tool(let tool): Text(tool.title)
         case .more: Text("More")
+        }
+    }
+}
+
+/// The cutout and its mark share a single corner frame. The cutout lets the
+/// tab surface show through around the mark in both color schemes.
+private struct CodyTabActivityMark: ViewModifier {
+    let activity: SubAgentActivity?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let markSize: CGFloat = 8
+    private let cutoutSize: CGFloat = 12
+
+    func body(content: Content) -> some View {
+        content
+            .mask(alignment: .topTrailing) {
+                Rectangle()
+                    .overlay(alignment: .topTrailing) {
+                        Circle()
+                            .frame(width: cutoutSize, height: cutoutSize)
+                            .opacity(activity == nil ? 0 : 1)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+            }
+            .overlay(alignment: .topTrailing) {
+                if let activity {
+                    mark(for: activity)
+                        .frame(width: cutoutSize, height: cutoutSize)
+                        .transition(.scale(scale: 0.65).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func mark(for activity: SubAgentActivity) -> some View {
+        switch activity {
+        case .unread:
+            Circle()
+                .fill(CodyColors.iconAccent)
+                .frame(width: markSize, height: markSize)
+        case .failed:
+            Image(systemName: "exclamationmark")
+                .font(.system(size: markSize, weight: .bold))
+                .foregroundStyle(CodyColors.statusErrorText)
+        case .running:
+            if reduceMotion {
+                Image(systemName: "hourglass")
+                    .font(.system(size: markSize, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconAccent)
+            } else {
+                ProgressView()
+                    .tint(CodyColors.iconAccent)
+                    .scaleEffect(0.5)
+            }
         }
     }
 }
