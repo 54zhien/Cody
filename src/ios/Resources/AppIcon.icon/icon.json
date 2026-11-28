@@ -28,16 +28,19 @@
               }
             }
           ],
-          "hidden-specializations": [
+          "opacity-specializations": [
+            {
+              "value": 1
+            },
             {
               "appearance": "dark",
-              "value": true
+              "value": 0
             }
           ]
         },
         {
           "glass": true,
-          "hidden": true,
+          "hidden": false,
           "image-name": "LadySerene-Dark.svg",
           "name": "Lady Serene (Dark)",
           "position": {
@@ -55,10 +58,13 @@
               }
             }
           ],
-          "hidden-specializations": [
+          "opacity-specializations": [
+            {
+              "value": 0
+            },
             {
               "appearance": "dark",
-              "value": false
+              "value": 1
             }
           ]
         }
