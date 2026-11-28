@@ -1,40 +1,59 @@
 import SwiftUI
 import UIKit
 
-/// Crisp visible hairline stroke for Settings capsules and pill cards (distinct from ultra-subtle 5% borders).
+/// Crisp visible hairline stroke and pure surface fills matching the outlined-capsule Settings design:
+/// - Light mode: pure white canvas (#FFFFFF) + pure white capsule surface (#FFFFFF) + 1pt crisp hairline stroke
+/// - Dark mode: pure black canvas (#000000) + elevated dark capsule surface (#181818) + 1pt crisp hairline stroke
 enum CodySettingsHairline {
     static let strokeColor = Color(
         uiColor: CodyUIColors.dynamic(
-            light: 0x0D0D0D,
-            lightAlpha: 0.11,
+            light: 0x000000,
+            lightAlpha: 0.10,
             dark: 0xFFFFFF,
             darkAlpha: 0.14
         )
     )
-    static let capsuleRadius: CGFloat = 27
+
+    static let dividerColor = Color(
+        uiColor: CodyUIColors.dynamic(
+            light: 0x000000,
+            lightAlpha: 0.08,
+            dark: 0xFFFFFF,
+            darkAlpha: 0.10
+        )
+    )
+
+    static let cardFill = Color(
+        uiColor: CodyUIColors.dynamic(
+            light: 0xFFFFFF,
+            dark: 0x181818
+        )
+    )
+
+    static let capsuleRadius: CGFloat = 28
 }
 
-/// Full-page ScrollView host for Nova Settings screens.
-/// Uses capsule-outlined cards over a clean canvas/grouped backdrop with zero default SwiftUI `List` chrome.
+/// Full-page ScrollView host for Nova Settings screens over a clean pure canvas (`bgCanvas`),
+/// letting hairline-outlined 28pt capsule cards stand out cleanly with zero default SwiftUI `List` chrome.
 struct CodySettingsScrollPage<Content: View>: View {
     var bottomInset: CGFloat = CodySpacing.xxxl
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: CodyMetrics.Settings.sectionGap) {
+            LazyVStack(alignment: .leading, spacing: 20) {
                 content()
             }
             .padding(.horizontal, CodySpacing.lg)
             .padding(.top, CodySpacing.md)
             .padding(.bottom, bottomInset)
         }
-        .background(CodyColors.bgGrouped.ignoresSafeArea())
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
         .scrollContentBackground(.hidden)
     }
 }
 
-/// Nova Settings capsule-cornered bordered section (27pt continuous capsule ends + crisp 1pt hairline stroke).
+/// Outlined 28pt capsule card section (single-row = true full capsule pill; multi-row = capsule-ended outlined group).
 struct CodySettingsNovaSection<Content: View>: View {
     let title: LocalizedStringKey?
     let footer: LocalizedStringKey?
@@ -54,7 +73,7 @@ struct CodySettingsNovaSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             if let title {
                 Text(title)
-                    .font(CodyTypography.sectionHeader.weight(.medium))
+                    .font(CodyTypography.bodyMedium.weight(.medium))
                     .foregroundStyle(CodyColors.textSecondary)
                     .padding(.horizontal, CodySpacing.lg)
                     .padding(.bottom, 8)
@@ -65,7 +84,7 @@ struct CodySettingsNovaSection<Content: View>: View {
             VStack(spacing: 0) {
                 content()
             }
-            .background(shape.fill(CodyColors.bgGroupedSurface))
+            .background(shape.fill(CodySettingsHairline.cardFill))
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
@@ -76,15 +95,14 @@ struct CodySettingsNovaSection<Content: View>: View {
                 Text(footer)
                     .font(CodyTypography.bodySmall)
                     .foregroundStyle(CodyColors.textSecondary)
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, CodySpacing.lg)
                     .padding(.top, CodySpacing.sm)
             }
         }
     }
 }
 
-/// Standalone capsule-pill stack for individual pill options with crisp 1pt hairline outline
-/// (matches the individual capsule + thin stroke option aesthetic).
+/// Standalone capsule-pill stack for individual pill options separated by 12pt spacing.
 struct CodySettingsCapsuleGroup<Content: View>: View {
     let title: LocalizedStringKey?
     let footer: LocalizedStringKey?
@@ -104,14 +122,14 @@ struct CodySettingsCapsuleGroup<Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             if let title {
                 Text(title)
-                    .font(CodyTypography.sectionHeader.weight(.medium))
+                    .font(CodyTypography.bodyMedium.weight(.medium))
                     .foregroundStyle(CodyColors.textSecondary)
                     .padding(.horizontal, CodySpacing.lg)
                     .padding(.bottom, 8)
                     .accessibilityAddTraits(.isHeader)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 content()
             }
 
@@ -119,19 +137,19 @@ struct CodySettingsCapsuleGroup<Content: View>: View {
                 Text(footer)
                     .font(CodyTypography.bodySmall)
                     .foregroundStyle(CodyColors.textSecondary)
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, CodySpacing.lg)
                     .padding(.top, CodySpacing.sm)
             }
         }
     }
 }
 
-/// Wraps any single settings row as an individual full-capsule pill (`Capsule` / 27pt) with crisp 1pt hairline border.
+/// Wraps any single settings row as an individual 28pt capsule pill with a crisp 1pt hairline border.
 struct CodySettingsCapsulePillModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: CodySettingsHairline.capsuleRadius, style: .continuous)
         content
-            .background(shape.fill(CodyColors.bgGroupedSurface))
+            .background(shape.fill(CodySettingsHairline.cardFill))
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
@@ -142,27 +160,28 @@ struct CodySettingsCapsulePillModifier: ViewModifier {
 }
 
 extension View {
-    /// Renders a standalone settings row as a pill/capsule with a crisp 1pt hairline stroke.
+    /// Renders a standalone settings row as a 28pt capsule pill with a crisp 1pt hairline stroke.
     func codySettingsCapsulePill() -> some View {
         modifier(CodySettingsCapsulePillModifier())
     }
 }
 
-/// Subtle inset separator between rows inside a multi-row `CodySettingsNovaSection`.
+/// Delicate 0.5pt hairline divider inside a multi-row outlined capsule section.
+/// Pass `leadingInset: 54` when rows have leading monochrome icons, or `18` when rows are text-only.
 struct CodySettingsNovaDivider: View {
-    var leadingInset: CGFloat = 56
+    var leadingInset: CGFloat = 54
 
     var body: some View {
         Rectangle()
-            .fill(CodySettingsHairline.strokeColor)
+            .fill(CodySettingsHairline.dividerColor)
             .frame(height: 0.5)
             .padding(.leading, leadingInset)
-            .padding(.trailing, CodySpacing.lg)
             .accessibilityHidden(true)
     }
 }
 
-/// Nova Settings navigation row (54pt single-line, 68pt with subtitle).
+/// Outlined-capsule Settings navigation row (56pt single-line, 70pt with subtitle).
+/// Uses clean monochrome line icons (no colored square/circle background boxes) and a subtle disclosure chevron.
 struct CodySettingsNovaNavRow<Destination: View, Trailing: View>: View {
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey?
@@ -177,7 +196,7 @@ struct CodySettingsNovaNavRow<Destination: View, Trailing: View>: View {
         subtitle: LocalizedStringKey? = nil,
         systemImage: String? = nil,
         tint: CodyCategoryTint? = nil,
-        showsDisclosure: Bool = false,
+        showsDisclosure: Bool = true,
         @ViewBuilder trailing: @escaping () -> Trailing,
         @ViewBuilder destination: @escaping () -> Destination
     ) {
@@ -211,7 +230,7 @@ extension CodySettingsNovaNavRow where Trailing == EmptyView {
         subtitle: LocalizedStringKey? = nil,
         systemImage: String? = nil,
         tint: CodyCategoryTint? = nil,
-        showsDisclosure: Bool = false,
+        showsDisclosure: Bool = true,
         @ViewBuilder destination: @escaping () -> Destination
     ) {
         self.init(
@@ -226,7 +245,7 @@ extension CodySettingsNovaNavRow where Trailing == EmptyView {
     }
 }
 
-/// Nova Settings button / action row.
+/// Outlined-capsule Settings action/button row.
 struct CodySettingsNovaActionRow<Trailing: View>: View {
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey?
@@ -296,7 +315,7 @@ extension CodySettingsNovaActionRow where Trailing == EmptyView {
     }
 }
 
-/// Nova Settings toggle row with optional icon badge and subtitle.
+/// Outlined-capsule Settings toggle row (monochrome optional leading icon + right-aligned switch).
 struct CodySettingsNovaToggleRow: View {
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey?
@@ -319,9 +338,13 @@ struct CodySettingsNovaToggleRow: View {
     }
 
     var body: some View {
-        HStack(spacing: CodySpacing.md) {
+        HStack(spacing: 14) {
             if let systemImage {
-                CodySettingsIconBadge(systemImage: systemImage, tint: tint, outline: .circle)
+                Image(systemName: systemImage)
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(CodyColors.iconPrimary)
+                    .frame(width: 24, height: 24, alignment: .center)
+                    .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(title)
@@ -338,28 +361,32 @@ struct CodySettingsNovaToggleRow: View {
                 .labelsHidden()
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, CodySpacing.md)
-        .frame(maxWidth: .infinity, minHeight: subtitle == nil ? 54 : 68, alignment: .leading)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: subtitle == nil ? 56 : 70, alignment: .leading)
         .contentShape(Rectangle())
     }
 }
 
-/// Shared layout body for Nova settings rows.
+/// Shared layout body for outlined-capsule settings rows (monochrome line icon, airy 56pt/70pt row height, delicate chevron).
 struct CodySettingsNovaRowContent<Trailing: View>: View {
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey?
     let systemImage: String?
     let tint: CodyCategoryTint?
     var titleColor: Color = CodyColors.textPrimary
-    var showsDisclosure: Bool = false
+    var showsDisclosure: Bool = true
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
-        HStack(spacing: CodySpacing.md) {
+        HStack(spacing: 14) {
             if let systemImage {
-                CodySettingsIconBadge(systemImage: systemImage, tint: tint, outline: .circle)
+                Image(systemName: systemImage)
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(titleColor == CodyColors.statusErrorText ? CodyColors.statusErrorText : CodyColors.iconPrimary)
+                    .frame(width: 24, height: 24, alignment: .center)
+                    .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(CodyTypography.bodyLarge)
                     .foregroundStyle(titleColor)
@@ -377,23 +404,23 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
             trailing()
             if showsDisclosure {
                 Image(systemName: "chevron.forward")
-                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
-                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
                     .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, subtitle == nil ? CodySpacing.mdPlus : CodySpacing.md)
+        .padding(.vertical, subtitle == nil ? 14 : 13)
         .frame(
             maxWidth: .infinity,
-            minHeight: subtitle == nil ? 54 : 68,
+            minHeight: subtitle == nil ? 56 : 70,
             alignment: .leading
         )
         .contentShape(Rectangle())
     }
 }
 
-/// Top hero identity capsule card for Nova Settings (displays Soul avatar/emoji, name, and active model summary).
+/// Compact hero account/soul row usable inside the top outlined capsule card (avatar on left, label, trailing name + chevron).
 struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
     let name: String
     let subtitle: String
@@ -403,39 +430,34 @@ struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: CodySettingsHairline.capsuleRadius, style: .continuous)
         NavigationLink(destination: destination) {
-            HStack(spacing: CodySpacing.mdPlus) {
+            HStack(spacing: 14) {
                 avatar()
-                    .frame(width: 50, height: 50)
-                    .background(Circle().fill(CodyColors.bgListIcon))
+                    .frame(width: 30, height: 30)
                     .clipShape(Circle())
-                    .overlay {
-                        Circle()
-                            .strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
-                            .allowsHitTesting(false)
-                    }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(name)
-                        .font(CodyTypography.titleLarge)
-                        .foregroundStyle(CodyColors.textPrimary)
-                        .lineLimit(1)
+                Text(name)
+                    .font(CodyTypography.bodyLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .lineLimit(1)
+
+                Spacer(minLength: CodySpacing.sm)
+
+                if !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(CodyTypography.bodyMedium)
+                        .font(CodyTypography.bodyLarge)
                         .foregroundStyle(CodyColors.textSecondary)
                         .lineLimit(1)
                 }
 
-                Spacer(minLength: CodySpacing.sm)
-
                 Image(systemName: "chevron.forward")
-                    .font(.system(size: CodyMetrics.Settings.disclosureSize, weight: .semibold))
-                    .foregroundStyle(CodyColors.iconDisclosure)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(shape.fill(CodyColors.bgGroupedSurface))
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .background(shape.fill(CodySettingsHairline.cardFill))
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
