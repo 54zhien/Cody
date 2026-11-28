@@ -558,7 +558,29 @@ struct ContentView: View {
     /// override where the user just chose to be.
     static let pendingBackgroundNavigationTTL: TimeInterval = 90
 
-    var body: some View {
+    private var settingsPresentation: Binding<Bool> {
+        Binding(
+            get: { activeToolSheet == .settings },
+            set: { isPresented in
+                if !isPresented, activeToolSheet == .settings {
+                    activeToolSheet = nil
+                }
+            }
+        )
+    }
+
+    private var toolSheetPresentation: Binding<ToolSheet?> {
+        Binding(
+            get: { activeToolSheet == .settings ? nil : activeToolSheet },
+            set: { newValue in
+                if newValue != nil || activeToolSheet != .settings {
+                    activeToolSheet = newValue
+                }
+            }
+        )
+    }
+
+    private var contentWithToolPresentations: some View {
         GeometryReader { geo in
             let wide = isIPad && geo.size.width >= compactThreshold
             Group {
@@ -773,24 +795,10 @@ struct ContentView: View {
         .sheet(isPresented: $showAlarmList, onDismiss: { fetchAlarmsIfNeeded() }) {
             AlarmListView()
         }
-        .fullScreenCover(isPresented: Binding(
-            get: { activeToolSheet == .settings },
-            set: { isPresented in
-                if !isPresented, activeToolSheet == .settings {
-                    activeToolSheet = nil
-                }
-            }
-        )) {
+        .fullScreenCover(isPresented: settingsPresentation) {
             SettingsSheet(showTerminal: $showTerminal)
         }
-        .sheet(item: Binding<ToolSheet?>(
-            get: { activeToolSheet == .settings ? nil : activeToolSheet },
-            set: { newValue in
-                if newValue != nil || activeToolSheet != .settings {
-                    activeToolSheet = newValue
-                }
-            }
-        )) { sheet in
+        .sheet(item: toolSheetPresentation) { sheet in
             switch sheet {
             case .settings:
                 EmptyView()
@@ -820,6 +828,10 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    var body: some View {
+        contentWithToolPresentations
         // Something else is taking over the screen (an incoming share, a
         // WebApp deep link, a `.codybak` opened from Files). iOS will not
         // present a second sheet from the same root while one is up, so a tool
