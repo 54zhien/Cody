@@ -48,6 +48,7 @@ struct SessionStackRow: View {
     let inFolder: Bool
     let isLastInFolder: Bool
     let menuActions: SessionMenuActionChannel
+    var isHighlighted: Bool = false
 
     var body: some View {
         let _ = HomeListPerf.rowBuilt()
@@ -56,6 +57,7 @@ struct SessionStackRow: View {
         } label: {
             SessionRow(
                 session: session,
+                isHighlighted: isHighlighted,
                 // [T-ios-ipad-sidebar-running-indicator-stale] Running / suspended as
                 // VALUES so a flip re-evaluates this row in place.
                 isActive: isActive,
@@ -68,6 +70,7 @@ struct SessionStackRow: View {
             .equatable()
         }
         .buttonStyle(SessionRowPressStyle())
+        .accessibilityAddTraits(isHighlighted ? .isSelected : [])
         // Entry D: long-press then move drags the session id; the system
         // arbitrates against .contextMenu on the same press.
         .draggable(session.id)
@@ -81,11 +84,17 @@ struct SessionStackRow: View {
         }
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
-        .listRowBackground(Group {
+        .listRowBackground(ZStack {
             if inFolder {
                 FolderMemberRowBackground(isLast: isLastInFolder)
             } else {
                 CodyColors.bgCanvas
+            }
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                    .fill(CodyColors.interactiveSecondaryBg)
+                    .padding(.horizontal, CodySpacing.xsPlus)
+                    .padding(.vertical, CodySpacing.xxs)
             }
         })
         .contextMenu {

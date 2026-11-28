@@ -110,6 +110,7 @@ struct ContentView: View {
     }
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject var shareCoordinator: ShareCoordinator
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
     /// Subscribe to the router so changes to its `@Published` fields are
@@ -421,7 +422,7 @@ struct ContentView: View {
 
     // Search
     @State var showSearchBar = false
-    var isSearching: Bool { showSearchBar && !searchText.isEmpty }
+    var isSearching: Bool { (showSearchBar || !isWideLayout) && !searchText.isEmpty }
     @State var searchText = ""
     /// Session IDs that matched the current search query (nil = no active filter).
     @State var searchMatchedIds: Set<String>?
@@ -455,28 +456,21 @@ struct ContentView: View {
     private let isIPad = UIDevice.current.userInterfaceIdiom == .pad
     /// Whether the current window is wide enough for two-column layout.
     @State var isWideLayout = false
+    @State var novaTab: CodyNovaTab = .chat
+    @State var isNovaDrawerOpen: Bool = false
+    @State var novaActiveSessionId: String = ContentView.makeNewSessionId()
+    @StateObject var novaKeyboard = CodyKeyboardObserver()
     /// Navigation path for stack (compact) layout.
     @State var navigationPath = NavigationPath()
-    /// Tracks the session ID currently visible on the compact navigation stack.
+    /// The visible compact conversation, either the Nova root or a pushed chat.
     @State var currentStackSessionId: String?
-    /// [T-ios-stacknav-transition-attributegraph-race] Compact-layout analogue
-    /// of `previousSelectedSessionId`: the session that was on the stack before
-    /// the most recent `navigationPath` change, so the `onChange` observer can
-    /// suspend the OUTGOING vm for the transition.
-    ///
-    /// A separate property is required — `currentStackSessionId` cannot serve
-    /// here. `.onChange` is a view-update observer, so it runs after the state
-    /// change is committed, and every navigation helper assigns
-    /// `currentStackSessionId = newId` in the same synchronous block that
-    /// mutates the path (see `switchToSession` / `handleNewChatRequest` /
-    /// `openSession`). By observer time it therefore already holds the INCOMING
-    /// id, and reading it would suspend the wrong vm — the one being mounted.
+    /// Outgoing pushed destination used to suspend its VM during a stack change.
     @State var previousStackSessionId: String?
-    /// The real session ID after a draft session is persisted (iPad only).
+    /// The real session ID after the displayed draft session is persisted.
     /// While set, the AIChatView for this session stays alive even though
     /// selectedSessionId may still be a draft ID.
     @State var newSessionRealId: String?
-    /// The draft ID that owns the current new-session view (iPad only).
+    /// The draft ID that owns the current new-session view.
     /// Used to redirect back when the user taps the real session row.
     @State var activeDraftId: String?
 
@@ -580,7 +574,7 @@ struct ContentView: View {
             }
             .animation(.easeInOut(duration: 0.25), value: forceSyncToast)
             .onChange(of: wide) { newWide in
-                isWideLayout = newWide
+                updateNovaLayout(wide: newWide)
             }
             .onAppear {
                 isWideLayout = wide
@@ -592,6 +586,17 @@ struct ContentView: View {
             // of them, as deleting from the sidebar does. Settings is a sheet, so
             // on iPhone that conversation can be open underneath it.
             .onReceive(NotificationCenter.default.publisher(for: .sessionsDeletedElsewhere), perform: handleSessionsDeletedElsewhere)
+        }
+        .onChange(of: novaTab, perform: novaTabChanged)
+        .onChange(of: isNovaDrawerOpen) { isOpen in
+            if isOpen { dismissNovaKeyboard() }
+            else {
+                searchFocused = false
+                if isSelecting {
+                    isSelecting = false
+                    selectedIds.removeAll()
+                }
+            }
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .sessionDidCreate),
@@ -623,7 +628,8 @@ struct ContentView: View {
             // because we were already home, or after markHome fired
             // from a navigation change). Open the new session now.
             if case .pendingDispatch = newState {
-                openSessionForPendingQuickAction()
+                // @Published sends before storing the new state.
+                DispatchQueue.main.async { openSessionForPendingQuickAction() }
             }
         }
         .onAppear {
@@ -661,36 +667,13 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .sessionDidCreate)) { note in
-            guard isWideLayout, let newId = note.object as? String else { return }
-            let noteDraftId = (note.userInfo as? [String: String])?["draftId"]
-            draftLog.info("🔑DRAFT sessionDidCreate realId=\(newId) noteDraftId=\(noteDraftId ?? "nil") selId=\(selectedSessionId ?? "nil") curReal=\(newSessionRealId ?? "nil") curDraft=\(activeDraftId ?? "nil")")
-            // Verify this notification came from the currently active draft.
-            // A late notification from a previous (now-destroyed) draft must be ignored.
-            guard let selId = selectedSessionId, Self.isNewSessionId(selId),
-                  noteDraftId == selId else {
-                draftLog.info("🔑DRAFT sessionDidCreate IGNORED (draftId mismatch or not a draft)")
-                // [T-ios-state-publish-offmain-crash] ChatStore (an actor) posts
-                // .sessionDidCreate/.sessionDidUpdate from its background
-                // executor; NotificationCenter delivers synchronously on that
-                // thread, so this onReceive closure can run off-main. A bare
-                // Task{} started here inherits the (background) execution context,
-                // so `sessions =` (a @State write) lands off-main → "Publishing
-                // changes from background threads" + AttributeGraph corruption of
-                // the [ChatSession]/[String:ChatSession] state it deep-compares,
-                // crashing in ChatSession.== / deinit during flushTransactions.
-                // This onReceive can be delivered off-main, so hop explicitly —
-                // refreshSessionList's @State writes must land on the main thread.
-                Task { @MainActor in
-                    refreshSessionList()
-                }
-                return
-            }
-            newSessionRealId = newId
-            activeDraftId = selId
-            draftLog.info("🔑DRAFT sessionDidCreate ACCEPTED newSessionRealId=\(newId) activeDraftId=\(selId)")
-            // [T-ios-state-publish-offmain-crash] force main-thread @State write
+            guard let newId = note.object as? String else { return }
+            let noteDraftId = note.userInfo?["draftId"] as? String
+            let shouldNavigate = note.userInfo?["navigate"] as? Bool == true
+            // [T-ios-state-publish-offmain-crash] The store can post off-main.
             Task { @MainActor in
-                refreshSessionList()
+                handlePersistedDraft(newId, draftId: noteDraftId)
+                if shouldNavigate { switchToSession(newId) }
             }
         }
         .onReceive(
@@ -766,7 +749,6 @@ struct ContentView: View {
                 // [T-ios-moveto-transfer-race] Same atomic replacement as the
                 // move path — the old animated-pop-then-delayed-push had the
                 // same swallowed-push failure mode here.
-                guard currentStackSessionId != sessionId else { return }
                 switchToSession(sessionId)
             }
         }
@@ -978,6 +960,7 @@ struct ContentView: View {
             }
         }
         .task {
+            let initialNovaSession = novaActiveSessionId
             // [T-p1-delegate-task] Hidden child sessions never reach the
             // sidebar; they are entered from their parent's helper block.
             sessions = await ChatStore.shared.listSessions().filter { !$0.isChild }
@@ -1027,6 +1010,9 @@ struct ContentView: View {
                 var tx = Transaction()
                 tx.disablesAnimations = true
                 withTransaction(tx) { openSession(notificationTarget) }
+            } else if let sid = deepLink.pendingSessionId, !sid.isEmpty {
+                openSession(sid)
+                deepLink.pendingSessionId = nil
             } else if NotificationNavigationStore.shared.handledRecently {
                 shareLog.info("[Share] .task: notification navigation just handled — skipping launchScreen logic")
             } else if quickActionPending {
@@ -1069,8 +1055,8 @@ struct ContentView: View {
                 // and share branches — those are explicit, just-expressed user
                 // intent, and a stale crash flag must not swallow them.
                 CrashReporter.shared.clearCrashLoopFlag()
-                shareLog.warning("[Share] .task: crash-loop detected — skipping session restore, landing on the session list")
-            } else {
+                shareLog.warning("[Share] .task: crash-loop detected — skipping session restore, keeping the initial content")
+            } else if isWideLayout || (novaActiveSessionId == initialNovaSession && novaTab == .chat && !isNovaDrawerOpen) {
                 // No share — normal launch screen behavior
                 switch launchScreen {
                 case 1:
@@ -1080,13 +1066,11 @@ struct ContentView: View {
                         withTransaction(tx) { openSession(latest.id) }
                     }
                 case 2:
-                    var tx = Transaction()
-                    tx.disablesAnimations = true
-                    withTransaction(tx) { openSession(Self.makeNewSessionId()) }
+                    if isWideLayout { openSession(Self.makeNewSessionId()) }
                 case 3:
-                    break
+                    if !isWideLayout { openNovaDrawer() }
                 default:
-                    if !sessions.isEmpty,
+                    if isWideLayout, !sessions.isEmpty,
                        let latest = sessions.first,
                        Date().timeIntervalSince(latest.updatedAt) > 15 * 60 {
                         var tx = Transaction()
@@ -1128,6 +1112,7 @@ struct ContentView: View {
             rebuildSessionsByIdCache()
         }
         .onChange(of: selectedSessionId) { newValue in
+            guard isWideLayout else { return }
             // [T-home-list-perf-diag] iPad / wide navigation marker.
             if isWideLayout { HomeListPerf.nav("selection \(newValue == nil ? "home" : "chat")") }
             // [T-crash-breadcrumbs] Split-layout selection, hashed.
@@ -1214,106 +1199,37 @@ struct ContentView: View {
             }
         }
         .onChange(of: navigationPath) { _ in
-            // [T-crash-breadcrumbs] Navigation depth; back at the root the
-            // current page is the home list (a chat page records its own).
+            // [T-crash-breadcrumbs] Record the depth above the Nova chat root.
             CrashBreadcrumbs.record("nav", detail: "depth=\(navigationPath.count)")
             // [T-home-list-perf-diag] iPhone push / pop marker.
             HomeListPerf.nav("depth=\(navigationPath.count)")
             // [T-nav-stack-diag] Every change, with the running sessions and
             // whether the app itself wrote this path (see NavDiag).
             NavDiag.observe(navigationPath, currentTarget: currentStackSessionId)
-            // [T-nav-ghost-row-link] A stack deeper than one chat is unusual on
-            // iPhone (only the launch / share / notification paths append), so
-            // name every page: a ghost page under a new chat shows up here.
+            // [T-nav-ghost-row-link] Record unexpected nested chat routes.
             if navigationPath.count > 1 {
                 let ids = navigationPath.codable
                     .flatMap { try? JSONEncoder().encode($0) }
                     .map { String(decoding: $0, as: UTF8.self) } ?? "?"
                 shareLog.warning("[NavStack] depth=\(navigationPath.count) top=\(currentStackSessionId ?? "nil") path=\(ids)")
             }
-            if navigationPath.isEmpty { CrashBreadcrumbs.setSlot("page", value: "home") }
-            // [T-ios-stacknav-transition-attributegraph-race] The SAME hosting-
-            // view teardown race the `selectedSessionId` observer above guards
-            // — but that observer only fires in the SPLIT (iPad / wide) layout.
-            // iPhone drives navigation through `navigationPath`, so the
-            // outgoing chat's vm was NEVER suspended for a push/pop, and the
-            // mitigation added for the 2026-06-01 build-48 crash simply did not
-            // exist on the compact path.
-            //
-            // Crash 2026-08-10 19:23 (Cody 1.12(1), iOS 26.5.2, iPhone18,1 —
-            // a STACK-layout device): EXC_BAD_ACCESS at 0xffffffff00000000 in
-            // AG::Subgraph::~Subgraph → NodeCache::~NodeCache, reached from
-            // `NavigationStackCoordinator.navigationController(_:willShow:)` →
-            // `ejectDeferred/sanitize` → `replaceRootViewWhenSafe` → a
-            // synchronous `ViewGraph.updateOutputs` inside the UIKit
-            // transition-completion callback. The device log shows exactly the
-            // documented precondition: the agent loop kept streaming straight
-            // through the transition and PAST the view's teardown —
-            //
-            //   19:23:26.731  chat slides offscreen (x=402…804, transition starts)
-            //   19:23:26.735  [TOOL:STREAMING] shell_execute …
-            //   19:23:27.138  [TOOL:STREAMING] …
-            //   19:23:27.213  AIChatView.onDisappear vm.isProcessing=true
-            //   19:23:27.349  [TOOL:STREAMING] …   (still mutating after teardown)
-            //
-            // so @Published deltas were feeding a subgraph while UIKit was
-            // invalidating it. Suspend the outgoing vm for the transition,
-            // exactly as the split path does, and resume on the same 0.4s
-            // delay so the session catches up when the user returns.
-            //
-            // The outgoing id is tracked separately (`previousStackSessionId`)
-            // rather than read from `currentStackSessionId` — see that
-            // property's doc-comment for why the latter is already the INCOMING
-            // id by the time this observer runs.
-            // The incoming id is `currentStackSessionId` only while the path is
-            // NON-empty; a pop to the session list leaves it momentarily stale
-            // (it is cleared further down in this same handler), so an empty
-            // path means "incoming = nothing" and the outgoing vm must still be
-            // suspended. Getting this wrong would skip the pop — which is the
-            // exact transition the crash log captured.
-            let incomingStackId: String? = navigationPath.isEmpty ? nil : currentStackSessionId
-            let outgoingStackId = previousStackSessionId
-            previousStackSessionId = incomingStackId
-            if let outgoingId = outgoingStackId,
-               outgoingId != incomingStackId,
-               let outgoingVm = ViewModelCache.shared.get(for: outgoingId) {
-                outgoingVm.setSuspendedForTransition(true)
-                // Unconditional resume on the same 0.4s delay the split path
-                // uses. `weak` so a deallocated vm simply drops it, and
-                // `setSuspendedForTransition` is guarded on an actual change,
-                // so overlapping transitions cannot leave the flag stuck.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak outgoingVm] in
-                    outgoingVm?.setSuspendedForTransition(false)
-                }
+            guard !isWideLayout else { return }
+            let top = NavDiag.ids(navigationPath)?.last
+            let incoming = top ?? novaActiveSessionId
+            let outgoing = previousStackSessionId ?? novaActiveSessionId
+            previousStackSessionId = top
+            // [T-ios-stacknav-transition-attributegraph-race] Pause the
+            // outgoing publisher while its hosting view is being removed.
+            if outgoing != incoming {
+                suspendNovaSessionForTransition(persistedSessionId(for: outgoing))
             }
-            // [T-ios-search-focus-sticky] iPhone stack: pushing into a session
-            // (or new chat) with an empty search drops the sticky search bar.
-            // Only on push (path non-empty) — popping back must NOT clear an
-            // active search the user is returning to.
-            if !navigationPath.isEmpty {
-                dismissSearchIfEmptyOnNavigate()
-            }
+            novaChatAppeared(incoming, isPushed: top != nil)
             if navigationPath.isEmpty {
-                currentStackSessionId = nil
-                AIChatViewModel.activeSessionId = nil
-                // [T-always-on-now] Back on the list: Screen Saver Now ends; the
-                // per-chat choices are kept ([T-keep-awake-sticky-off]).
-                AlwaysOnController.shared.chatSelectionChanged(to: nil)
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                // If a quick-action workflow asked us to ensure-home,
-                // we're there now — let it advance to pendingDispatch.
+                dismissNovaKeyboard()
+                scheduleOutgoingPreviewRefresh()
                 if case .ensuringHome = QuickActionWorkflow.shared.state {
                     QuickActionWorkflow.shared.markHome()
                 }
-            }
-            // [T-ios-session-coldload-listsessions-block] Only refresh when
-            // popping back to home (path emptied) — that's when a preview that
-            // changed inside the session the user just left needs to show. On
-            // PUSH (entering a session, the cold-open hot path) this scan only
-            // head-of-line-blocked loadSession on the ChatStore actor. Delayed
-            // so it never races the incoming load's actor hops.
-            if navigationPath.isEmpty {
-                scheduleOutgoingPreviewRefresh()
             }
             fetchAlarmsIfNeeded()
         }
@@ -1321,34 +1237,15 @@ struct ContentView: View {
             if hasPending {
                 let hadRecord = SharedContainerStore.loadPendingShare() != nil
                 processPendingShare()
-                // [T-share-double-raise] Only navigate when this raise actually
-                // carried content. A duplicate raise finds the record already
-                // consumed; opening a second blank session for it would replace
-                // the one the first pass just populated.
-                //
-                // [T-share-routes-to-background-session] Route to the chat the
-                // user is LOOKING AT, and only open a new session when there
-                // isn't one.
-                //
-                // The bug this fixes was never "a share reached an open chat" —
-                // it was a share reaching a chat the user was NOT looking at.
-                // Device log 2026-08-18 23:55:42: the file landed in session
-                // 87B79110, mid-agent-run in the BACKGROUND, purely because
-                // that view happened to be mounted; nothing checked whether the
-                // share was meant for it.
-                //
-                // So the destination is decided here, explicitly, and stamped
-                // onto the buffer — a foreground chat when there is one, a
-                // fresh session otherwise — and only that destination's view is
-                // allowed to consume it (see injectPendingShareIfNeeded).
-                // `navigationPath.isEmpty ? nil : currentStackSessionId` is the
-                // same "what is actually on screen" test the outgoing-session
-                // tracker at line ~1879 uses.
+                // [T-share-double-raise] Only route an actual new payload.
+                // [T-share-routes-to-background-session] Address the buffer
+                // to the visible local chat, or to a fresh draft from other tabs.
                 if hadRecord {
-                    let foreground: String? = navigationPath.isEmpty ? nil : currentStackSessionId
+                    let foreground = foregroundShareSessionId
                     if let foreground {
                         // Already on screen — stamp it and navigate nowhere.
                         shareCoordinator.setBufferTarget(foreground)
+                        if !isWideLayout { closeNovaDrawer() }
                         shareLog.info("[Share] onChange: routing share into the foreground session \(foreground.prefix(16)) (no navigation needed)")
                     } else {
                         let target = Self.makeNewSessionId()
@@ -1398,7 +1295,7 @@ struct ContentView: View {
             // list. If not loaded yet (cold launch with deep link), set
             // it now — the session-load path will pick it up once the
             // list refresh completes.
-            selectedSessionId = sid
+            openSession(sid)
             deepLink.pendingSessionId = nil
         }
         .onChange(of: scenePhase) { phase in

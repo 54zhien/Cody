@@ -26,7 +26,7 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private var remoteDeviceSessionSections: some View {
+    var remoteDeviceSessionSections: some View {
         let _ = syncLog.info("[iCloud] remoteDeviceSessionSections evaluated: \(remoteDeviceSessions.count) devices, total sessions=\(remoteDeviceSessions.reduce(0) { $0 + $1.sessions.count })")
         let byId = remoteSessionsById
         // [T-ios-session-list-equatable-jank] Project to (deviceId, deviceName,
@@ -36,19 +36,31 @@ extension ContentView {
         // Array<ChatSession>.== in the HangDetector stacks after the local-list
         // fix landed.)
         let deviceSections: [(deviceId: String, name: String, ids: [String])] =
-            remoteDeviceSessions.map { e in
-                (deviceId: e.device.id, name: e.device.deviceName, ids: e.sessions.map(\.id))
+            remoteDeviceSessions.compactMap { entry in
+                let ids = entry.sessions.filter(matchesRemoteSearch).map(\.id)
+                guard !ids.isEmpty else { return nil }
+                return (deviceId: entry.device.id, name: entry.device.deviceName, ids: ids)
             }
         ForEach(deviceSections, id: \.deviceId) { entry in
             let _ = syncLog.info("[iCloud] rendering section for device=\(entry.deviceId) name=\(entry.name) sessions=\(entry.ids.count)")
             Section {
                 ForEach(entry.ids, id: \.self) { sessionId in
                     if let session = byId["\(entry.deviceId):\(sessionId)"] {
-                        NavigationLink(value: "remote:\(entry.deviceId):\(session.id)") {
+                        let route = "remote:\(entry.deviceId):\(session.id)"
+                        Button {
+                            switchToSession(route)
+                        } label: {
                             RemoteSessionRow(session: session)
                         }
+                        .buttonStyle(SessionRowPressStyle())
+                        .accessibilityAddTraits(isSessionHighlighted(route) ? .isSelected : [])
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: CodyRadius.control)
+                                .fill(isSessionHighlighted(route) ? CodyColors.interactiveSecondaryBg : .clear)
+                                .padding(.horizontal, CodySpacing.xsPlus)
+                        )
                         .contextMenu {
                             Button {
                                 // [T-ios-state-publish-offmain-crash] @MainActor
@@ -60,7 +72,7 @@ extension ContentView {
                                         remoteSessionId: sid, remoteDeviceId: deviceId
                                     ) {
                                         refreshSessionList()
-                                        selectedSessionId = forked.id
+                                        switchToSession(forked.id)
                                     }
                                 }
                             } label: {
@@ -71,8 +83,20 @@ extension ContentView {
                 }
             } header: {
                 Label(entry.name, systemImage: "iphone")
+                    .modifier(SidebarSectionHeaderStyle())
             }
         }
+    }
+
+    var hasMatchingRemoteSessions: Bool {
+        remoteDeviceSessions.contains { $0.sessions.contains(where: matchesRemoteSearch) }
+    }
+
+    private func matchesRemoteSearch(_ session: ChatSession) -> Bool {
+        guard isSearching, !searchQuery.isEmpty else { return true }
+        let terms = SearchKeywords.terms(searchQuery)
+        return SearchKeywords.firstHit(in: session.title ?? "", terms: terms) != nil
+            || SearchKeywords.firstHit(in: session.lastMessage ?? "", terms: terms) != nil
     }
 
     // [T-ios-state-publish-offmain-crash] @MainActor: writes `remoteDeviceSessions`

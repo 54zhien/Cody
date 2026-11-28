@@ -113,7 +113,8 @@ extension ContentView {
             isRegeneratingTitle: regeneratingTitleSessionId == sessionId,
             inFolder: group.folderId != nil,
             isLastInFolder: group.isLastMemberRow(sessionId),
-            menuActions: menuActions
+            menuActions: menuActions,
+            isHighlighted: isSessionHighlighted(sessionId)
         )
     }
 
@@ -126,7 +127,7 @@ extension ContentView {
         let menuSid = Self.isNewSessionId(session.id) ? newSessionRealId : session.id
         return SessionSplitRow(
             session: session,
-            isHighlighted: isSessionHighlighted(session.id),
+            isHighlighted: novaTab == .chat && isSessionHighlighted(session.id),
             isActive: sessionIsRunning(session.id),
             isSuspended: sidebarConcurrencyManager.isSuspended(session.id),
             highlightQuery: isSearching ? searchQuery : nil,
@@ -210,6 +211,13 @@ extension ContentView {
     private func stackListBody(scrollProxy: ScrollViewProxy) -> AnyView {
         AnyView(
         List {
+            if didInitialLoad, sessions.isEmpty, !isSearching, providerStore.modelGroups.isEmpty, !isSelecting {
+                novaSetupCard
+                    .listRowInsets(EdgeInsets(top: CodySpacing.sm, leading: CodySpacing.md,
+                                              bottom: CodySpacing.sm, trailing: CodySpacing.md))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
             // [T-ios-session-list-equatable-jank] id-list projection — see splitList.
             // [T-home-list-perf-diag] Times the grouping and opens a pass
             // for the row lookups that follow; see HomeListPerf.
@@ -273,7 +281,7 @@ extension ContentView {
                     }
                 }
             }
-
+            if !isSelecting { remoteDeviceSessionSections }
         }
         .modifier(SidebarListCanvas())
         #if DEBUG
@@ -284,22 +292,25 @@ extension ContentView {
         .modifier(ScrollPhaseProbe())
         #endif
         .opacity(didInitialLoad ? 1 : 0)
-        .overlay { if didInitialLoad, filteredSessions.isEmpty, !isSearching { emptyState } }
+        .overlay {
+            if didInitialLoad, isSearching, filteredSessions.isEmpty, searchMatchedFolderIds.isEmpty,
+               searchMatchedIds != nil, !hasMatchingRemoteSessions {
+                Text("No matching chats")
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
         .safeAreaInset(edge: .bottom) {
             if isSelecting { selectionToolbar }
-            else if !hidesFABForOnboarding(listIsEmpty: filteredSessions.isEmpty) { sidebarFABInset }
         }
-        // [T-home-fab-keyboard-inset] Mirror of the voice panel's structural
-        // immunity (604a9947 / T-voice-bg-fg-gap): with the inline search bar
-        // closed, nothing down here accepts text — any keyboard inset reaching
-        // this list is a stale/zombie one (stranded responder, interrupted
-        // bg-snapshot dismiss) and must not push the New/Search FABs up. With
-        // the search bar open its TextField legitimately rises with the
-        // keyboard, so normal avoidance is restored.
-        .ignoresSafeArea(.keyboard, edges: showSearchBar ? [] : .bottom)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { sidebarToolbarContent }
+        .onChange(of: scrollToId) { id in
+            if let id {
+                scrollProxy.scrollTo("select-\(id)", anchor: .center)
+                scrollToId = nil
+            }
+        }
         )
     }
 
@@ -307,7 +318,7 @@ extension ContentView {
     /// ScrollViewReader: same mini-bar jump wiring as stackList.
     private var splitList: some View {
         ScrollViewReader { scrollProxy in
-        List(selection: $selectedSessionId) {
+        List(selection: splitSessionSelection) {
             // [T-ios-session-list-equatable-jank] Diff a (label, ids) projection
             // so SwiftUI compares a [String] id list, not a [ChatSession] value
             // array. Rows resolve the model via displaySessionsById.
@@ -365,6 +376,7 @@ extension ContentView {
                     }
                 }
             }
+            if !isSelecting { remoteDeviceSessionSections }
 
         }
         .modifier(SidebarListCanvas())
@@ -374,8 +386,15 @@ extension ContentView {
         // of sessionList) is unaffected and does not get it.
         .modifier(MacOS27OpaqueNavigationBar(background: Material.bar))
         .opacity(didInitialLoad ? 1 : 0)
-        .overlay { if didInitialLoad, displaySessions.isEmpty, !isSearching { emptyState } }
+        .overlay {
+            if didInitialLoad, displaySessions.isEmpty, !isSearching, remoteDeviceSessions.isEmpty {
+                emptyState
+            }
+        }
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if !isSelecting { novaSplitDestinations }
+        }
         .safeAreaInset(edge: .bottom) {
             if isSelecting { selectionToolbar }
             else if !hidesFABForOnboarding(listIsEmpty: displaySessions.isEmpty) { sidebarFABInset }
