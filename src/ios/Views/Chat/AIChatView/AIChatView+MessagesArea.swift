@@ -81,44 +81,22 @@ extension AIChatView {
             helperSheetTarget = HelperSheetTarget(id: childId, title: title)
         }
 
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            messagesArea
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
-                .safeAreaBar(edge: .bottom, spacing: 0) {
+        messagesArea
+            .overlay(alignment: .bottom) {
+                ZStack(alignment: .bottom) {
+                    if vm.showSlashMenu || vm.showMentionMenu {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if vm.showSlashMenu { vm.dismissSlashMenu() }
+                                else if vm.showMentionMenu { vm.dismissMentionMenu() }
+                            }
+                    }
                     composerStack
+                    inputPopupOverlay
+                        .padding(.bottom, inputBarHeight)
                 }
-                .overlay(alignment: .bottom) {
-                    ZStack(alignment: .bottom) {
-                        if vm.showSlashMenu || vm.showMentionMenu {
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if vm.showSlashMenu { vm.dismissSlashMenu() }
-                                    else if vm.showMentionMenu { vm.dismissMentionMenu() }
-                                }
-                        }
-                        inputPopupOverlay
-                            .padding(.bottom, inputBarHeight)
-                    }
-                }
-        } else {
-            messagesArea
-                .overlay(alignment: .bottom) {
-                    ZStack(alignment: .bottom) {
-                        if vm.showSlashMenu || vm.showMentionMenu {
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if vm.showSlashMenu { vm.dismissSlashMenu() }
-                                    else if vm.showMentionMenu { vm.dismissMentionMenu() }
-                                }
-                        }
-                        composerStack
-                        inputPopupOverlay
-                            .padding(.bottom, inputBarHeight)
-                    }
-                }
-        }
+            }
     }
 
     var messagesArea: some View {
@@ -166,6 +144,7 @@ extension AIChatView {
                 composerLiveHeight: composerLiveHeight,
                 bottomFadeClearance: composerFadeClearance
             )
+            .modifier(MessageListBottomEdgeExtensionModifier())
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
@@ -188,17 +167,21 @@ extension AIChatView {
                 .disabled(vm.editingMessageIndex != nil || voiceInputActive || speechManager.state == .recording)
                 .padding(.horizontal, CodySpacing.lg)
                 .padding(.top, Self.listTopInset(forTopBanners: topBannersHeight))
-                .padding(.bottom, usesLegacyBottomFade ? inputBarHeight : 12)
+                .padding(.bottom, inputBarHeight)
             }
         }
         .overlay(alignment: .bottom) {
-            if usesLegacyBottomFade && showsComposerFade && !vm.messages.isEmpty {
-                VStack(spacing: 0) {
-                    CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
-                    CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
+            if showsComposerFade && !vm.messages.isEmpty {
+                if usesLegacyBottomFade {
+                    VStack(spacing: 0) {
+                        CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
+                        CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                } else {
+                    NovaChatBottomFadeScrim(composerBandHeight: composerFadeFloorHeight)
                 }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottom) {
@@ -238,7 +221,7 @@ extension AIChatView {
                     .padding(.trailing, 4)
                     .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
                     .padding(.horizontal, 12)
-                    .padding(.bottom, usesLegacyBottomFade ? (inputBarHeight + (hasFloatingPreview ? 80 : 12)) : 12)
+                    .padding(.bottom, inputBarHeight + (hasFloatingPreview ? 80 : 12))
                     // The capsule must not cover these floating scroll-jump buttons.
                     .capsuleProtectedFrame("scrollButtons")
                 }
@@ -257,7 +240,7 @@ extension AIChatView {
             .padding(.trailing, 4)
             .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
             .padding(.horizontal, 12)
-            .padding(.bottom, (usesLegacyBottomFade ? (inputBarHeight + (hasFloatingPreview ? 80 : 12)) : 12) + 92)
+            .padding(.bottom, inputBarHeight + (hasFloatingPreview ? 80 : 12) + 92)
             .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
             .capsuleProtectedFrame("downloadButton")
         }
@@ -281,7 +264,8 @@ extension AIChatView {
 
     /// Reserve the part of the ramp above the list's existing 8pt breathing room.
     private var composerFadeClearance: CGFloat {
-        showsComposerFade ? CodyMetrics.Conversation.bottomFadeHeight - 2 * CodySpacing.sm : 0
+        guard showsComposerFade else { return 0 }
+        return usesLegacyBottomFade ? (CodyMetrics.Conversation.bottomFadeHeight - 2 * CodySpacing.sm) : 12
     }
 
     /// Shared label style for the floating scroll buttons (up / down).
@@ -372,6 +356,43 @@ extension AIChatView {
     /// capped in regular (landscape / iPad) for readability.
     var maxContentWidth: CGFloat? {
         hSizeClass == .regular ? 900 : nil
+    }
+}
+
+private struct MessageListBottomEdgeExtensionModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            content.ignoresSafeArea(.container, edges: .bottom)
+        } else {
+            content
+        }
+    }
+}
+
+/// Touch-pass-through smoothstep canvas scrim reinforcing iOS 26's native `.soft`
+/// `UIScrollEdgeElementContainerInteraction` blur behind the Liquid Glass composer and
+/// Nova bottom tab bar, while keeping scrolled content gently refracted through the glass.
+private struct NovaChatBottomFadeScrim: View {
+    let composerBandHeight: CGFloat
+
+    var body: some View {
+        let totalHeight = max(0, composerBandHeight) + 44
+        LinearGradient(
+            stops: [
+                .init(color: CodyColors.bgCanvas.opacity(0.0), location: 0.0),
+                .init(color: CodyColors.bgCanvas.opacity(0.14), location: 0.25),
+                .init(color: CodyColors.bgCanvas.opacity(0.45), location: 0.55),
+                .init(color: CodyColors.bgCanvas.opacity(0.76), location: 0.82),
+                .init(color: CodyColors.bgCanvas.opacity(0.90), location: 1.0),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: totalHeight)
+        .ignoresSafeArea(.container, edges: .bottom)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

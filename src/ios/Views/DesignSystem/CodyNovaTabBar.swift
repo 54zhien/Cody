@@ -143,7 +143,7 @@ struct CodyNovaTabBar: View {
             Capsule()
                 .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
                 .frame(width: min(Self.restingPillWidth, width), height: Self.restingPillHeight)
-            CodyIconView(systemName: tool.iconName, size: 23)
+            CodyIconView(systemName: tool.iconName, size: 27)
                 .foregroundStyle(CodyColors.iconPrimary.opacity(0.85))
         }
         .frame(width: width, height: Self.barHeight)
@@ -297,11 +297,11 @@ struct CodyNovaTabBar: View {
     private func tabIcon(for dest: CodyNovaDestination, selected: Bool) -> some View {
         switch dest {
         case .home:
-            CodyIconView(selected ? .homeFilled : .home, size: 23)
+            CodyIconView(selected ? .homeFilled : .home, size: 27)
         case .tool(let tool):
-            CodyIconView(systemName: selected ? tool.selectedIconName : tool.iconName, size: 23)
+            CodyIconView(systemName: selected ? tool.selectedIconName : tool.iconName, size: 27)
         case .more:
-            CodyIconView(selected ? .moreFilled : .more, size: 22)
+            CodyIconView(selected ? .moreFilled : .more, size: 26)
         }
     }
 

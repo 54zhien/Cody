@@ -170,11 +170,11 @@ struct SettingsSheet: View {
     private func toolbarIcon(_ icon: CodyIcon) -> some View {
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
             // Let iOS 26 wrap the bare toolbar glyph in its single-layer native circular Liquid Glass button.
-            CodyIconView(icon, size: 19)
+            CodyIconView(icon, size: 23)
                 .foregroundStyle(CodyColors.iconPrimary)
                 .accessibilityHidden(true)
         } else {
-            CodyIconView(icon, size: 19)
+            CodyIconView(icon, size: 23)
                 .foregroundStyle(CodyColors.iconPrimary)
                 .frame(width: 44, height: 44)
                 .background(CodySettingsHairline.cardFill, in: Circle())
@@ -632,7 +632,7 @@ struct SettingsNovaDisclosure: View {
     var systemImage = "chevron.forward"
 
     var body: some View {
-        CodyIconView(systemName: systemImage, size: 15, fallbackWeight: .semibold)
+        CodyIconView(systemName: systemImage, size: 16, fallbackWeight: .semibold)
             .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
             .accessibilityHidden(true)
     }
@@ -673,7 +673,7 @@ struct SettingsNovaRowMenu<Actions: View>: View {
 
     var body: some View {
         Menu(content: actions) {
-            CodyIconView(.ellipsis, size: 20)
+            CodyIconView(.ellipsis, size: 23)
                 .foregroundStyle(CodyColors.iconSecondary)
                 .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
                 .contentShape(Rectangle())
@@ -691,7 +691,7 @@ struct SettingsIconLabel: View {
         Label {
             title
         } icon: {
-            CodyIconView(systemName: systemImage, size: 20)
+            CodyIconView(systemName: systemImage, size: 24)
                 .foregroundStyle(tint == .red ? CodyColors.statusErrorText : CodyColors.iconPrimary)
         }
     }

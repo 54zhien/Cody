@@ -114,11 +114,11 @@ struct NovaExploreView: View {
     private var header: some View {
         HStack {
             headerButton("Open sidebar", action: onOpenDrawer) {
-                CodyDrawerGlyph(size: 20)
+                CodyDrawerGlyph(size: 24)
             }
             Spacer()
             headerButton("Settings", action: onOpenSettings) {
-                CodyIconView(.settings, size: 21)
+                CodyIconView(.settings, size: 25)
                     .foregroundStyle(CodyColors.iconPrimary)
             }
         }
@@ -203,7 +203,7 @@ struct NovaExploreView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: CodySpacing.sm) {
-                CodyIconView(.search, size: 19)
+                CodyIconView(.search, size: 23)
                     .foregroundStyle(CodyColors.iconPrimary)
                     .frame(width: 36)
                     .accessibilityHidden(true)
@@ -310,8 +310,8 @@ private struct NovaExploreCardGestureOverlay: UIViewRepresentable {
             target: context.coordinator,
             action: #selector(Coordinator.handleLongPress(_:))
         )
-        longPress.minimumPressDuration = 0.30
-        longPress.allowableMovement = 10
+        longPress.minimumPressDuration = CodyMotion.longPressDuration
+        longPress.allowableMovement = CodyMotion.longPressAllowableMovement
         longPress.cancelsTouchesInView = false
         longPress.delegate = context.coordinator
 
@@ -351,7 +351,7 @@ struct NovaExploreCardBody: View {
 
             Spacer(minLength: 0)
 
-            CodyIconView(systemName: tool.iconName, size: 28)
+            CodyIconView(systemName: tool.iconName, size: 34)
                 .foregroundStyle(tool.exploreGlyphColor)
                 .accessibilityHidden(true)
         }

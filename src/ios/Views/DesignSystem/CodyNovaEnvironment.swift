@@ -189,7 +189,8 @@ final class CodyNovaTabStore: ObservableObject {
 final class CodyNovaPinDragState: ObservableObject {
     @Published var draggingTool: CodyNovaPinnedTool? = nil
     @Published var dragLocation: CGPoint = .zero
-    @Published var tabBarFrame: CGRect = .zero
+    /// Stored non-@Published so layout passes of the tab bar never trigger parent ContentView re-renders.
+    var tabBarFrame: CGRect = .zero
 
     var isHoveringTabBar: Bool {
         guard draggingTool != nil, !tabBarFrame.isEmpty else { return false }
@@ -264,7 +265,7 @@ enum CodyDisplayGeometry {
 /// Iconic two-bar unequal sidebar drawer glyph backed by our self-drawn vector SVG asset.
 struct CodyDrawerGlyph: View {
     var color: Color = CodyColors.iconPrimary
-    var size: CGFloat = 20
+    var size: CGFloat = 24
 
     var body: some View {
         CodyIconView(.drawer, size: size)

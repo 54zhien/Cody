@@ -223,7 +223,7 @@ extension ContentView {
 
     private func novaFolderLabel(_ group: SidebarGroup) -> some View {
         HStack(spacing: 16) {
-            CodyIconView(.folder, size: 22)
+            CodyIconView(.folder, size: 24)
                 .accessibilityHidden(true)
             if searchResultsActive {
                 Text(SessionRow.highlightedAttributedString(
@@ -242,7 +242,7 @@ extension ContentView {
             }
             if group.isCollapsed && group.anyUnread { SidebarUnreadDot() }
             if !searchResultsActive {
-                CodyIconView(group.isCollapsed ? .chevronRight : .chevronDown, size: 14)
+                CodyIconView(group.isCollapsed ? .chevronRight : .chevronDown, size: 15)
                     .foregroundStyle(CodyColors.textSecondary)
                     .accessibilityHidden(true)
             }

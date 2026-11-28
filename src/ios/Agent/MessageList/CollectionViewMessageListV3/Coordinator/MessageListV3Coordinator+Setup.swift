@@ -33,10 +33,12 @@ extension CollectionViewMessageListV3.Coordinator {
             self.vm = vm
             vc.loadViewIfNeeded()
             guard let collectionView = vc.collectionView else { return }
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
                 collectionView.topEdgeEffect.style = .soft
-                collectionView.bottomEdgeEffect.isHidden = true
+                collectionView.bottomEdgeEffect.style = .soft
+                collectionView.bottomEdgeEffect.isHidden = false
                 vc.setContentScrollView(collectionView, for: .top)
+                vc.setContentScrollView(collectionView, for: .bottom)
             }
             collectionView.delegate = self
             collectionView.prefetchDataSource = self
@@ -231,6 +233,7 @@ extension CollectionViewMessageListV3.Coordinator {
 private final class MessageListSheetOverlayHost: UIHostingController<SheetOverlayView> {
     private weak var scrollEdgeOwner: UIViewController?
     private weak var previousTopScrollView: UIScrollView?
+    private weak var previousBottomScrollView: UIScrollView?
     private weak var transcriptScrollView: UIScrollView?
     private var collectionView: UICollectionView? {
         (parent as? MessageListViewController)?.collectionView
@@ -238,40 +241,55 @@ private final class MessageListSheetOverlayHost: UIHostingController<SheetOverla
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        if #available(iOS 26.0, *), let collectionView {
-            bindTopScrollEdge(to: collectionView)
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, let collectionView {
+            bindScrollEdges(to: collectionView)
         }
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if #available(iOS 26.0, *), let collectionView {
-            bindTopScrollEdge(to: collectionView)
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, let collectionView {
+            bindScrollEdges(to: collectionView)
             collectionView.settleCodyScrollEdgeEffect()
         }
     }
 
     @available(iOS 26.0, *)
-    private func bindTopScrollEdge(to collectionView: UICollectionView) {
+    private func bindScrollEdges(to collectionView: UICollectionView) {
         guard let owner = navigationController?.topViewController,
               let ownerView = owner.viewIfLoaded,
-              collectionView.isDescendant(of: ownerView),
-              owner.contentScrollView(for: .top) !== collectionView else { return }
-        scrollEdgeOwner = owner
-        previousTopScrollView = owner.contentScrollView(for: .top)
+              collectionView.isDescendant(of: ownerView) else { return }
+        let needsTop = owner.contentScrollView(for: .top) !== collectionView
+        let needsBottom = owner.contentScrollView(for: .bottom) !== collectionView
+        guard needsTop || needsBottom else { return }
+        if scrollEdgeOwner !== owner {
+            scrollEdgeOwner = owner
+            previousTopScrollView = owner.contentScrollView(for: .top)
+            previousBottomScrollView = owner.contentScrollView(for: .bottom)
+        }
         transcriptScrollView = collectionView
-        owner.setContentScrollView(collectionView, for: .top)
+        if needsTop {
+            owner.setContentScrollView(collectionView, for: .top)
+        }
+        if needsBottom {
+            owner.setContentScrollView(collectionView, for: .bottom)
+        }
     }
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if #available(iOS 26.0, *),
-           let owner = scrollEdgeOwner, let list = transcriptScrollView,
-           owner.contentScrollView(for: .top) === list {
-            owner.setContentScrollView(previousTopScrollView, for: .top)
+           let owner = scrollEdgeOwner, let list = transcriptScrollView {
+            if owner.contentScrollView(for: .top) === list {
+                owner.setContentScrollView(previousTopScrollView, for: .top)
+            }
+            if owner.contentScrollView(for: .bottom) === list {
+                owner.setContentScrollView(previousBottomScrollView, for: .bottom)
+            }
         }
         scrollEdgeOwner = nil
         previousTopScrollView = nil
+        previousBottomScrollView = nil
         transcriptScrollView = nil
     }
 }

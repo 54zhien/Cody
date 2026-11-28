@@ -248,8 +248,8 @@ private struct ChatNovaDrawerButton: View {
         Button {
             openNovaDrawer?()
         } label: {
-            // Bare 19pt glyph (no fixed 40pt frame) so iOS 26 wraps it in a perfect 1:1 circular Liquid Glass button.
-            CodyDrawerGlyph(size: 19)
+            // Bare glyph (no fixed 40pt frame) so iOS 26 wraps it in a perfect 1:1 circular Liquid Glass button.
+            CodyDrawerGlyph(size: 23)
         }
         .accessibilityLabel(Text("Open sidebar"))
     }
@@ -267,7 +267,7 @@ private struct ChatNovaNewChatButton: View {
                 fallback()
             }
         } label: {
-            CodyIconView(.compose, size: 19)
+            CodyIconView(.compose, size: 23)
                 .foregroundStyle(CodyColors.iconPrimary)
         }
         .accessibilityLabel(Text("New Chat"))
@@ -526,7 +526,7 @@ private struct ChatTrailingMenu: View, Equatable {
             }
             #endif
         } label: {
-            CodyIconView(.ellipsis, size: 18)
+            CodyIconView(.ellipsis, size: 22)
                 .foregroundStyle(CodyColors.iconPrimary)
         }
         // [T-ios-voiceover-labels] Matches the label the UIKit ellipsis button
@@ -654,7 +654,7 @@ struct ChatTrailingMenuButton: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIButton {
         let button = HitPaddedButton(type: .system)
-        let ellipsisImage = CodyIcon.ellipsis.uiImage(pointSize: 18)
+        let ellipsisImage = CodyIcon.ellipsis.uiImage(pointSize: 22)
             ?? UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .medium))
         button.setImage(ellipsisImage, for: .normal)
         button.tintColor = UIColor(ChatColors.primaryText)
@@ -903,7 +903,7 @@ struct ChatNavMenuBarItemInstaller: UIViewRepresentable {
 
         init(menu: ChatTrailingMenuButton) {
             inner = ChatTrailingMenuButton.Coordinator(parent: menu)
-            let ellipsisImage = CodyIcon.ellipsis.uiImage(pointSize: 18)
+            let ellipsisImage = CodyIcon.ellipsis.uiImage(pointSize: 22)
                 ?? UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .medium))
             item = UIBarButtonItem(image: ellipsisImage, menu: nil)
             // Same colour as ChatTrailingMenuButton. A bar item otherwise takes

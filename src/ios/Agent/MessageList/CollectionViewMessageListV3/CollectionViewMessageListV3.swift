@@ -197,18 +197,8 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
             composerLiveHeight?.onChange = { [weak coord] in coord?.composerLiveHeightDidChange() }
         }
         coord.composerShrink.noteCommitted(inputBarHeight)
-        let usesSafeAreaBarBottom: Bool = {
-            if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-                return true
-            }
-            return false
-        }()
-        // On iOS 26+, `.safeAreaBar(edge: .bottom)` already expands `cv.safeAreaInsets.bottom`
-        // to cover `inputBarHeight + floatingBarHeight`, so only add the 8pt breathing room here.
-        let bottomPad: CGFloat = usesSafeAreaBarBottom
-            ? max(0, 8 - coord.composerShrink.absorbed)
-            : (inputBarHeight + floatingBarHeight + 8 - coord.composerShrink.absorbed)
-        let insetWithFade = usesSafeAreaBarBottom ? bottomPad : (bottomPad + bottomFadeClearance)
+        let bottomPad: CGFloat = inputBarHeight + floatingBarHeight + 8 - coord.composerShrink.absorbed
+        let insetWithFade = bottomPad + bottomFadeClearance
         let baseChanged = abs(coord.baseBottomInset - insetWithFade) > 0.5
         if baseChanged {
             let cv = vc.collectionView!

@@ -34,8 +34,7 @@ struct NovaChatGreeting: View {
         VStack(spacing: CodySpacing.lg) {
             Group {
                 if soul.icon.isEmpty {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 23, weight: .medium))
+                    CodyIconView(.sparkles, size: 28)
                         .foregroundStyle(CodyColors.iconPrimary)
                 } else {
                     SoulIconView(icon: soul.icon, size: soul.iconIsImage ? 52 : 26, cornerRadius: 26)
@@ -106,8 +105,7 @@ struct NovaChatGreeting: View {
             onSelect(draft)
         } label: {
             HStack(spacing: CodySpacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .medium))
+                CodyIconView(systemName: icon, size: 20, fallbackWeight: .medium)
                     .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityHidden(true)
                 Text(title)

@@ -57,7 +57,7 @@ struct MicButton: View {
                 Image(systemName: "keyboard")
                     .font(.system(size: 16, weight: .medium))
             } else {
-                CodyIconView(.mic, size: 22)
+                CodyIconView(.mic, size: 26)
             }
         }
             .foregroundStyle(isRecording ? CodyColors.statusErrorText : CodyColors.iconPrimary)

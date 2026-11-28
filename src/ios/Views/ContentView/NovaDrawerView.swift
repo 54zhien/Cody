@@ -16,25 +16,21 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                if showsPinnedHeader {
-                    pinnedHeader()
-                }
-                contentHost
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            if showsPinnedHeader {
+                pinnedHeader()
             }
-
+            contentHost
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .overlay(alignment: .bottom) {
             if showsActions {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    actions()
-                        // Concentric alignment with physical iPhone display corners:
-                        // capsule corner center = (edgeInset + pillHeight/2) == displayCornerRadius.
-                        .padding(.horizontal, concentricEdgeInset)
-                        .padding(.bottom, concentricEdgeInset)
-                }
-                .ignoresSafeArea(.container, edges: .bottom)
+                // Strictly (pillHeight + concentricEdgeInset) tall — zero full-screen Spacer wrapper —
+                // aligned concentrically with the physical display corners and fully interactive.
+                actions()
+                    .padding(.horizontal, concentricEdgeInset)
+                    .padding(.bottom, concentricEdgeInset)
+                    .ignoresSafeArea(.container, edges: .bottom)
             }
         }
     }
@@ -123,7 +119,7 @@ extension ContentView {
     private var novaSearchHeader: some View {
         HStack(spacing: CodySpacing.sm) {
             HStack(spacing: CodySpacing.sm) {
-                CodyIconView(.search, size: 19)
+                CodyIconView(.search, size: 22)
                     .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityHidden(true)
                 TextField("Search chats", text: $searchText)
@@ -194,8 +190,8 @@ extension ContentView {
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 20) {
-                CodyIconView(systemName: icon, size: 26)
-                    .frame(width: 28, height: 28, alignment: .center)
+                CodyIconView(systemName: icon, size: 28)
+                    .frame(width: 30, height: 30, alignment: .center)
                     .accessibilityHidden(true)
                 Text(title)
                     .font(.system(size: 21, weight: .medium))
@@ -214,7 +210,7 @@ extension ContentView {
                 Button {
                     selectNovaDestination(destination)
                 } label: {
-                    CodyIconView(systemName: destination.novaIcon, size: 20)
+                    CodyIconView(systemName: destination.novaIcon, size: 24)
                         .foregroundStyle(CodyColors.textPrimary)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(isSelected ? CodyColors.interactiveSecondaryBg : .clear, in: Capsule())
@@ -259,7 +255,7 @@ extension ContentView {
         return HStack {
             Button(action: startNewNovaChat) {
                 HStack(spacing: 10) {
-                    CodyIconView(.compose, size: 23)
+                    CodyIconView(.compose, size: 26)
                         .accessibilityHidden(true)
                     Text("New Chat")
                         .font(.system(size: 19, weight: .semibold))
@@ -278,7 +274,7 @@ extension ContentView {
                     if showSearchBar { dismissSearch() }
                     else { focusSearch() }
                 } label: {
-                    CodyIconView(.search, size: 24)
+                    CodyIconView(.search, size: 27)
                         .foregroundStyle(CodyColors.iconPrimary)
                         .frame(width: 52, height: pillHeight)
                         .contentShape(Rectangle())
@@ -333,7 +329,7 @@ extension ContentView {
 
     private func novaDrawerIcon(_ label: LocalizedStringKey, icon: CodyIcon, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            CodyIconView(icon, size: 18)
+            CodyIconView(icon, size: 21)
                 .foregroundStyle(CodyColors.iconPrimary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

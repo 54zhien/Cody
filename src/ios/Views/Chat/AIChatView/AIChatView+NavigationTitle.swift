@@ -345,9 +345,10 @@ private struct NovaModelPickerButton: View {
                                     instanceId: key.modelInstanceId,
                                     modelId: key.modelId)
                     .scaleEffect(0.83)
-                CodyIconView(.chevronDown, size: 11)
+                CodyIconView(.chevronDown, size: 13)
                     .foregroundStyle(CodyColors.iconTertiary)
             }
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

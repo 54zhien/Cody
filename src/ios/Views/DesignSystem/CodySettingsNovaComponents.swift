@@ -30,18 +30,18 @@ enum CodySettingsHairline {
         )
     )
 
-    static let capsuleRadius: CGFloat = 28
+    static let capsuleRadius: CGFloat = 27
 }
 
 /// Full-page ScrollView host for Nova Settings screens over a clean pure canvas (`bgCanvas`),
-/// letting hairline-outlined 28pt capsule cards stand out cleanly with zero default SwiftUI `List` chrome.
+/// letting hairline-outlined 27pt capsule cards stand out cleanly with zero default SwiftUI `List` chrome.
 struct CodySettingsScrollPage<Content: View>: View {
     var bottomInset: CGFloat = CodySpacing.xxxl
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         let scroll = ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 22) {
                 content()
             }
             .padding(.horizontal, CodySpacing.lg)
@@ -347,9 +347,9 @@ struct CodySettingsNovaToggleRow: View {
     var body: some View {
         HStack(spacing: 14) {
             if let systemImage {
-                CodyIconView(systemName: systemImage, size: 21)
+                CodyIconView(systemName: systemImage, size: 25)
                     .foregroundStyle(CodyColors.iconPrimary)
-                    .frame(width: 24, height: 24, alignment: .center)
+                    .frame(width: 26, height: 26, alignment: .center)
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
@@ -386,9 +386,9 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
     var body: some View {
         HStack(spacing: 14) {
             if let systemImage {
-                CodyIconView(systemName: systemImage, size: 21)
+                CodyIconView(systemName: systemImage, size: 25)
                     .foregroundStyle(titleColor == CodyColors.statusErrorText ? CodyColors.statusErrorText : CodyColors.iconPrimary)
-                    .frame(width: 24, height: 24, alignment: .center)
+                    .frame(width: 26, height: 26, alignment: .center)
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 3) {
@@ -408,7 +408,7 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
             Spacer(minLength: CodySpacing.sm)
             trailing()
             if showsDisclosure {
-                CodyIconView(.chevronRight, size: 15)
+                CodyIconView(.chevronRight, size: 16)
                     .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
                     .accessibilityHidden(true)
             }
@@ -453,7 +453,7 @@ struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
                         .lineLimit(1)
                 }
 
-                CodyIconView(.chevronRight, size: 15)
+                CodyIconView(.chevronRight, size: 16)
                     .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
                     .accessibilityHidden(true)
             }

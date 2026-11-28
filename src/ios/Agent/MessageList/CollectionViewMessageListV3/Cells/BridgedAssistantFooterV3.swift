@@ -219,7 +219,7 @@ struct BridgedAssistantFooterV3: View {
 
     private func replyAction(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            CodyIconView(systemName: icon, size: 17, fallbackWeight: .medium)
+            CodyIconView(systemName: icon, size: 21, fallbackWeight: .medium)
                 .foregroundStyle(CodyColors.iconSecondary)
                 .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
                 .contentShape(Rectangle())

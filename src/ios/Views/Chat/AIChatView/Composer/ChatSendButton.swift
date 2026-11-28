@@ -244,7 +244,7 @@ struct ChatSendButton: View {
     /// there (see below). ⌘Return keeps sending: through a hidden button on
     /// iOS 26, since a keyboard shortcut on a Menu would open the menu.
     private func actionGlyph(_ systemImage: String, enabled: Bool = true) -> some View {
-        CodyIconView(systemName: systemImage, size: systemImage == "stop.fill" ? 14 : 17, fallbackWeight: .semibold)
+        CodyIconView(systemName: systemImage, size: systemImage == "stop.fill" ? 15 : 20, fallbackWeight: .semibold)
             .foregroundStyle(enabled ? CodyColors.interactivePrimaryLabel : CodyColors.iconSecondary)
             .frame(width: Self.visualSize, height: Self.visualSize)
             .background(Circle().fill(enabled ? CodyColors.interactivePrimaryBg : CodyColors.interactiveControlDefault))
