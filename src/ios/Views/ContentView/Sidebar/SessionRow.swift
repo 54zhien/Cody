@@ -253,6 +253,7 @@ struct SessionRow: View, Equatable {
         .accessibilityValue(Text(verbatim: accessibilityDetails(date: relativeDate(session.updatedAt))))
     }
 
+    @ViewBuilder
     private var detailedRow: some View {
         let icon = sessionCategoryBadge(for: session.category)
         let date = relativeDate(session.updatedAt)
@@ -574,6 +575,7 @@ struct RemoteSessionRow: View {
         }
     }
 
+    @ViewBuilder
     private var detailedRow: some View {
         let icon = sessionCategoryBadge(for: session.category)
         HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
