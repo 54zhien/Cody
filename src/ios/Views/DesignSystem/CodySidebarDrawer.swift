@@ -17,8 +17,8 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
     @State private var dragProgress: CGFloat? = nil
     @State private var dragStartProgress: CGFloat = 0
 
-    private static let velocityThreshold: CGFloat = 620
-    private static let progressThreshold: CGFloat = 0.5
+    private static var velocityThreshold: CGFloat { 620 }
+    private static var progressThreshold: CGFloat { 0.5 }
 
     private var effectiveProgress: CGFloat {
         if let dragProgress {
