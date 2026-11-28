@@ -12,7 +12,6 @@ struct NovaExploreView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var searchText = ""
-    @State private var cardFrames: [CodyNovaPinnedTool: CGRect] = [:]
     @FocusState private var searchFocused: Bool
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
@@ -46,6 +45,7 @@ struct NovaExploreView: View {
     }
 
     var body: some View {
+        let isDraggingCard = pinDragState.draggingTool != nil
         Group {
             if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
                 exploreScrollView
@@ -56,7 +56,10 @@ struct NovaExploreView: View {
                     }
                     .safeAreaBar(edge: .bottom, spacing: 0) {
                         footer
+                            .opacity(isDraggingCard ? 0 : 1)
+                            .allowsHitTesting(!isDraggingCard)
                             .padding(.bottom, bottomClearance)
+                            .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isDraggingCard)
                     }
             } else {
                 exploreScrollView
@@ -65,6 +68,8 @@ struct NovaExploreView: View {
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         footer
+                            .opacity(isDraggingCard ? 0 : 1)
+                            .allowsHitTesting(!isDraggingCard)
                             .padding(.bottom, bottomClearance)
                             .background(alignment: .top) {
                                 VStack(spacing: 0) {
@@ -75,6 +80,7 @@ struct NovaExploreView: View {
                                 .ignoresSafeArea(edges: .bottom)
                                 .allowsHitTesting(false)
                             }
+                            .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isDraggingCard)
                     }
             }
         }
@@ -142,58 +148,46 @@ struct NovaExploreView: View {
     private func toolCard(_ tool: CodyNovaPinnedTool) -> some View {
         let isPinned = tabStore.isPinned(tool)
         let isBeingDragged = pinDragState.draggingTool == tool
-        let dragToPin = LongPressGesture(minimumDuration: 0.28)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    break
-                case .second(true, let drag):
-                    searchFocused = false
-                    let fallbackCenter: CGPoint = {
-                        if let rect = cardFrames[tool] {
-                            return CGPoint(x: rect.midX, y: rect.midY)
-                        }
-                        return drag?.location ?? .zero
-                    }()
-                    let point = drag?.location ?? fallbackCenter
-                    if pinDragState.draggingTool != tool {
-                        pinDragState.begin(tool: tool, at: point)
-                    } else {
-                        pinDragState.update(location: point)
-                    }
-                default:
-                    break
-                }
-            }
-            .onEnded { value in
-                if case .second(true, _) = value {
-                    withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
-                        pinDragState.end(pinInto: tabStore)
-                    }
-                } else if pinDragState.draggingTool == tool {
-                    pinDragState.cancel()
-                }
-            }
 
         return NovaExploreCardBody(tool: tool, isPinned: isPinned)
-            .opacity(isBeingDragged ? 0.28 : 1.0)
-            .scaleEffect(isBeingDragged ? 0.96 : 1.0)
+            .opacity(isBeingDragged ? 0.0 : 1.0)
             .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isBeingDragged)
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { rect in
-                cardFrames[tool] = rect
+            .overlay {
+                // UIKit scroll-safe tap + long-press-and-drag recognizer:
+                // - Immediate vertical swipe passes straight through to UIScrollView (zero scroll lock).
+                // - Short tap opens the tool.
+                // - Holding still for 0.30s lifts the card and drags smoothly into the bottom tab bar.
+                NovaExploreCardGestureOverlay(
+                    onTap: {
+                        guard pinDragState.draggingTool == nil else { return }
+                        searchFocused = false
+                        onSelectTool(tool)
+                    },
+                    onDragBegan: { point in
+                        searchFocused = false
+                        pinDragState.begin(tool: tool, at: point)
+                    },
+                    onDragChanged: { point in
+                        pinDragState.update(location: point)
+                    },
+                    onDragEnded: {
+                        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                            pinDragState.end(pinInto: tabStore)
+                        }
+                    },
+                    onDragCancelled: {
+                        pinDragState.cancel()
+                    }
+                )
             }
-            .onTapGesture {
-                guard pinDragState.draggingTool == nil else { return }
-                searchFocused = false
-                onSelectTool(tool)
-            }
-            .simultaneousGesture(dragToPin)
+            .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(Text(tool.title))
             .accessibilityValue(isPinned ? Text("Pinned") : Text(""))
+            .accessibilityAction {
+                searchFocused = false
+                onSelectTool(tool)
+            }
             .accessibilityAction(named: isPinned ? Text("Unpin from Tab Bar") : Text("Pin to Tab Bar")) {
                 withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
                     tabStore.togglePin(tool)
@@ -243,6 +237,92 @@ struct NovaExploreView: View {
         .padding(.horizontal, 16)
         .padding(.top, CodySpacing.xs)
         .padding(.bottom, CodySpacing.xsPlus)
+    }
+}
+
+/// Scroll-safe UIKit gesture bridge for Explore cards.
+/// Unlike SwiftUI `LongPressGesture.sequenced(before: DragGesture(minimumDistance: 0))` — which blocks
+/// `UIScrollView` panning inside a `ScrollView` — `UILongPressGestureRecognizer` fails cleanly on
+/// immediate scroll movement (>10pt) and only claims the touch once held still for 0.30s.
+private struct NovaExploreCardGestureOverlay: UIViewRepresentable {
+    let onTap: () -> Void
+    let onDragBegan: (CGPoint) -> Void
+    let onDragChanged: (CGPoint) -> Void
+    let onDragEnded: () -> Void
+    let onDragCancelled: () -> Void
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: NovaExploreCardGestureOverlay
+
+        init(parent: NovaExploreCardGestureOverlay) {
+            self.parent = parent
+        }
+
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            parent.onTap()
+        }
+
+        @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            guard let window = recognizer.view?.window else {
+                if recognizer.state == .ended || recognizer.state == .cancelled || recognizer.state == .failed {
+                    parent.onDragCancelled()
+                }
+                return
+            }
+            let location = recognizer.location(in: window)
+            switch recognizer.state {
+            case .began:
+                parent.onDragBegan(location)
+            case .changed:
+                parent.onDragChanged(location)
+            case .ended:
+                parent.onDragEnded()
+            case .cancelled, .failed:
+                parent.onDragCancelled()
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // Allow UIScrollView's pan gesture to run freely unless our long press has already begun.
+            if gestureRecognizer is UILongPressGestureRecognizer {
+                return gestureRecognizer.state == .possible
+            }
+            return false
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        tap.cancelsTouchesInView = false
+
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        longPress.minimumPressDuration = 0.30
+        longPress.allowableMovement = 10
+        longPress.cancelsTouchesInView = false
+        longPress.delegate = context.coordinator
+
+        tap.require(toFail: longPress)
+        view.addGestureRecognizer(tap)
+        view.addGestureRecognizer(longPress)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
     }
 }
 

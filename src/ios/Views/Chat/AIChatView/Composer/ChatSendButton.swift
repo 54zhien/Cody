@@ -196,17 +196,14 @@ struct ChatSendButton: View {
                         ? Text("Stop sub agents", comment: "VoiceOver label for the stop button while only background sub agents are running")
                         : Text("Stop scheduled tasks", comment: "VoiceOver label for the stop button while the conversation only waits on its scheduled tasks"))
                 .accessibilityHint(Text("Stops the reply that is being generated", comment: "VoiceOver hint for the stop button"))
-            } else {
+            } else if canSend {
                 // Typing while a sub agent runs must still be sendable: the user
                 // may want to redirect it, and the parent loop is free to answer.
-                // [T-send-longpress-return-mode] Not `.disabled(!canSend)`: a
-                // disabled control also ignores the long-press, and the menu must
-                // open from the grey button too (switching Return mode before
-                // typing is the common case). The tap is gated instead.
                 returnModeMenu(primaryAction: { if canSend { onSend() } }) {
                     actionGlyph("arrow.up", enabled: canSend)
                 }
                 .accessibilityLabel(Text("Send", comment: "VoiceOver label for the send button"))
+                .transition(.scale(scale: 0.72).combined(with: .opacity))
             }
         }
         // [T-stop-confirm] Close the confirmation when what it would stop

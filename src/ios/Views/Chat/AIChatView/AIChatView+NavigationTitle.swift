@@ -195,8 +195,8 @@ extension AIChatView {
                         .fixedSize()
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
             .modifier(NovaModelPillSurface(fallbackPulseOpacity: fallbackPulseOpacity))
             .onChange(of: vm.fallbackTrigger) { _ in
                 fallbackPulseOpacity = 0

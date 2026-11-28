@@ -26,7 +26,8 @@ extension ContentView {
     }
 
     private var novaBottomClearance: CGFloat {
-        showNovaTabBar ? CodyNovaTabBar.totalClearance : 0
+        guard showNovaTabBar else { return 0 }
+        return CodyNovaTabBar.safeAreaProtrusion(safeAreaBottom: CodyDisplayGeometry.bottomSafeAreaInset)
     }
 
     var stackLayout: some View {
@@ -35,15 +36,22 @@ extension ContentView {
                 .accessibilityHidden(isNovaDrawerOpen)
                 .overlay(alignment: .bottom) {
                     if showNovaTabBar {
-                        CodyNovaTabBar(
-                            selection: $novaDestination,
-                            tabStore: novaTabStore,
-                            pinDragState: novaPinDragState,
-                            onSelectDestination: selectNovaDestination,
-                            onReselect: { destination in
-                                if destination == .home { openNovaDrawer() }
-                            }
-                        )
+                        let bottomInset: CGFloat = CodyDisplayGeometry.bottomSafeAreaInset > 0
+                            ? CodyNovaTabBar.physicalBottomInset : 8
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            CodyNovaTabBar(
+                                selection: $novaDestination,
+                                tabStore: novaTabStore,
+                                pinDragState: novaPinDragState,
+                                onSelectDestination: selectNovaDestination,
+                                onReselect: { destination in
+                                    if destination == .home { openNovaDrawer() }
+                                }
+                            )
+                            .padding(.bottom, bottomInset)
+                        }
+                        .ignoresSafeArea(.container, edges: .bottom)
                         .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -57,8 +65,9 @@ extension ContentView {
                             )
                             let hovering = novaPinDragState.isHoveringTabBar
                             NovaExploreCardBody(tool: draggingTool, isPinned: novaTabStore.isPinned(draggingTool))
-                                .frame(width: hovering ? 128 : 164)
-                                .scaleEffect(hovering ? 0.78 : 1.03)
+                                .frame(width: hovering ? 120 : 164)
+                                .scaleEffect(hovering ? 0.45 : 1.03)
+                                .opacity(hovering ? 0.0 : 1.0)
                                 .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
                                 .position(localPoint)
                                 .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: hovering)
@@ -102,7 +111,7 @@ extension ContentView {
             .environment(\.openNovaDrawer, isPushed ? nil : { openNovaDrawer() })
             .environment(\.novaNewChatAction, { startNewNovaChat() })
             .environment(\.novaTabBarBottomInset, !isPushed && showNovaTabBar
-                         ? CodyNovaTabBar.barHeight + CodyNovaTabBar.bottomPadding : 0)
+                         ? novaBottomClearance : 0)
             .onAppear {
                 novaChatAppeared(id, isPushed: isPushed)
                 shareLog.info("🔄SESSION stackNav APPEAR id=\(id)")

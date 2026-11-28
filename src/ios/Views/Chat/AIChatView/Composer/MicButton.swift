@@ -55,17 +55,17 @@ struct MicButton: View {
         Group {
             if isVoiceActive {
                 Image(systemName: "keyboard")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 16, weight: .medium))
             } else {
-                CodyIconView(.mic, size: 19)
+                CodyIconView(.mic, size: 22)
             }
         }
-            .foregroundStyle(isRecording ? CodyColors.statusErrorText : CodyColors.iconSecondary)
+            .foregroundStyle(isRecording ? CodyColors.statusErrorText : CodyColors.iconPrimary)
             .frame(width: Self.diameter, height: Self.diameter)
-            .background(Circle().fill(isRecording ? CodyColors.statusErrorBg : CodyColors.bgListIcon))
-            .overlay {
-                Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
-                    .allowsHitTesting(false)
+            .background {
+                if isRecording {
+                    Circle().fill(CodyColors.statusErrorBg)
+                }
             }
             .opacity(micPressed ? CodyMotion.pressedOpacity : 1)
             .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isRecording)

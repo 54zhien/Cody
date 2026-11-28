@@ -1181,27 +1181,8 @@ final class MessageListViewController: UIViewController {
         topScrollEdgeHostView = topHost
         topScrollEdgeHostSpacer = topSpacer
         updateTopScrollEdgeHostFrame()
-
-        let bottomHost = UIView(frame: .zero)
-        bottomHost.backgroundColor = .clear
-        bottomHost.isUserInteractionEnabled = false
-        bottomHost.accessibilityElementsHidden = true
-
-        let bottomSpacer = UIView(frame: .zero)
-        bottomSpacer.backgroundColor = .clear
-        bottomSpacer.isUserInteractionEnabled = false
-        bottomSpacer.accessibilityElementsHidden = true
-        bottomHost.addSubview(bottomSpacer)
-
-        let bottomInteraction = UIScrollEdgeElementContainerInteraction()
-        bottomInteraction.scrollView = collectionView
-        bottomInteraction.edge = .bottom
-        bottomHost.addInteraction(bottomInteraction)
-
-        view.insertSubview(bottomHost, aboveSubview: collectionView)
-        bottomScrollEdgeHostView = bottomHost
-        bottomScrollEdgeHostSpacer = bottomSpacer
-        updateBottomScrollEdgeHostFrame()
+        // Bottom scroll-edge fade is driven natively by SwiftUI `.safeAreaBar(edge: .bottom)` +
+        // `.scrollEdgeEffectStyle(.soft, for: .bottom)` bound via `setContentScrollView(collectionView, for: .bottom)`.
     }
 
     private func updateTopScrollEdgeHostFrame() {

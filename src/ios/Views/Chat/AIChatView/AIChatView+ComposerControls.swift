@@ -30,7 +30,7 @@ extension AIChatView {
         // [T-ios-voiceover-labels] Labelled on the shared `icon` so both the
         // iOS 17 Menu branch and the iOS 16 confirmationDialog branch below
         // announce the same thing; otherwise VoiceOver reads "plus".
-        let icon = CodyIconView(.plus, size: 19)
+        let icon = CodyIconView(.plus, size: 22)
             .modifier(ComposerSecondaryControlSurface())
             .accessibilityLabel(Text("Add attachment", comment: "VoiceOver label for the attachment button"))
 

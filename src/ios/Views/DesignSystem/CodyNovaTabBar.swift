@@ -4,13 +4,16 @@ import UIKit
 /// Compact customizable icon-only bottom bar (`Home` · pinned custom tools · `More`).
 ///
 /// Design rules:
-/// - At rest: selected tab uses a calm translucent Material capsule (matching the Nova reference
-///   proportions, spacing, and bottom alignment) — NOT an always-on Liquid Glass bubble.
-/// - While pressing and dragging across the bar: the indicator lifts and morphs into a live
-///   iOS 26 Liquid Glass droplet that glides smoothly under the user's finger with selection haptics,
-///   then settles back into the resting Material capsule on release.
-/// - Pinned custom tools support long-press `.contextMenu` to unpin directly from the bottom bar.
-/// - Acts as a live drop target for Explore cards dragged down onto the bar.
+/// - Centered compact layout: slots use a capped max width so removing tools pulls the remaining
+///   icons inward toward the center instead of stretching them across the screen edges.
+/// - At rest: selected tab uses a calm translucent Material capsule (`64×40`) — NOT an always-on
+///   Liquid Glass bubble.
+/// - While pressing and dragging horizontally across the bar: the indicator lifts into a live
+///   iOS 26 Liquid Glass droplet that glides under the finger with haptic ticks and commits on release.
+/// - Long-pressing a pinned custom tool lifts a clean capsule preview (`.contentShape(.contextMenuPreview, Capsule())`)
+///   with an "Unpin from Tab Bar" menu action (never a rectangular white slab).
+/// - While dragging an Explore card over the bar, smoothly inserts a live preview icon slot so the
+///   centered bar expands outward to welcome the dropped tool.
 struct CodyNovaTabBar: View {
     @Binding var selection: CodyNovaDestination
     @ObservedObject var tabStore: CodyNovaTabStore
@@ -23,20 +26,31 @@ struct CodyNovaTabBar: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var activeIndicatorNamespace
 
-    @State private var barWidth: CGFloat = 0
+    @State private var rowWidth: CGFloat = 0
     @State private var isScrubbing: Bool = false
     @State private var scrubX: CGFloat = 0
     @State private var lastScrubIndex: Int? = nil
     @State private var scrubHoveredDestination: CodyNovaDestination? = nil
 
-    static let barHeight: CGFloat = 48
-    static let bottomPadding: CGFloat = 2
-    static let totalClearance: CGFloat = barHeight + bottomPadding
+    static let barHeight: CGFloat = 44
+    /// Physical bottom screen-edge inset on Face ID iPhones (tucked right above the home indicator).
+    static let physicalBottomInset: CGFloat = 18
+    /// Total band height measured from the physical bottom screen edge.
+    static let totalFromPhysicalBottom: CGFloat = barHeight + physicalBottomInset
 
     private static let restingPillWidth: CGFloat = 64
-    private static let restingPillHeight: CGFloat = 42
-    private static let scrubbingPillWidth: CGFloat = 74
-    private static let scrubbingPillHeight: CGFloat = 46
+    private static let restingPillHeight: CGFloat = 40
+    private static let scrubbingPillWidth: CGFloat = 72
+    private static let scrubbingPillHeight: CGFloat = 44
+    private static let maxSlotWidth: CGFloat = 78
+    private static let slotSpacing: CGFloat = 4
+
+    /// Height by which the bottom tab bar protrudes above the system bottom safe area.
+    @MainActor
+    static func safeAreaProtrusion(safeAreaBottom: CGFloat) -> CGFloat {
+        let bottomInset = safeAreaBottom > 0 ? physicalBottomInset : 8
+        return max(0, (barHeight + bottomInset) - safeAreaBottom)
+    }
 
     private var allDestinations: [CodyNovaDestination] {
         var items: [CodyNovaDestination] = [.home]
@@ -45,45 +59,66 @@ struct CodyNovaTabBar: View {
         return items
     }
 
+    /// Live preview tool inserted before `.more` when the user drags an unpinned Explore card over the bar.
+    private var previewDropTool: CodyNovaPinnedTool? {
+        guard pinDragState.isHoveringTabBar,
+              let tool = pinDragState.draggingTool,
+              !tabStore.isPinned(tool) else {
+            return nil
+        }
+        return tool
+    }
+
     var body: some View {
         let items = allDestinations
-        let count = max(1, items.count)
-        let isDropHover = pinDragState.isHoveringTabBar
-        let isDraggingFromExplore = pinDragState.draggingTool != nil
+        let previewTool = previewDropTool
+        let totalSlots = max(1, items.count + (previewTool != nil ? 1 : 0))
 
-        ZStack {
-            if isDraggingFromExplore {
-                dropZoneBackdrop(highlighted: isDropHover)
-            }
+        GeometryReader { geo in
+            let availableWidth = max(1, geo.size.width - 24)
+            let slotWidth = min(
+                Self.maxSlotWidth,
+                (availableWidth - Self.slotSpacing * CGFloat(max(0, totalSlots - 1))) / CGFloat(totalSlots)
+            )
+            let clusterWidth = slotWidth * CGFloat(totalSlots) + Self.slotSpacing * CGFloat(max(0, totalSlots - 1))
 
-            ZStack(alignment: .leading) {
-                // Live Liquid Glass droplet shown ONLY while actively scrubbing across the bar
-                if isScrubbing, barWidth > 0 {
-                    scrubbingDroplet
-                        .position(x: scrubX, y: Self.barHeight / 2)
-                        .allowsHitTesting(false)
-                        .transition(.scale(scale: 0.92).combined(with: .opacity))
-                }
+            HStack {
+                Spacer(minLength: 0)
 
-                HStack(spacing: 0) {
-                    ForEach(items) { dest in
-                        tabSlot(for: dest)
+                ZStack(alignment: .leading) {
+                    if isScrubbing, rowWidth > 0 {
+                        scrubbingDroplet
+                            .position(x: scrubX, y: Self.barHeight / 2)
+                            .allowsHitTesting(false)
+                            .transition(.scale(scale: 0.92).combined(with: .opacity))
+                    }
+
+                    HStack(spacing: Self.slotSpacing) {
+                        ForEach(items) { dest in
+                            if dest == .more, let previewTool {
+                                dropPreviewSlot(for: previewTool, width: slotWidth)
+                                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                            }
+                            tabSlot(for: dest, width: slotWidth)
+                        }
                     }
                 }
-            }
-            .coordinateSpace(name: "novaTabBarSpace")
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.width
-            } action: { newWidth in
-                if abs(newWidth - barWidth) > 0.5 {
-                    barWidth = newWidth
+                .frame(width: clusterWidth, height: Self.barHeight)
+                .coordinateSpace(name: "novaTabBarSpace")
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.width
+                } action: { newWidth in
+                    if abs(newWidth - rowWidth) > 0.5 {
+                        rowWidth = newWidth
+                    }
                 }
+                .simultaneousGesture(scrubGesture(items: items))
+
+                Spacer(minLength: 0)
             }
-            .simultaneousGesture(scrubGesture(items: items, count: count))
+            .frame(maxWidth: .infinity, height: Self.barHeight)
         }
         .frame(height: Self.barHeight)
-        .padding(.horizontal, 12)
-        .padding(.bottom, Self.bottomPadding)
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { frame in
@@ -97,16 +132,43 @@ struct CodyNovaTabBar: View {
             lastScrubIndex = nil
             scrubHoveredDestination = nil
         }
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: tabStore.pinnedTools)
+        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: previewTool)
         .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isScrubbing)
-        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isDropHover)
-        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: isDraggingFromExplore)
+    }
+
+    private func dropPreviewSlot(for tool: CodyNovaPinnedTool, width: CGFloat) -> some View {
+        ZStack {
+            Capsule()
+                .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+                .frame(width: min(Self.restingPillWidth, width), height: Self.restingPillHeight)
+            CodyIconView(systemName: tool.iconName, size: 23)
+                .foregroundStyle(CodyColors.iconPrimary.opacity(0.85))
+        }
+        .frame(width: width, height: Self.barHeight)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
-    private func tabSlot(for dest: CodyNovaDestination) -> some View {
+    private func tabSlot(for dest: CodyNovaDestination, width: CGFloat) -> some View {
         let isSelected = (selection == dest)
         let isVisuallyActive = isScrubbing ? (scrubHoveredDestination == dest) : isSelected
-        let baseButton = Button {
+        let pillWidth = min(Self.restingPillWidth, width)
+
+        let capsuleLabel = ZStack {
+            if isSelected && !isScrubbing {
+                restingMaterialPill(width: pillWidth)
+                    .matchedGeometryEffect(id: "novaRestingTabPill", in: activeIndicatorNamespace)
+            }
+
+            tabIcon(for: dest, selected: isVisuallyActive)
+                .foregroundStyle(isVisuallyActive ? CodyColors.iconPrimary : CodyColors.iconSecondary)
+        }
+        .frame(width: pillWidth, height: Self.restingPillHeight)
+        .contentShape(Capsule())
+        .contentShape(.contextMenuPreview, Capsule())
+
+        let button = Button {
             guard !isScrubbing else { return }
             if isSelected {
                 onReselect?(dest)
@@ -115,44 +177,36 @@ struct CodyNovaTabBar: View {
                 select(dest)
             }
         } label: {
-            ZStack {
-                if isSelected && !isScrubbing {
-                    restingMaterialPill
-                        .matchedGeometryEffect(id: "novaRestingTabPill", in: activeIndicatorNamespace)
-                }
-
-                tabIcon(for: dest, selected: isVisuallyActive)
-                    .foregroundStyle(isVisuallyActive ? CodyColors.iconPrimary : CodyColors.iconSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: Self.barHeight)
-            .contentShape(Rectangle())
+            capsuleLabel
         }
         .buttonStyle(CodyPressableButtonStyle())
         .accessibilityLabel(accessibilityLabel(for: dest))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
 
-        if case .tool(let tool) = dest {
-            baseButton
-                .contextMenu {
-                    Button(role: .destructive) {
-                        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
-                            if selection == .tool(tool) {
-                                select(.home)
+        Group {
+            if case .tool(let tool) = dest {
+                button
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                                if selection == .tool(tool) {
+                                    select(.home)
+                                }
+                                tabStore.unpin(tool)
                             }
-                            tabStore.unpin(tool)
+                        } label: {
+                            Label("Unpin from Tab Bar", systemImage: "pin.slash")
                         }
-                    } label: {
-                        Label("Unpin from Tab Bar", systemImage: "pin.slash")
                     }
-                }
-        } else {
-            baseButton
+            } else {
+                button
+            }
         }
+        .frame(width: width, height: Self.barHeight)
     }
 
-    /// Calm frosted Material pill at rest (matches Screenshot 3 — soft translucent surface, no glass rim).
-    private var restingMaterialPill: some View {
+    /// Calm frosted Material pill at rest (matches Screenshot 2 & 6).
+    private func restingMaterialPill(width: CGFloat) -> some View {
         Group {
             if reduceTransparency {
                 Capsule()
@@ -166,7 +220,7 @@ struct CodyNovaTabBar: View {
                     }
             }
         }
-        .frame(width: Self.restingPillWidth, height: Self.restingPillHeight)
+        .frame(width: width, height: Self.restingPillHeight)
     }
 
     /// Interactive iOS 26 Liquid Glass droplet shown exclusively while pressing & sliding across the bottom bar.
@@ -188,40 +242,11 @@ struct CodyNovaTabBar: View {
         }
     }
 
-    @ViewBuilder
-    private func dropZoneBackdrop(highlighted: Bool) -> some View {
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
-            Capsule()
-                .fill(highlighted ? CodyColors.textAccent.opacity(0.18) : Color.clear)
-                .glassEffect(.regular.interactive(), in: .capsule)
-                .overlay {
-                    Capsule()
-                        .strokeBorder(
-                            highlighted ? CodyColors.textAccent.opacity(0.75) : CodyColors.borderDefault,
-                            style: StrokeStyle(lineWidth: highlighted ? 1.5 : 1, dash: highlighted ? [] : [5, 4])
-                        )
-                }
-                .frame(height: Self.barHeight)
-                .allowsHitTesting(false)
-        } else {
-            Capsule()
-                .fill(highlighted ? CodyColors.textAccent.opacity(0.18) : CodyColors.bgSecondary.opacity(0.85))
-                .overlay {
-                    Capsule()
-                        .strokeBorder(
-                            highlighted ? CodyColors.textAccent : CodyColors.borderDefault,
-                            lineWidth: highlighted ? 1.5 : 1
-                        )
-                }
-                .frame(height: Self.barHeight)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private func scrubGesture(items: [CodyNovaDestination], count: Int) -> some Gesture {
+    private func scrubGesture(items: [CodyNovaDestination]) -> some Gesture {
         DragGesture(minimumDistance: 6, coordinateSpace: .named("novaTabBarSpace"))
             .onChanged { value in
-                guard barWidth > 0, !items.isEmpty else { return }
+                let count = items.count
+                guard rowWidth > 0, count > 0 else { return }
                 if !isScrubbing {
                     guard abs(value.translation.width) >= 6,
                           abs(value.translation.width) >= abs(value.translation.height) * 0.65 else {
@@ -231,8 +256,8 @@ struct CodyNovaTabBar: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
 
-                let slotWidth = barWidth / CGFloat(count)
-                let clampedX = min(max(value.location.x, slotWidth / 2), barWidth - slotWidth / 2)
+                let slotWidth = rowWidth / CGFloat(count)
+                let clampedX = min(max(value.location.x, slotWidth / 2), rowWidth - slotWidth / 2)
                 scrubX = clampedX
 
                 let idx = min(max(Int(clampedX / slotWidth), 0), count - 1)
@@ -271,11 +296,11 @@ struct CodyNovaTabBar: View {
     private func tabIcon(for dest: CodyNovaDestination, selected: Bool) -> some View {
         switch dest {
         case .home:
-            CodyIconView(selected ? .homeFilled : .home, size: 24)
+            CodyIconView(selected ? .homeFilled : .home, size: 23)
         case .tool(let tool):
-            CodyIconView(systemName: selected ? tool.selectedIconName : tool.iconName, size: 24)
+            CodyIconView(systemName: selected ? tool.selectedIconName : tool.iconName, size: 23)
         case .more:
-            CodyIconView(selected ? .moreFilled : .more, size: 23)
+            CodyIconView(selected ? .moreFilled : .more, size: 22)
         }
     }
 

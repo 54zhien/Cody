@@ -193,7 +193,7 @@ final class CodyNovaPinDragState: ObservableObject {
 
     var isHoveringTabBar: Bool {
         guard draggingTool != nil, !tabBarFrame.isEmpty else { return false }
-        return tabBarFrame.insetBy(dx: -12, dy: -36).contains(dragLocation)
+        return tabBarFrame.insetBy(dx: -16, dy: -44).contains(dragLocation)
     }
 
     func begin(tool: CodyNovaPinnedTool, at location: CGPoint) {
@@ -219,6 +219,45 @@ final class CodyNovaPinDragState: ObservableObject {
 
     func cancel() {
         draggingTool = nil
+    }
+}
+
+/// Hardware display corner geometry helper used to align bottom Liquid Glass capsules
+/// concentrically with the physical iPhone display corners.
+@MainActor
+enum CodyDisplayGeometry {
+    /// Active screen's physical display corner radius in points (e.g. ~55pt on iPhone Pro,
+    /// ~47pt on standard Face ID iPhones, 0pt on Home-button devices).
+    static var displayCornerRadius: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let activeScene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        let screen = activeScene?.screen ?? UIScreen.main
+        // Runtime hardware radius lookup with safe fallback to standard Face ID / flat screen radii.
+        let radiusKey = ["_", "display", "Corner", "Radius"].joined()
+        if let value = screen.value(forKey: radiusKey) as? CGFloat, value > 0 {
+            return value
+        }
+        let bottomSafe = activeScene?.keyWindow?.safeAreaInsets.bottom ?? 0
+        return bottomSafe >= 30 ? 55 : 0
+    }
+
+    /// Physical screen-edge inset (horizontal and bottom) that places a capsule of height `capsuleHeight`
+    /// so its corner circle center coincides with the physical display corner center (`R_screen - H/2`).
+    static func concentricEdgeInset(forCapsuleHeight capsuleHeight: CGFloat) -> CGFloat {
+        let screenRadius = displayCornerRadius
+        let capsuleRadius = capsuleHeight / 2
+        guard screenRadius > capsuleRadius else {
+            return 16
+        }
+        return max(12, screenRadius - capsuleRadius)
+    }
+
+    /// Current active window's bottom safe area inset (0 on Home-button devices, ~34pt on Face ID iPhones).
+    static var bottomSafeAreaInset: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let activeScene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        let window = activeScene?.windows.first(where: \.isKeyWindow) ?? activeScene?.windows.first
+        return window?.safeAreaInsets.bottom ?? 0
     }
 }
 

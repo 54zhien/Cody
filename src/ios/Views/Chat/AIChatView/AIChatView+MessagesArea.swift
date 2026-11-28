@@ -31,6 +31,96 @@ extension AIChatView {
         return 0
     }
 
+    @ViewBuilder
+    var chatMessagesWithBottomBar: some View {
+        let composerStack = VStack(spacing: 0) {
+            floatingToolPreview
+                // [T-in-chat-search] Leaves with the composer while searching.
+                .modifier(ChatSearchComposerHider(hidden: isChatSearchActive))
+                .shadow(color: Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0, alpha: 0.25) : UIColor(white: 0, alpha: 0) }), radius: 6, x: 0, y: 4)
+            #if DEBUG
+            if isReadOnly {
+                forkBanner
+            } else {
+                inputBar
+                    .modifier(ChatSearchComposerHider(hidden: isChatSearchActive))
+            }
+            #else
+            inputBar
+                .modifier(ChatSearchComposerHider(hidden: isChatSearchActive))
+            #endif
+        }
+        .capsuleProtectedFrame("inputBar")
+        .sheet(item: $helperSheetTarget) { target in
+            HelperTranscriptPage(target: target)
+                .helperTranscriptSheetStyle()
+        }
+        .sheet(item: $agentCallbackDetail) { target in
+            if target.opensScheduledTaskPage {
+                ScheduledTaskDetailView(callback: target.callback,
+                                        hostSessionId: target.hostSessionId)
+            } else {
+                ToolLiveSheet(toolBlocks: [target.block], initialIdx: 0, browserPool: nil)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openAgentCallback)) { note in
+            if let block = note.userInfo?["block"] as? AssistantBlock {
+                agentCallbackDetail = AgentCallbackDetailTarget(block: block)
+                return
+            }
+            guard let cb = note.userInfo?["callback"] as? AgentCallback else { return }
+            if let sid = note.userInfo?["sessionId"] as? String, !sid.isEmpty,
+               let mine = vm.sessionId, sid != mine { return }
+            agentCallbackDetail = AgentCallbackDetailTarget(callback: cb, hostSessionId: vm.sessionId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openHelperSheet)) { note in
+            guard let childId = note.userInfo?["childSessionId"] as? String else { return }
+            if let parent = note.userInfo?["parentSessionId"] as? String, !parent.isEmpty,
+               let mine = vm.sessionId, parent != mine { return }
+            let title = (note.userInfo?["title"] as? String) ?? ""
+            helperSheetTarget = HelperSheetTarget(id: childId, title: title)
+        }
+
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            messagesArea
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    composerStack
+                }
+                .overlay(alignment: .bottom) {
+                    ZStack(alignment: .bottom) {
+                        if vm.showSlashMenu || vm.showMentionMenu {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if vm.showSlashMenu { vm.dismissSlashMenu() }
+                                    else if vm.showMentionMenu { vm.dismissMentionMenu() }
+                                }
+                        }
+                        inputPopupOverlay
+                            .padding(.bottom, inputBarHeight)
+                    }
+                }
+        } else {
+            messagesArea
+                .overlay(alignment: .bottom) {
+                    ZStack(alignment: .bottom) {
+                        if vm.showSlashMenu || vm.showMentionMenu {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if vm.showSlashMenu { vm.dismissSlashMenu() }
+                                    else if vm.showMentionMenu { vm.dismissMentionMenu() }
+                                }
+                        }
+                        composerStack
+                        inputPopupOverlay
+                            .padding(.bottom, inputBarHeight)
+                    }
+                }
+        }
+    }
+
     var messagesArea: some View {
         ZStack {
             CollectionViewMessageListV3(
@@ -98,7 +188,7 @@ extension AIChatView {
                 .disabled(vm.editingMessageIndex != nil || voiceInputActive || speechManager.state == .recording)
                 .padding(.horizontal, CodySpacing.lg)
                 .padding(.top, Self.listTopInset(forTopBanners: topBannersHeight))
-                .padding(.bottom, inputBarHeight)
+                .padding(.bottom, usesLegacyBottomFade ? inputBarHeight : 12)
             }
         }
         .overlay(alignment: .bottom) {
@@ -148,7 +238,7 @@ extension AIChatView {
                     .padding(.trailing, 4)
                     .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
                     .padding(.horizontal, 12)
-                    .padding(.bottom, inputBarHeight + (hasFloatingPreview ? 80 : 12))
+                    .padding(.bottom, usesLegacyBottomFade ? (inputBarHeight + (hasFloatingPreview ? 80 : 12)) : 12)
                     // The capsule must not cover these floating scroll-jump buttons.
                     .capsuleProtectedFrame("scrollButtons")
                 }
@@ -167,7 +257,7 @@ extension AIChatView {
             .padding(.trailing, 4)
             .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
             .padding(.horizontal, 12)
-            .padding(.bottom, inputBarHeight + (hasFloatingPreview ? 80 : 12) + 92)
+            .padding(.bottom, (usesLegacyBottomFade ? (inputBarHeight + (hasFloatingPreview ? 80 : 12)) : 12) + 92)
             .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
             .capsuleProtectedFrame("downloadButton")
         }

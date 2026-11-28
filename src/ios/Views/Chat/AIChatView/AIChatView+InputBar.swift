@@ -189,10 +189,10 @@ extension AIChatView {
             .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: compact)
             .frame(maxWidth: maxContentWidth)
             .padding(.horizontal, CodyMetrics.Composer.outerMarginH)
-            .padding(.top, CodySpacing.sm)
-            // Sit tightly 6pt above the compact Nova bottom icon bar when visible,
+            .padding(.top, CodySpacing.xs)
+            // Sit snugly 8pt above the compact Nova bottom icon bar when visible,
             // or use the standard 8pt composer bottom margin when keyboard is up.
-            .padding(.bottom, novaTabBarBottomInset > 0 ? novaTabBarBottomInset + 6 : CodyMetrics.Composer.outerMarginBottom)
+            .padding(.bottom, novaTabBarBottomInset > 0 ? novaTabBarBottomInset + 8 : CodyMetrics.Composer.outerMarginBottom)
             // [T-ios-geometry-observer-crash] onGeometryChange replaces the
             // GeometryReader scaffold (async-renderer SIGTRAP — see the
             // floating-bar site). Fires with the initial value too, so the

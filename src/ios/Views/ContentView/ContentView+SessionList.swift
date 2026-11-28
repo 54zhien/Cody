@@ -206,10 +206,11 @@ extension ContentView {
 
     private func novaHistoryHeader(_ title: LocalizedStringKey, topPadding: CGFloat = 0) -> some View {
         Text(title)
-            .font(.system(size: 15, weight: .medium))
+            .font(.system(size: 16, weight: .medium))
             .foregroundStyle(CodyColors.textSecondary)
             .padding(.top, topPadding)
-            .frame(maxWidth: .infinity, minHeight: 34 + topPadding, alignment: .leading)
+            .padding(.bottom, 6)
+            .frame(maxWidth: .infinity, minHeight: 36 + topPadding, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
@@ -238,7 +239,7 @@ extension ContentView {
                 label: "Pinned",
                 ids: pinnedChats.prefix(max(0, limit - pinnedFolders.count)).map(\.id)
             )
-            novaHistoryHeader("Pinned")
+            novaHistoryHeader("Pinned", topPadding: 26)
             ForEach(pinnedFolders.prefix(limit)) { group in
                 Section {
                     erasedFolderSectionHeader(group, scrollProxy: scrollProxy)
@@ -283,6 +284,7 @@ extension ContentView {
     private func stackListBody(scrollProxy: ScrollViewProxy) -> AnyView {
         AnyView(
         List {
+            novaDrawerPrimaryNavRows
             if didInitialLoad, sessions.isEmpty, !isSearching, providerStore.modelGroups.isEmpty, !isSelecting {
                 novaSetupCard
                     .listRowInsets(EdgeInsets(top: CodySpacing.sm, leading: CodySpacing.md,
@@ -314,8 +316,7 @@ extension ContentView {
                 if isSearching {
                     novaHistoryHeader("Search Results")
                 } else if !chatGroups.isEmpty || !remoteDeviceSessions.isEmpty {
-                    let hasPinnedAbove = showPinnedSection && (groups.contains(where: \.isFolderPinned) || sessions.contains(where: \.isPinned))
-                    novaHistoryHeader("Chats", topPadding: hasPinnedAbove ? 22 : 4)
+                    novaHistoryHeader("Chats", topPadding: 26)
                 }
             }
             ForEach(Array(chatGroups.enumerated()), id: \.element.id) { index, group in

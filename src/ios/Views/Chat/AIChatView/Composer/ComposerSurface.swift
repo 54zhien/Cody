@@ -45,7 +45,8 @@ func composerShape(compact: Bool) -> AnyShape {
 struct ComposerRowsLayout: Layout {
     let compact: Bool
     private let spacing = CodyMetrics.Composer.buttonSpacing
-    private static let compactHorizontalPadding: CGFloat = 10
+    private static let compactHorizontalPadding: CGFloat = 12
+    private static let compactMinHeight: CGFloat = 54
 
     static var compactChromeWidth: CGFloat {
         2 * compactHorizontalPadding + 2 * CodyMetrics.Composer.buttonVisualSize
@@ -86,16 +87,15 @@ struct ComposerRowsLayout: Layout {
         let rowWidth = max(0, width - 2 * horizontal - leading.width - trailing.width - 2 * spacing)
 
         if compact {
-            let vertical: CGFloat = 6
+            let vertical: CGFloat = 8
             let field = subviews[1].sizeThatFits(ProposedViewSize(width: rowWidth, height: nil))
-            let height = max(CodyControlHeight.lg, max(field.height, leading.height, trailing.height) + 2 * vertical)
-            let bottom = height - vertical
+            let height = max(Self.compactMinHeight, max(field.height, leading.height, trailing.height) + 2 * vertical)
             return Rows(
                 field: CGRect(x: horizontal + leading.width + spacing, y: (height - field.height) / 2,
                               width: rowWidth, height: field.height),
-                leading: CGRect(origin: CGPoint(x: horizontal, y: bottom - leading.height), size: leading),
+                leading: CGRect(origin: CGPoint(x: horizontal, y: (height - leading.height) / 2), size: leading),
                 center: .zero,
-                trailing: CGRect(origin: CGPoint(x: width - horizontal - trailing.width, y: bottom - trailing.height), size: trailing),
+                trailing: CGRect(origin: CGPoint(x: width - horizontal - trailing.width, y: (height - trailing.height) / 2), size: trailing),
                 height: height
             )
         }
@@ -347,13 +347,8 @@ struct ComposerSecondaryControlSurface: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .foregroundStyle(isActive ? CodyCategoryTint.blue.color : CodyColors.iconSecondary)
+            .foregroundStyle(isActive ? CodyCategoryTint.blue.color : CodyColors.iconPrimary)
             .frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
-            .background(Circle().fill(isActive ? CodyColors.bgSecondary : CodyColors.bgListIcon))
-            .overlay {
-                Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
-                    .allowsHitTesting(false)
-            }
             .contentShape(ComposerControlHitShape())
     }
 }

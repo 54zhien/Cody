@@ -225,7 +225,7 @@ struct SessionRow: View, Equatable {
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 highlightedText(
                     session.title ?? AppLocalized("New Chat"),
-                    font: .system(size: fontSettings.scaledApp(18), weight: isHighlighted ? .medium : .regular),
+                    font: .system(size: fontSettings.scaledApp(19), weight: isHighlighted ? .medium : .regular),
                     color: CodyColors.textPrimary
                 )
                 .lineLimit(1)
@@ -246,7 +246,7 @@ struct SessionRow: View, Equatable {
         }
         .padding(.trailing, CodySpacing.sm)
         .padding(.vertical, CodySpacing.xs)
-        .frame(minHeight: 48)
+        .frame(minHeight: 54)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(isVisuallyLocked ? Text("Locked") : Text(verbatim: session.title ?? AppLocalized("New Chat")))

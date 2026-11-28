@@ -1,76 +1,91 @@
 import SwiftUI
 
-struct NovaDrawerView<Header: View, History: View, Actions: View>: View {
+private enum NovaDrawerMetrics {
+    static let bottomPillHeight: CGFloat = 56
+}
+
+struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
     let showsActions: Bool
-    @ViewBuilder let header: () -> Header
-    @ViewBuilder let history: () -> History
+    let showsPinnedHeader: Bool
+    @ViewBuilder let pinnedHeader: () -> PinnedHeader
+    @ViewBuilder let content: () -> Content
     @ViewBuilder let actions: () -> Actions
 
+    private var concentricEdgeInset: CGFloat {
+        CodyDisplayGeometry.concentricEdgeInset(forCapsuleHeight: NovaDrawerMetrics.bottomPillHeight)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            header()
-            historyHost
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .overlay(alignment: .bottom) {
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                if showsPinnedHeader {
+                    pinnedHeader()
+                }
+                contentHost
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
             if showsActions {
-                actions()
-                    // Concentric corner alignment with iPhone display corners (~55pt radius):
-                    // 54pt-tall capsules have 27pt radius, so 28pt screen-edge insets align
-                    // capsule corner centers concentrically with the physical display corners.
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 26)
-                    .ignoresSafeArea(.container, edges: .bottom)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    actions()
+                        // Concentric alignment with physical iPhone display corners:
+                        // capsule corner center = (edgeInset + pillHeight/2) == displayCornerRadius.
+                        .padding(.horizontal, concentricEdgeInset)
+                        .padding(.bottom, concentricEdgeInset)
+                }
+                .ignoresSafeArea(.container, edges: .bottom)
             }
         }
     }
 
     @ViewBuilder
-    private var historyHost: some View {
+    private var contentHost: some View {
+        let clearance = max(72, NovaDrawerMetrics.bottomPillHeight + concentricEdgeInset - CodyDisplayGeometry.bottomSafeAreaInset + 16)
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            history()
+            content()
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .safeAreaBar(edge: .bottom, spacing: 0) {
-                    if showsActions { Color.clear.frame(height: 84) }
+                    if showsActions { Color.clear.frame(height: clearance) }
                 }
         } else {
-            history()
+            content()
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if showsActions { Color.clear.frame(height: 84) }
+                    if showsActions { Color.clear.frame(height: clearance) }
                 }
         }
     }
 }
 
 extension ContentView {
-    private var novaPrimaryDestinations: [CodyNovaDestination] {
+    var novaPrimaryDestinations: [CodyNovaDestination] {
         [.home] + novaTabStore.pinnedTools.map { .tool($0) } + [.more]
     }
 
+    var novaDrawerHorizontalInset: CGFloat {
+        CodyDisplayGeometry.concentricEdgeInset(forCapsuleHeight: NovaDrawerMetrics.bottomPillHeight)
+    }
+
     var novaDrawer: some View {
-        NovaDrawerView(showsActions: !isSelecting) {
+        let inset = novaDrawerHorizontalInset
+        return NovaDrawerView(
+            showsActions: !isSelecting,
+            showsPinnedHeader: isSelecting || showSearchBar
+        ) {
             Group {
                 if isSelecting {
                     novaSelectionHeader
                 } else if showSearchBar {
                     novaSearchHeader
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(novaPrimaryDestinations) { destination in
-                            novaDrawerDestination(destination.novaTitle, icon: destination.novaIcon) {
-                                selectNovaDestination(destination)
-                            }
-                            .accessibilityAddTraits(novaDestination == destination ? .isSelected : [])
-                        }
-                    }
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 22)
-            .padding(.bottom, 20)
-        } history: {
+            .padding(.horizontal, inset)
+            .padding(.top, CodySpacing.lg)
+            .padding(.bottom, CodySpacing.sm)
+        } content: {
+            // Whole drawer scrolls as one unified sheet (top nav + Pinned + Chats).
             sessionList(useNavigationLinks: true)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, inset)
         } actions: {
             novaDrawerActions
         }
@@ -80,6 +95,29 @@ extension ContentView {
             showSelectModels: $showSelectModels,
             showRestoreBackup: $showRestoreBackup
         ))
+    }
+
+    /// Top primary navigation rows rendered inside `stackListBody` so scrolling moves the entire sidebar together.
+    @ViewBuilder
+    var novaDrawerPrimaryNavRows: some View {
+        if !isSelecting && !showSearchBar {
+            Section {
+                ForEach(novaPrimaryDestinations) { destination in
+                    novaDrawerDestination(destination.novaTitle, icon: destination.novaIcon) {
+                        selectNovaDestination(destination)
+                    }
+                    .accessibilityAddTraits(novaDestination == destination ? .isSelected : [])
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .modifier(SelectionDisabledIfAvailable())
+                }
+            } header: {
+                Color.clear
+                    .frame(height: 14)
+                    .listRowInsets(EdgeInsets())
+            }
+        }
     }
 
     private var novaSearchHeader: some View {
@@ -149,21 +187,21 @@ extension ContentView {
         .foregroundStyle(CodyColors.textPrimary)
     }
 
-    private func novaDrawerDestination(
+    func novaDrawerDestination(
         _ title: LocalizedStringKey,
         icon: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 18) {
-                CodyIconView(systemName: icon, size: 24)
-                    .frame(width: 26, height: 26, alignment: .center)
+            HStack(spacing: 20) {
+                CodyIconView(systemName: icon, size: 26)
+                    .frame(width: 28, height: 28, alignment: .center)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 19, weight: .medium))
+                    .font(.system(size: 21, weight: .medium))
             }
             .foregroundStyle(CodyColors.textPrimary)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(CodyPressableButtonStyle())
@@ -214,31 +252,35 @@ extension ContentView {
     }
 
     private var novaDrawerActions: some View {
-        HStack {
+        let pillHeight = NovaDrawerMetrics.bottomPillHeight
+        let avatarSize: CGFloat = 38
+        let avatarEdgeInset = (pillHeight - avatarSize) / 2 // 9pt concentric with capsule semicircle
+
+        return HStack {
             Button(action: startNewNovaChat) {
                 HStack(spacing: 10) {
-                    CodyIconView(.compose, size: 22)
+                    CodyIconView(.compose, size: 23)
                         .accessibilityHidden(true)
                     Text("New Chat")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 19, weight: .semibold))
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 24)
-                .frame(height: 54)
+                .padding(.horizontal, 26)
+                .frame(height: pillHeight)
                 .modifier(NovaDrawerNewChatGlassCapsule())
             }
             .buttonStyle(CodyPressableButtonStyle())
 
             Spacer(minLength: CodySpacing.sm)
 
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Button {
                     if showSearchBar { dismissSearch() }
                     else { focusSearch() }
                 } label: {
-                    CodyIconView(.search, size: 23)
+                    CodyIconView(.search, size: 24)
                         .foregroundStyle(CodyColors.iconPrimary)
-                        .frame(width: 50, height: 54)
+                        .frame(width: 52, height: pillHeight)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(CodyPressableButtonStyle())
@@ -246,20 +288,20 @@ extension ContentView {
                 .accessibilityAddTraits(showSearchBar ? .isSelected : [])
 
                 Button { openNovaToolSheet(.settings) } label: {
-                    SoulIconView(icon: SoulStore.cachedMetadata.icon, size: 22)
-                        .frame(width: 34, height: 34)
+                    SoulIconView(icon: SoulStore.cachedMetadata.icon, size: 24)
+                        .frame(width: avatarSize, height: avatarSize)
                         .background(CodyColors.statusSuccessBg, in: Circle())
                         .clipShape(Circle())
-                        .frame(width: 44, height: 54)
+                        .frame(width: avatarSize + 8, height: pillHeight)
                         .contentShape(Rectangle())
                 }
-                .padding(.trailing, 5)
+                .padding(.trailing, max(0, avatarEdgeInset - 4))
                 .buttonStyle(CodyPressableButtonStyle())
                 .accessibilityLabel("Settings")
                 .accessibilityValue(Text(verbatim: soulName))
                 .contextMenu { novaProfileMenu }
             }
-            .frame(height: 54)
+            .frame(height: pillHeight)
             .modifier(NovaDrawerGlassCapsule())
         }
     }
