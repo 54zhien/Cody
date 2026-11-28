@@ -221,6 +221,7 @@ struct AIChatView: View {
     @ObservedObject private var fontSettings = FontSettings.shared
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparencyForComposerBlur
     @Environment(\.isNovaHostedChat) var isNovaHostedChat
     @Environment(\.openNovaDrawer) var openNovaDrawer
     @Environment(\.novaNewChatAction) var novaNewChatAction
@@ -546,9 +547,7 @@ struct AIChatView: View {
         // never changes, so AnyView keeps a stable identity and the subtree's
         // state is preserved.
         AnyView(ZStack {
-            // Messages — on iOS 26+, host the composer stack in native `.safeAreaBar(edge: .bottom)`
-            // with `.scrollEdgeEffectStyle(.soft, for: .bottom)` so Chat gets the exact same smooth
-            // progressive bottom scroll-edge blur as Explore (and Image 2).
+            // The transcript hosts the variable-blur band behind the composer.
             chatMessagesWithBottomBar
                 // Collapse the expanded speech player on a tap anywhere in the chat
                 // area. Attached as a SIMULTANEOUS TapGesture directly on the content

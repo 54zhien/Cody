@@ -198,10 +198,9 @@ struct CodyEdgeFadeBar: View {
     }
 }
 
-/// The native bottom edge used by tool lists and the conversation list.
+/// The native bottom edge used by Nova tool lists.
 struct CodyBottomScrollEdgeHost: ViewModifier {
     let clearance: CGFloat
-    var contentManagesBottomInset = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -215,17 +214,6 @@ struct CodyBottomScrollEdgeHost: ViewModifier {
                             .accessibilityHidden(true)
                     }
                 }
-        } else if contentManagesBottomInset {
-            content.overlay(alignment: .bottom) {
-                if clearance > 0 {
-                    VStack(spacing: 0) {
-                        legacyRamp
-                        CodyColors.bgCanvas.frame(height: clearance)
-                    }
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                }
-            }
         } else {
             content.safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: clearance)

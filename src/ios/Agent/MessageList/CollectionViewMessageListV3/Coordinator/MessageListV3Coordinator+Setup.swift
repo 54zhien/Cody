@@ -36,7 +36,7 @@ extension CollectionViewMessageListV3.Coordinator {
             if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
                 collectionView.topEdgeEffect.style = .soft
                 collectionView.bottomEdgeEffect.style = .soft
-                collectionView.bottomEdgeEffect.isHidden = false
+                collectionView.bottomEdgeEffect.isHidden = vc.composerBlurHeight != nil
                 vc.setContentScrollView(collectionView, for: .top)
                 vc.setContentScrollView(collectionView, for: .bottom)
             }

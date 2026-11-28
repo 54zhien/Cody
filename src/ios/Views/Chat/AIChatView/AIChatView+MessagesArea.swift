@@ -143,13 +143,9 @@ extension AIChatView {
                 extraTopInset: Self.listTopInset(forTopBanners: topBannersHeight),
                 composerLiveHeight: composerLiveHeight,
                 bottomFadeClearance: composerFadeClearance,
-                usesSwiftUIBottomScrollEdge: true
+                composerBlurHeight: showsComposerFade ? composerFadeFloorHeight : 0
             )
             .ignoresSafeArea(.container, edges: .bottom)
-            .modifier(CodyBottomScrollEdgeHost(
-                clearance: showsComposerFade ? composerFadeFloorHeight : 0,
-                contentManagesBottomInset: true
-            ))
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
@@ -241,7 +237,7 @@ extension AIChatView {
     }
 
     private var showsComposerFade: Bool {
-        inputBarHeight > 0 && !isChatSearchActive
+        inputBarHeight > 0 && !isChatSearchActive && !vm.messages.isEmpty && !reduceTransparencyForComposerBlur
     }
 
     private var composerFadeFloorHeight: CGFloat {
@@ -252,8 +248,7 @@ extension AIChatView {
     /// Reserve the part of the ramp above the list's existing 8pt breathing room.
     private var composerFadeClearance: CGFloat {
         guard showsComposerFade else { return 0 }
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive { return 12 }
-        return CodyMetrics.Conversation.bottomFadeHeight - 2 * CodySpacing.sm
+        return 12
     }
 
     /// Shared label style for the floating scroll buttons (up / down).

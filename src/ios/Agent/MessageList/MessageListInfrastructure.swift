@@ -10,6 +10,7 @@
 //
 
 import Combine
+import ObjectiveC
 import SwiftUI
 import UIKit
 
@@ -1078,10 +1079,70 @@ final class NoAnimationCollectionView: UICollectionView {
 
 // MARK: - MessageListViewController
 
+/// The conversation's bottom band. The mask controls blur strength per row.
+private final class ConversationVariableBlurView: UIVisualEffectView {
+    static let topOverlap: CGFloat = 12
+
+    private static let maskImage: UIImage = {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let size = CGSize(width: 1, height: 512)
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let colors = [UIColor.clear.cgColor, UIColor.black.cgColor, UIColor.black.cgColor]
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                            colors: colors as CFArray,
+                                            locations: [0, 0.65, 1]) else { return }
+            context.cgContext.drawLinearGradient(gradient, start: .zero,
+                                                 end: CGPoint(x: 0, y: size.height), options: [])
+        }
+    }()
+
+    private var fallbackMask: UIImageView?
+
+    init(radius: CGFloat) {
+        let mask = Self.maskImage
+        let selector = NSSelectorFromString("effectWithVariableBlurRadius:imageMask:")
+        let variableEffect: UIVisualEffect?
+        if let method = class_getClassMethod(UIBlurEffect.self, selector) {
+            typealias Factory = @convention(c) (AnyClass, Selector, CGFloat, UIImage) -> UIVisualEffect?
+            let makeEffect = unsafeBitCast(method_getImplementation(method), to: Factory.self)
+            variableEffect = makeEffect(UIBlurEffect.self, selector, radius, mask)
+        } else {
+            variableEffect = nil
+        }
+
+        super.init(effect: variableEffect ?? UIBlurEffect(style: .systemMaterial))
+        if variableEffect == nil {
+            fallbackMask = UIImageView(image: mask)
+        }
+        isUserInteractionEnabled = false
+        accessibilityElementsHidden = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("Use init(radius:)") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if let fallbackMask, fallbackMask.frame != bounds {
+            fallbackMask.frame = bounds
+            mask = fallbackMask
+        }
+    }
+}
+
 final class MessageListViewController: UIViewController {
     var collectionView: UICollectionView!
     var messageListLayout: MessageListLayout!
-    var usesSwiftUIBottomScrollEdge = false
+    // An optional height distinguishes the conversation from helper transcripts.
+    // A zero height disables the band without restoring the standard bottom edge.
+    var composerBlurHeight: CGFloat? {
+        didSet {
+            if composerBlurHeight != oldValue { layoutComposerBlur() }
+        }
+    }
+    private var composerBlurView: ConversationVariableBlurView?
 
     /// Extra vertical distance below the navigation bar that Apple's native
     /// iOS 26 `.soft` scroll-edge host covers (at least the default extension
@@ -1150,12 +1211,35 @@ final class MessageListViewController: UIViewController {
         super.viewDidLayoutSubviews()
         updateTopScrollEdgeHostFrame()
         updateBottomScrollEdgeHostFrame()
+        layoutComposerBlur()
     }
 
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
         updateTopScrollEdgeHostFrame()
         updateBottomScrollEdgeHostFrame()
+        layoutComposerBlur()
+    }
+
+    private func layoutComposerBlur() {
+        guard isViewLoaded, let collectionView, let composerBlurHeight, composerBlurHeight > 0 else {
+            composerBlurView?.isHidden = true
+            return
+        }
+
+        let blur: ConversationVariableBlurView
+        if let composerBlurView {
+            blur = composerBlurView
+        } else {
+            blur = ConversationVariableBlurView(radius: 4)
+            view.insertSubview(blur, aboveSubview: collectionView)
+            composerBlurView = blur
+        }
+
+        let height = min(view.bounds.height, composerBlurHeight
+                         + ConversationVariableBlurView.topOverlap + view.safeAreaInsets.bottom)
+        blur.frame = CGRect(x: 0, y: view.bounds.maxY - height, width: view.bounds.width, height: height)
+        blur.isHidden = height <= 0
     }
 
     /// Extends Apple's native iOS 26 `.soft` top and bottom scroll-edge effects
@@ -1165,7 +1249,7 @@ final class MessageListViewController: UIViewController {
         guard #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive else { return }
         collectionView.topEdgeEffect.style = .soft
         collectionView.bottomEdgeEffect.style = .soft
-        collectionView.bottomEdgeEffect.isHidden = false
+        collectionView.bottomEdgeEffect.isHidden = composerBlurHeight != nil
         setContentScrollView(collectionView, for: .top)
         setContentScrollView(collectionView, for: .bottom)
 
@@ -1190,8 +1274,7 @@ final class MessageListViewController: UIViewController {
         topScrollEdgeHostSpacer = topSpacer
         updateTopScrollEdgeHostFrame()
 
-        // The conversation's shared SwiftUI safeAreaBar owns this edge.
-        guard !usesSwiftUIBottomScrollEdge else { return }
+        guard composerBlurHeight == nil else { return }
         let bottomHost = UIView(frame: .zero)
         bottomHost.backgroundColor = .clear
         bottomHost.isUserInteractionEnabled = false

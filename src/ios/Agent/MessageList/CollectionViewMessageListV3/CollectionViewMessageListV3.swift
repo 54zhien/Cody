@@ -130,11 +130,11 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
     /// releases (see `ComposerShrinkAbsorption`). nil = no composer.
     var composerLiveHeight: ComposerLiveHeight? = nil
     var bottomFadeClearance: CGFloat = 0
-    var usesSwiftUIBottomScrollEdge = false
+    var composerBlurHeight: CGFloat? = nil
 
     func makeUIViewController(context: Context) -> MessageListViewController {
         let vc = MessageListViewController()
-        vc.usesSwiftUIBottomScrollEdge = usesSwiftUIBottomScrollEdge
+        vc.composerBlurHeight = composerBlurHeight
         context.coordinator.onRetryLast = onRetryLast
         context.coordinator.attach(to: vc, vm: vm)
         // Drops are handled exclusively by the SwiftUI `.onDrop` on the chat
@@ -159,6 +159,7 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         // (device ring trace: coordinator vm read false at every sync while
         // the buttons stayed hidden at diff≈2700pt from the bottom).
         coord.rebindViewModelIfNeeded(vm)
+        vc.composerBlurHeight = composerBlurHeight
         coord.onRetryMessage = onRetryMessage
         coord.onOpenSoulSettings = onOpenSoulSettings
         coord.onRetryLast = onRetryLast
