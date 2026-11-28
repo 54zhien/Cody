@@ -262,7 +262,11 @@ private struct ChatNovaNewChatButton: View {
 
     var body: some View {
         Button {
-            novaNewChatAction?() ?? fallback()
+            if let novaNewChatAction {
+                novaNewChatAction()
+            } else {
+                fallback()
+            }
         } label: {
             Image(systemName: "square.and.pencil")
                 .font(.system(size: 17, weight: .medium))
