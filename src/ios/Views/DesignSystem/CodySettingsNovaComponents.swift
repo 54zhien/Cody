@@ -30,7 +30,7 @@ struct CodySettingsNovaSection<Content: View>: View {
     init(
         _ title: LocalizedStringKey? = nil,
         footer: LocalizedStringKey? = nil,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.footer = footer
