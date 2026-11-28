@@ -120,6 +120,7 @@ struct SessionRow: View, Equatable {
             && lhs.matchSnippet == rhs.matchSnippet
             && lhs.isActiveOverride == rhs.isActiveOverride
             && lhs.isSuspendedOverride == rhs.isSuspendedOverride
+            && lhs.isFrameless == rhs.isFrameless
     }
 
     let session: ChatSession
@@ -138,6 +139,7 @@ struct SessionRow: View, Equatable {
     /// observed trackers directly. [T-ios-ipad-sidebar-running-indicator-stale]
     var isActiveOverride: Bool? = nil
     var isSuspendedOverride: Bool? = nil
+    let isFrameless: Bool
     @ObservedObject private var activityTracker = SessionActivityTracker.shared
     @ObservedObject private var concurrencyManager = SessionConcurrencyManager.shared
     @ObservedObject private var lockStore = SessionLockStore.shared
@@ -156,13 +158,15 @@ struct SessionRow: View, Equatable {
          isActive: Bool? = nil,
          isSuspended: Bool? = nil,
          highlightQuery: String? = nil,
-         matchSnippet: String? = nil) {
+         matchSnippet: String? = nil,
+         isFrameless: Bool = false) {
         self.session = session
         self.isHighlighted = isHighlighted
         self.isActiveOverride = isActive
         self.isSuspendedOverride = isSuspended
         self.highlightQuery = highlightQuery
         self.matchSnippet = matchSnippet
+        self.isFrameless = isFrameless
     }
 
     private var isActive: Bool {
@@ -209,6 +213,47 @@ struct SessionRow: View, Equatable {
     }
 
     var body: some View {
+        if isFrameless {
+            framelessRow
+        } else {
+            detailedRow
+        }
+    }
+
+    private var framelessRow: some View {
+        HStack(spacing: CodySpacing.sm) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                highlightedText(
+                    session.title ?? AppLocalized("New Chat"),
+                    font: .system(size: fontSettings.scaledApp(16)),
+                    color: CodyColors.textPrimary
+                )
+                .lineLimit(1)
+
+                if let snippet = matchSnippet, !snippet.isEmpty {
+                    highlightedText(
+                        snippet,
+                        font: .system(size: fontSettings.scaledApp(13)),
+                        color: CodyColors.textSecondary
+                    )
+                    .lineLimit(2)
+                }
+            }
+            .modifier(LockedRowEffect(isLocked: isVisuallyLocked))
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            statusIndicators(tint: sessionCategoryBadge(for: session.category).tint.color)
+        }
+        .padding(.trailing, CodySpacing.sm)
+        .padding(.vertical, CodySpacing.xxs)
+        .frame(minHeight: 42)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isVisuallyLocked ? Text("Locked") : Text(verbatim: session.title ?? AppLocalized("New Chat")))
+        .accessibilityValue(Text(verbatim: accessibilityDetails(date: relativeDate(session.updatedAt))))
+    }
+
+    private var detailedRow: some View {
         let icon = sessionCategoryBadge(for: session.category)
         let date = relativeDate(session.updatedAt)
         HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
@@ -267,29 +312,7 @@ struct SessionRow: View, Equatable {
                 .foregroundStyle(CodyColors.textTertiary)
                 .lineLimit(1)
 
-            if isActive || isSuspended || isVisuallyLocked || visibleBadge != nil
-                || session.source == "shortcut" || session.isRemote || showsUnreadDot {
-                VStack(spacing: CodySpacing.xxs) {
-                    if isSuspended || isActive {
-                        SidebarRowActivity(isSuspended: isSuspended, tint: icon.tint.color)
-                    }
-                    if isVisuallyLocked {
-                        SidebarRowBadge(systemImage: "lock.fill", tint: CodyColors.textSecondary)
-                    } else if let badge = visibleBadge {
-                        badgeView(for: badge)
-                    } else if session.source == "shortcut" {
-                        SidebarRowBadge(systemImage: "bolt.fill", tint: CodyColors.statusWarningText)
-                    } else if session.isRemote {
-                        SidebarRowBadge(systemImage: "icloud.fill", tint: CodyCategoryTint.blue.color)
-                    }
-                    if showsUnreadDot {
-                        SidebarUnreadDot()
-                    }
-                }
-                .frame(width: CodyMetrics.Sidebar.statusIndicatorSlot)
-                .padding(.trailing, CodyMetrics.Sidebar.badgeTrailingPadding)
-                .accessibilityHidden(true)
-            }
+            statusIndicators(tint: icon.tint.color)
         }
         .padding(.horizontal, CodyMetrics.Sidebar.rowPaddingH)
         .padding(.vertical, CodySpacing.xxs)
@@ -312,6 +335,33 @@ struct SessionRow: View, Equatable {
             probeRowHeight(h, matchSnippet == nil ? "plain" : "snippet")
         }
         #endif
+    }
+
+    @ViewBuilder
+    private func statusIndicators(tint: Color) -> some View {
+        if isActive || isSuspended || isVisuallyLocked || visibleBadge != nil
+            || session.source == "shortcut" || session.isRemote || showsUnreadDot {
+            VStack(spacing: CodySpacing.xxs) {
+                if isSuspended || isActive {
+                    SidebarRowActivity(isSuspended: isSuspended, tint: tint)
+                }
+                if isVisuallyLocked {
+                    SidebarRowBadge(systemImage: "lock.fill", tint: CodyColors.textSecondary)
+                } else if let badge = visibleBadge {
+                    badgeView(for: badge)
+                } else if session.source == "shortcut" {
+                    SidebarRowBadge(systemImage: "bolt.fill", tint: CodyColors.statusWarningText)
+                } else if session.isRemote {
+                    SidebarRowBadge(systemImage: "icloud.fill", tint: CodyCategoryTint.blue.color)
+                }
+                if showsUnreadDot {
+                    SidebarUnreadDot()
+                }
+            }
+            .frame(width: CodyMetrics.Sidebar.statusIndicatorSlot)
+            .padding(.trailing, isFrameless ? 0 : CodyMetrics.Sidebar.badgeTrailingPadding)
+            .accessibilityHidden(true)
+        }
     }
 
     private func accessibilityDetails(date: String) -> String {
@@ -500,9 +550,31 @@ private struct LockedRowEffect: ViewModifier {
 /// Row for a session synced from another device.
 struct RemoteSessionRow: View {
     let session: ChatSession
+    var isFrameless = false
     @ObservedObject private var fontSettings = FontSettings.shared
 
     var body: some View {
+        if isFrameless {
+            HStack {
+                Text(session.title ?? AppLocalized("Untitled"))
+                    .font(.system(size: fontSettings.scaledApp(16)))
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "icloud")
+                    .font(.system(size: 12))
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.trailing, CodySpacing.sm)
+            .frame(minHeight: 42)
+            .contentShape(Rectangle())
+        } else {
+            detailedRow
+        }
+    }
+
+    private var detailedRow: some View {
         let icon = sessionCategoryBadge(for: session.category)
         HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
             CodyListIconBadge(systemImage: icon.systemName, tint: icon.tint)

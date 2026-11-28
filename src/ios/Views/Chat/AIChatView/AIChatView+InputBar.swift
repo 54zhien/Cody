@@ -94,7 +94,6 @@ extension AIChatView {
 
     var inputBar: some View {
         let compact = usesCompactSingleRowComposer
-        let radius: CGFloat = compact ? 24 : CodyMetrics.Composer.cornerRadius
         return VStack(spacing: 0) {
             if vm.isSuspended {
                 HStack(spacing: CodySpacing.sm) {
@@ -142,7 +141,7 @@ extension AIChatView {
 
                 composerRows(compact: compact)
             })
-            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .contentShape(composerShape(compact: compact))
             .onTapGesture { inputFocused = true }
             .onReceive(speechManager.$recognizedText) { text in
                 guard speechManager.state == .recording || !text.isEmpty else { return }
@@ -186,12 +185,13 @@ extension AIChatView {
             .overlay {
                 ComposerContextGlow(tier: vm.contextUsage?.tier ?? .normal)
             }
-            .environment(\.composerCornerRadius, radius)
+            .environment(\.isCompactComposer, compact)
             .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: compact)
             .frame(maxWidth: maxContentWidth)
             .padding(.horizontal, CodyMetrics.Composer.outerMarginH)
             .padding(.top, CodySpacing.sm)
-            // Include the tab clearance in the measured composer inset.
+            // The shell supplies the icon bar's height including its bottom padding.
+            // The composer's own 8 pt margin is the gap above the icons.
             .padding(.bottom, CodyMetrics.Composer.outerMarginBottom + novaTabBarBottomInset)
             // [T-ios-geometry-observer-crash] onGeometryChange replaces the
             // GeometryReader scaffold (async-renderer SIGTRAP — see the

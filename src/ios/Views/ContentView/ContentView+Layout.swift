@@ -11,10 +11,10 @@ extension ContentView {
                 .appFontScale()
         } detail: {
             Group {
-                switch novaTab {
-                case .chat: detailView
-                case .explore: novaExplore
-                case .files: novaFiles
+                switch novaDestination {
+                case .home: detailView
+                case .more: novaExplore(isWide: true)
+                case .tool(let tool): novaTool(tool, isWide: true)
                 }
             }
             .appFontScale()
@@ -22,18 +22,27 @@ extension ContentView {
     }
 
     var showNovaTabBar: Bool {
-        !novaKeyboard.isVisible && !isNovaDrawerOpen && !isSelecting && navigationPath.isEmpty
+        !novaKeyboard.isVisible && !isSelecting && navigationPath.isEmpty
+    }
+
+    private var novaBottomClearance: CGFloat {
+        showNovaTabBar ? CodyNovaTabBar.totalClearance : 0
     }
 
     var stackLayout: some View {
         CodySidebarDrawer(isOpen: $isNovaDrawerOpen, edgeDragEnabled: !isSelecting && navigationPath.isEmpty) {
-            novaTabContent
+            novaDestinationContent
                 .accessibilityHidden(isNovaDrawerOpen)
                 .overlay(alignment: .bottom) {
                     if showNovaTabBar {
-                        CodyNovaTabBar(selection: $novaTab, onReselect: { tab in
-                            if tab == .chat { openNovaDrawer() }
-                        })
+                        CodyNovaTabBar(
+                            selection: $novaDestination,
+                            tabStore: novaTabStore,
+                            onSelectDestination: selectNovaDestination,
+                            onReselect: { destination in
+                                if destination == .home { openNovaDrawer() }
+                            }
+                        )
                         .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -44,9 +53,9 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private var novaTabContent: some View {
-        switch novaTab {
-        case .chat:
+    private var novaDestinationContent: some View {
+        switch novaDestination {
+        case .home:
             NavigationStack(path: $navigationPath) {
                 novaHostedChat(novaActiveSessionId)
                     .id(novaActiveSessionId)
@@ -55,10 +64,14 @@ extension ContentView {
                             .id(id)
                     }
             }
-        case .explore:
-            NavigationStack { novaExplore }
-        case .files:
-            NavigationStack { novaFiles }
+        case .more:
+            NavigationStack {
+                novaExplore(isWide: false)
+                    .toolbar(.hidden, for: .navigationBar)
+            }
+        case .tool(let tool):
+            NavigationStack { novaTool(tool, isWide: false) }
+                .id(tool)
         }
     }
 
@@ -67,7 +80,8 @@ extension ContentView {
             .environment(\.isNovaHostedChat, !isPushed)
             .environment(\.openNovaDrawer, isPushed ? nil : { openNovaDrawer() })
             .environment(\.novaNewChatAction, { startNewNovaChat() })
-            .environment(\.novaTabBarBottomInset, showNovaTabBar ? CodyNovaTabBar.totalClearance : 0)
+            .environment(\.novaTabBarBottomInset, !isPushed && showNovaTabBar
+                         ? CodyNovaTabBar.barHeight + CodyNovaTabBar.bottomPadding : 0)
             .onAppear {
                 novaChatAppeared(id, isPushed: isPushed)
                 shareLog.info("🔄SESSION stackNav APPEAR id=\(id)")
@@ -79,19 +93,54 @@ extension ContentView {
             }
     }
 
-    private var novaExplore: some View {
+    private func novaExplore(isWide: Bool) -> some View {
         NovaExploreView(
-            bottomClearance: isWideLayout ? 0 : CodyNovaTabBar.totalClearance,
-            onOpenBrowser: { activeToolSheet = .browser },
-            onOpenTerminal: { showTerminal = true },
+            tabStore: novaTabStore,
+            bottomClearance: isWide ? 0 : novaBottomClearance,
+            onOpenDrawer: isWide ? { columnVisibility = .all } : openNovaDrawer,
+            onSelectTool: { selectNovaDestination(.tool($0)) },
             onOpenSettings: { activeToolSheet = .settings }
         )
-        .modifier(NovaDestinationToolbar(onOpenDrawer: isWideLayout ? nil : openNovaDrawer))
     }
 
-    private var novaFiles: some View {
-        NovaFilesTabView(bottomClearance: !isWideLayout && showNovaTabBar ? CodyNovaTabBar.totalClearance : 0)
-            .modifier(NovaDestinationToolbar(onOpenDrawer: isWideLayout ? nil : openNovaDrawer))
+    private func novaTool(_ tool: CodyNovaPinnedTool, isWide: Bool) -> some View {
+        let clearance = isWide ? 0 : novaBottomClearance
+        return Group {
+            if tool == .files {
+                NovaFilesTabView(bottomClearance: clearance)
+            } else {
+                novaToolContent(tool)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        Color.clear.frame(height: clearance)
+                    }
+            }
+        }
+        .modifier(NovaDestinationToolbar(onOpenDrawer: isWide ? nil : openNovaDrawer))
+    }
+
+    @ViewBuilder
+    private func novaToolContent(_ tool: CodyNovaPinnedTool) -> some View {
+        switch tool {
+        case .skills: SkillsManagementView()
+        case .mcp: MCPIntegrationsView()
+        case .agentTools: ToolsSettingsView()
+        case .subAgents: HelperSettingsView()
+        case .soul: SoulSettingsView()
+        case .memory: MemoryManagementView()
+        case .providers: ProviderInstancesView()
+        case .usage: UsageStatsView()
+        case .alarms:
+            Text("Alarms are unavailable on this device.")
+                .font(CodyTypography.bodyMedium)
+                .foregroundStyle(CodyColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(CodySpacing.lg)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(CodyColors.bgCanvas)
+                .navigationTitle(tool.title)
+        case .files, .terminal, .browser:
+            EmptyView()
+        }
     }
 
     @ViewBuilder
@@ -149,9 +198,11 @@ private struct NovaDestinationToolbar: ViewModifier {
             if let onOpenDrawer {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: onOpenDrawer) {
-                        Label("Open sidebar", systemImage: "line.3.horizontal")
-                            .labelStyle(.iconOnly)
+                        CodyDrawerGlyph()
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Open sidebar")
                 }
             }
         }

@@ -456,7 +456,9 @@ struct ContentView: View {
     private let isIPad = UIDevice.current.userInterfaceIdiom == .pad
     /// Whether the current window is wide enough for two-column layout.
     @State var isWideLayout = false
-    @State var novaTab: CodyNovaTab = .chat
+    @State var novaDestination: CodyNovaDestination = .home
+    @StateObject var novaTabStore = CodyNovaTabStore()
+    @State var showsAllNovaPins = false
     @State var isNovaDrawerOpen: Bool = false
     @State var novaActiveSessionId: String = ContentView.makeNewSessionId()
     @StateObject var novaKeyboard = CodyKeyboardObserver()
@@ -587,7 +589,7 @@ struct ContentView: View {
             // on iPhone that conversation can be open underneath it.
             .onReceive(NotificationCenter.default.publisher(for: .sessionsDeletedElsewhere), perform: handleSessionsDeletedElsewhere)
         }
-        .onChange(of: novaTab, perform: novaTabChanged)
+        .onChange(of: novaDestination, perform: novaDestinationChanged)
         .onChange(of: isNovaDrawerOpen) { isOpen in
             if isOpen { dismissNovaKeyboard() }
             else {
@@ -1056,7 +1058,7 @@ struct ContentView: View {
                 // intent, and a stale crash flag must not swallow them.
                 CrashReporter.shared.clearCrashLoopFlag()
                 shareLog.warning("[Share] .task: crash-loop detected — skipping session restore, keeping the initial content")
-            } else if isWideLayout || (novaActiveSessionId == initialNovaSession && novaTab == .chat && !isNovaDrawerOpen) {
+            } else if isWideLayout || (novaActiveSessionId == initialNovaSession && novaDestination == .home && !isNovaDrawerOpen) {
                 // No share — normal launch screen behavior
                 switch launchScreen {
                 case 1:

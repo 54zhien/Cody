@@ -50,7 +50,7 @@ extension ContentView {
                         Button {
                             switchToSession(route)
                         } label: {
-                            RemoteSessionRow(session: session)
+                            RemoteSessionRow(session: session, isFrameless: !isWideLayout)
                         }
                         .buttonStyle(SessionRowPressStyle())
                         .accessibilityAddTraits(isSessionHighlighted(route) ? .isSelected : [])
@@ -58,8 +58,9 @@ extension ContentView {
                         .listRowSeparator(.hidden)
                         .listRowBackground(
                             RoundedRectangle(cornerRadius: CodyRadius.control)
-                                .fill(isSessionHighlighted(route) ? CodyColors.interactiveSecondaryBg : .clear)
-                                .padding(.horizontal, CodySpacing.xsPlus)
+                                .fill(novaDestination == .home && isSessionHighlighted(route)
+                                      ? CodyColors.interactiveSecondaryBg : .clear)
+                                .padding(.horizontal, isWideLayout ? CodySpacing.xsPlus : 0)
                         )
                         .contextMenu {
                             Button {
