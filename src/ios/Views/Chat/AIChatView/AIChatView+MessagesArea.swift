@@ -102,7 +102,7 @@ extension AIChatView {
             }
         }
         .overlay(alignment: .bottom) {
-            if showsComposerFade && !vm.messages.isEmpty {
+            if usesLegacyBottomFade && showsComposerFade && !vm.messages.isEmpty {
                 VStack(spacing: 0) {
                     CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
                     CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
@@ -171,6 +171,13 @@ extension AIChatView {
             .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
             .capsuleProtectedFrame("downloadButton")
         }
+    }
+
+    private var usesLegacyBottomFade: Bool {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            return false
+        }
+        return true
     }
 
     private var showsComposerFade: Bool {

@@ -3,9 +3,8 @@ import UIKit
 
 /// Full-screen live-blurred sidebar overlay matching the Nova reference:
 /// - Swiping right from the left 24pt edge (or tapping the drawer button) blurs the entire
-///   underlying canvas with live material blur and reveals the frameless sidebar menu over it.
-/// - No solid opaque side panel edge: the underlying chat artwork/colors glow softly behind
-///   the entire drawer surface.
+///   underlying canvas cleanly and overlays a true translucent blur veil (never opaque white),
+///   letting underlying chat artwork, bubbles, and colors shine softly through in both Light & Dark modes.
 /// - Release threshold: velocity >= 620 opens, <= -620 closes, else progress >= 0.5.
 /// - Settle animation: spring(stiffness: 460, damping: 38).
 struct CodySidebarDrawer<Content: View, Drawer: View>: View {
@@ -39,7 +38,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
             ZStack(alignment: .leading) {
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .blur(radius: reduceTransparency ? 0 : progress * 24)
+                    .blur(radius: reduceTransparency ? 0 : progress * 16)
                     .allowsHitTesting(progress < 0.05)
 
                 // Left-edge drag hotzone when drawer is closed
@@ -52,7 +51,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                         .accessibilityHidden(true)
                 }
 
-                // Full-screen blurred glass veil + frameless drawer content
+                // Full-screen translucent blur backdrop + frameless drawer content
                 if progress > 0.001 || isOpen {
                     ZStack(alignment: .leading) {
                         Group {
@@ -62,9 +61,10 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                                 ZStack {
                                     Rectangle()
                                         .fill(.ultraThinMaterial)
+                                        .opacity(colorScheme == .dark ? 0.86 : 0.72)
                                     (colorScheme == .dark
-                                        ? Color.black.opacity(0.42)
-                                        : Color.white.opacity(0.58))
+                                        ? Color.black.opacity(0.24)
+                                        : Color.black.opacity(0.04))
                                 }
                             }
                         }

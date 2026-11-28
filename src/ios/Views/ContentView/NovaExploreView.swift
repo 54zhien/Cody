@@ -8,6 +8,7 @@ struct NovaExploreView: View {
     let onOpenSettings: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
 
@@ -42,33 +43,62 @@ struct NovaExploreView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-
-            ScrollView {
-                let tools = matchingTools
-                if tools.isEmpty {
-                    Text("No matching tools")
-                        .font(CodyTypography.bodyMedium)
-                        .foregroundStyle(CodyColors.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, CodySpacing.xl)
-                } else {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(tools) { tool in
-                            toolCard(tool)
-                        }
+        Group {
+            if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+                exploreScrollView
+                    .scrollEdgeEffectStyle(.soft, for: .top)
+                    .scrollEdgeEffectStyle(.soft, for: .bottom)
+                    .safeAreaBar(edge: .top, spacing: 0) {
+                        header
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, CodySpacing.sm)
-                }
+                    .safeAreaBar(edge: .bottom, spacing: 0) {
+                        footer
+                            .padding(.bottom, bottomClearance)
+                    }
+            } else {
+                exploreScrollView
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        header
+                    }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        footer
+                            .padding(.bottom, bottomClearance)
+                            .background(alignment: .top) {
+                                VStack(spacing: 0) {
+                                    CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
+                                    CodyColors.bgCanvas
+                                }
+                                .offset(y: -CodyMetrics.Conversation.bottomFadeHeight)
+                                .ignoresSafeArea(edges: .bottom)
+                                .allowsHitTesting(false)
+                            }
+                    }
             }
-            .scrollDismissesKeyboard(.interactively)
-
-            footer
-                .padding(.bottom, bottomClearance)
         }
-        .background(CodyColors.bgCanvas)
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
+    }
+
+    private var exploreScrollView: some View {
+        ScrollView {
+            let tools = matchingTools
+            if tools.isEmpty {
+                Text("No matching tools")
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, CodySpacing.xl)
+            } else {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(tools) { tool in
+                        toolCard(tool)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, CodySpacing.sm)
+                .padding(.bottom, CodySpacing.lg)
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var header: some View {
@@ -79,14 +109,16 @@ struct NovaExploreView: View {
             Spacer()
             headerButton("Settings", action: onOpenSettings) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 19, weight: .medium))
                     .foregroundStyle(CodyColors.iconPrimary)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, CodySpacing.sm)
+        .padding(.vertical, CodySpacing.xsPlus)
     }
 
+    /// Apple HIG standard 44×44pt circular Liquid Glass control button (iOS 26+),
+    /// with elevated hairline-bordered circle fallback on earlier systems.
     private func headerButton<Glyph: View>(
         _ title: LocalizedStringKey,
         action: @escaping () -> Void,
@@ -97,13 +129,8 @@ struct NovaExploreView: View {
             action()
         } label: {
             glyph()
-                .frame(width: 40, height: 40)
-                .background(CodyColors.bgElevatedPrimary, in: Circle())
-                .overlay {
-                    Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
-                        .allowsHitTesting(false)
-                }
-                .contentShape(Circle())
+                .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
+                .modifier(NovaExploreGlassCircle(reduceTransparency: reduceTransparency))
         }
         .buttonStyle(CodyPressableButtonStyle())
         .accessibilityLabel(Text(title))
@@ -143,7 +170,7 @@ struct NovaExploreView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .frame(height: 108, alignment: .topLeading)
             .background {
-                shape.fill(CodyColors.bgElevatedPrimary)
+                shape.fill(CodySettingsHairline.cardFill)
                     .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
             }
             .overlay {
@@ -170,7 +197,7 @@ struct NovaExploreView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: CodySpacing.sm) {
+        VStack(spacing: CodySpacing.xsPlus) {
             Text("Long-press an item to pin it to the tab bar")
                 .font(CodyTypography.bodySmall)
                 .foregroundStyle(CodyColors.textTertiary)
@@ -179,7 +206,7 @@ struct NovaExploreView: View {
             HStack(spacing: CodySpacing.sm) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(CodyColors.iconSecondary)
+                    .foregroundStyle(CodyColors.iconPrimary)
                     .frame(width: 36)
                     .accessibilityHidden(true)
 
@@ -207,13 +234,52 @@ struct NovaExploreView: View {
             }
             .padding(.horizontal, CodySpacing.sm)
             .frame(height: 48)
-            .background(CodyColors.bgElevatedPrimary, in: Capsule())
-            .overlay {
-                Capsule().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
+            .modifier(NovaExploreGlassCapsule(reduceTransparency: reduceTransparency))
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, CodySpacing.sm)
+        .padding(.top, CodySpacing.xs)
+        .padding(.bottom, CodySpacing.xsPlus)
+    }
+}
+
+private struct NovaExploreGlassCircle: ViewModifier {
+    let reduceTransparency: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+            content
+                .glassEffect(.regular.interactive(), in: .circle)
+                .contentShape(Circle())
+        } else {
+            content
+                .background(CodySettingsHairline.cardFill, in: Circle())
+                .overlay {
+                    Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Circle())
+        }
+    }
+}
+
+private struct NovaExploreGlassCapsule: ViewModifier {
+    let reduceTransparency: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+            content
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .contentShape(Capsule())
+        } else {
+            content
+                .background(CodySettingsHairline.cardFill, in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Capsule())
+        }
     }
 }

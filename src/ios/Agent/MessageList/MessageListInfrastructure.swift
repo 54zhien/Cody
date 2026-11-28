@@ -1092,8 +1092,19 @@ final class MessageListViewController: UIViewController {
         }
     }
 
+    /// Vertical height above the bottom safe area covered by Apple's native
+    /// iOS 26 `.soft` bottom scroll-edge host (matches composer + bottom bar).
+    var bottomScrollEdgeExtensionHeight: CGFloat = 0 {
+        didSet {
+            guard abs(oldValue - bottomScrollEdgeExtensionHeight) > 0.5 else { return }
+            updateBottomScrollEdgeHostFrame()
+        }
+    }
+
     private var topScrollEdgeHostView: UIView?
     private var topScrollEdgeHostSpacer: UIView?
+    private var bottomScrollEdgeHostView: UIView?
+    private var bottomScrollEdgeHostSpacer: UIView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -1130,44 +1141,67 @@ final class MessageListViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateTopScrollEdgeHostFrame()
+        updateBottomScrollEdgeHostFrame()
     }
 
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
         updateTopScrollEdgeHostFrame()
+        updateBottomScrollEdgeHostFrame()
     }
 
-    /// Extends Apple's native iOS 26 `.soft` top scroll-edge effect past the
-    /// 44pt navigation bar into the band below the top controls by registering
-    /// a pass-through `UIScrollEdgeElementContainerInteraction` host view.
+    /// Extends Apple's native iOS 26 `.soft` top and bottom scroll-edge effects
+    /// by registering pass-through `UIScrollEdgeElementContainerInteraction` host
+    /// views sized to the top navigation controls band and bottom bar/composer band.
     private func installTopScrollEdgeHostIfAvailable() {
         guard #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive else { return }
         collectionView.topEdgeEffect.style = .soft
-        collectionView.bottomEdgeEffect.isHidden = true
+        collectionView.bottomEdgeEffect.style = .soft
+        collectionView.bottomEdgeEffect.isHidden = false
         setContentScrollView(collectionView, for: .top)
+        setContentScrollView(collectionView, for: .bottom)
 
-        let host = UIView(frame: .zero)
-        host.backgroundColor = .clear
-        host.isUserInteractionEnabled = false
-        host.accessibilityElementsHidden = true
+        let topHost = UIView(frame: .zero)
+        topHost.backgroundColor = .clear
+        topHost.isUserInteractionEnabled = false
+        topHost.accessibilityElementsHidden = true
 
-        // Keep a concrete non-empty child frame inside the container so UIKit's
-        // edge-element interaction tracks the extended top region reliably.
-        let spacer = UIView(frame: .zero)
-        spacer.backgroundColor = .clear
-        spacer.isUserInteractionEnabled = false
-        spacer.accessibilityElementsHidden = true
-        host.addSubview(spacer)
+        let topSpacer = UIView(frame: .zero)
+        topSpacer.backgroundColor = .clear
+        topSpacer.isUserInteractionEnabled = false
+        topSpacer.accessibilityElementsHidden = true
+        topHost.addSubview(topSpacer)
 
-        let interaction = UIScrollEdgeElementContainerInteraction()
-        interaction.scrollView = collectionView
-        interaction.edge = .top
-        host.addInteraction(interaction)
+        let topInteraction = UIScrollEdgeElementContainerInteraction()
+        topInteraction.scrollView = collectionView
+        topInteraction.edge = .top
+        topHost.addInteraction(topInteraction)
 
-        view.insertSubview(host, aboveSubview: collectionView)
-        topScrollEdgeHostView = host
-        topScrollEdgeHostSpacer = spacer
+        view.insertSubview(topHost, aboveSubview: collectionView)
+        topScrollEdgeHostView = topHost
+        topScrollEdgeHostSpacer = topSpacer
         updateTopScrollEdgeHostFrame()
+
+        let bottomHost = UIView(frame: .zero)
+        bottomHost.backgroundColor = .clear
+        bottomHost.isUserInteractionEnabled = false
+        bottomHost.accessibilityElementsHidden = true
+
+        let bottomSpacer = UIView(frame: .zero)
+        bottomSpacer.backgroundColor = .clear
+        bottomSpacer.isUserInteractionEnabled = false
+        bottomSpacer.accessibilityElementsHidden = true
+        bottomHost.addSubview(bottomSpacer)
+
+        let bottomInteraction = UIScrollEdgeElementContainerInteraction()
+        bottomInteraction.scrollView = collectionView
+        bottomInteraction.edge = .bottom
+        bottomHost.addInteraction(bottomInteraction)
+
+        view.insertSubview(bottomHost, aboveSubview: collectionView)
+        bottomScrollEdgeHostView = bottomHost
+        bottomScrollEdgeHostSpacer = bottomSpacer
+        updateBottomScrollEdgeHostFrame()
     }
 
     private func updateTopScrollEdgeHostFrame() {
@@ -1180,6 +1214,23 @@ final class MessageListViewController: UIViewController {
             topScrollEdgeHostSpacer?.frame = host.bounds
         }
         host.isHidden = frame.isEmpty
+    }
+
+    private func updateBottomScrollEdgeHostFrame() {
+        guard let host = bottomScrollEdgeHostView else { return }
+        let height = view.safeAreaInsets.bottom + max(0, bottomScrollEdgeExtensionHeight)
+        let clampedHeight = min(view.bounds.height, max(0, height))
+        let frame = CGRect(
+            x: 0,
+            y: view.bounds.height - clampedHeight,
+            width: view.bounds.width,
+            height: clampedHeight
+        )
+        if host.frame != frame {
+            host.frame = frame
+            bottomScrollEdgeHostSpacer?.frame = host.bounds
+        }
+        host.isHidden = clampedHeight <= 0.5
     }
 
     /// [RotationFix] Rotation handler — without this, on rotation the

@@ -97,7 +97,7 @@ extension ContentView {
             .padding(.leading, CodySpacing.md)
             .padding(.trailing, searchText.isEmpty ? CodySpacing.md : 0)
             .frame(minHeight: 44)
-            .background(.ultraThinMaterial, in: Capsule())
+            .modifier(NovaDrawerGlassCapsule())
 
             Button("Cancel", action: dismissSearch)
                 .font(CodyTypography.labelLarge)
@@ -243,11 +243,7 @@ extension ContentView {
                 .accessibilityValue(Text(verbatim: soulName))
                 .contextMenu { novaProfileMenu }
             }
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule().strokeBorder(CodyColors.borderDefault, lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
+            .modifier(NovaDrawerGlassCapsule())
         }
     }
 
@@ -330,5 +326,26 @@ private struct NovaOnboardingSheets: ViewModifier {
                         }
                 }
             }
+    }
+}
+
+private struct NovaDrawerGlassCapsule: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+            content
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .contentShape(Capsule())
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(CodyColors.borderDefault, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Capsule())
+        }
     }
 }

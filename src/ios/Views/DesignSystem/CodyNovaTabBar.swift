@@ -1,11 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// Customizable icon-only bottom navigation bar sitting over a soft blurred/gradient veil
-/// (NOT a Liquid Glass pill bar — only the Composer above it uses Liquid Glass).
+/// Compact customizable icon-only bottom bar (`Home` · pinned custom tools · `More`).
 ///
-/// Layout: [Home]  [Custom Pinned Tool 1 ... N]  [More (Explore)]
-/// Only the active icon displays a soft translucent oval capsule behind it.
+/// Design rules:
+/// - Compact 40pt silhouette flush with the home-indicator safe area (no tall outer dock).
+/// - NO outer Liquid Glass capsule wrapping the whole bar — ONLY the active tab's selection pill
+///   uses iOS 26 native Liquid Glass morphing (`GlassEffectContainer` + `.glassEffect` + `.glassEffectID`).
+/// - NO upward-spilling opaque veil drawn on top of the Composer above it: scroll-edge softening
+///   is handled natively by the underlying scroll view (`bottomEdgeEffect.style = .soft` / `.scrollEdgeEffectStyle(.soft, for: .bottom)`).
 struct CodyNovaTabBar: View {
     @Binding var selection: CodyNovaDestination
     @ObservedObject var tabStore: CodyNovaTabStore
@@ -17,9 +20,9 @@ struct CodyNovaTabBar: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var activeIndicatorNamespace
 
-    static let barHeight: CGFloat = 52
-    static let bottomPadding: CGFloat = 4
-    static let totalClearance: CGFloat = barHeight + bottomPadding + 6
+    static let barHeight: CGFloat = 40
+    static let bottomPadding: CGFloat = 0
+    static let totalClearance: CGFloat = barHeight
 
     private var allDestinations: [CodyNovaDestination] {
         var items: [CodyNovaDestination] = [.home]
@@ -29,6 +32,23 @@ struct CodyNovaTabBar: View {
     }
 
     var body: some View {
+        Group {
+            if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+                GlassEffectContainer(spacing: 12) {
+                    iconRow(usesLiquidGlassIndicator: true)
+                }
+            } else {
+                iconRow(usesLiquidGlassIndicator: false)
+                    .background(alignment: .bottom) {
+                        legacyBottomFade
+                    }
+            }
+        }
+        .padding(.horizontal, CodySpacing.md)
+        .padding(.bottom, Self.bottomPadding)
+    }
+
+    private func iconRow(usesLiquidGlassIndicator: Bool) -> some View {
         HStack(spacing: 0) {
             ForEach(allDestinations) { dest in
                 let isSelected = (selection == dest)
@@ -49,13 +69,20 @@ struct CodyNovaTabBar: View {
                 } label: {
                     ZStack {
                         if isSelected {
-                            Capsule()
-                                .fill(activePillColor)
-                                .frame(width: 58, height: 38)
-                                .matchedGeometryEffect(id: "novaActiveTabPill", in: activeIndicatorNamespace)
+                            if usesLiquidGlassIndicator, #available(iOS 26.0, *) {
+                                Color.clear
+                                    .frame(width: 56, height: 34)
+                                    .glassEffect(.regular.interactive(), in: .capsule)
+                                    .glassEffectID("novaActiveTabPill", in: activeIndicatorNamespace)
+                            } else {
+                                Capsule()
+                                    .fill(activePillColor)
+                                    .frame(width: 56, height: 34)
+                                    .matchedGeometryEffect(id: "novaActiveTabPill", in: activeIndicatorNamespace)
+                            }
                         }
                         Image(systemName: iconName(for: dest, selected: isSelected))
-                            .font(.system(size: 20, weight: isSelected ? .semibold : .regular))
+                            .font(.system(size: 19, weight: isSelected ? .semibold : .regular))
                             .foregroundStyle(isSelected ? CodyColors.iconPrimary : CodyColors.iconSecondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -67,11 +94,6 @@ struct CodyNovaTabBar: View {
                 .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
         }
-        .padding(.horizontal, CodySpacing.md)
-        .padding(.bottom, Self.bottomPadding)
-        .background(alignment: .bottom) {
-            bottomBlurVeil
-        }
     }
 
     private var activePillColor: Color {
@@ -82,38 +104,18 @@ struct CodyNovaTabBar: View {
         }
     }
 
-    /// Soft blurred gradient veil extending beneath the bottom icon bar into the home indicator safe area.
-    @ViewBuilder
-    private var bottomBlurVeil: some View {
-        let veilHeight: CGFloat = Self.barHeight + 56
-        ZStack(alignment: .bottom) {
-            if !reduceTransparency {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .mask(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: .black.opacity(0.75), location: 0.32),
-                                .init(color: .black, location: 0.65),
-                                .init(color: .black, location: 1.0),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
-            LinearGradient(
-                stops: [
-                    .init(color: CodyColors.bgCanvas.opacity(0.0), location: 0.0),
-                    .init(color: CodyColors.bgCanvas.opacity(reduceTransparency ? 0.98 : 0.65), location: 0.45),
-                    .init(color: CodyColors.bgCanvas.opacity(reduceTransparency ? 1.0 : 0.88), location: 1.0),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .frame(height: veilHeight)
+    /// Legacy iOS 16–25 / Reduce-Transparency backing confined strictly to the tab bar band (never spills onto the Composer).
+    private var legacyBottomFade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: CodyColors.bgCanvas.opacity(0.0), location: 0.0),
+                .init(color: CodyColors.bgCanvas.opacity(0.88), location: 0.35),
+                .init(color: CodyColors.bgCanvas, location: 1.0),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: Self.barHeight + 16)
         .ignoresSafeArea(edges: .bottom)
         .allowsHitTesting(false)
     }
