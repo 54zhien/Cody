@@ -142,7 +142,8 @@ extension AIChatView {
                 inputBarHeight: inputBarHeight,
                 extraTopInset: Self.listTopInset(forTopBanners: topBannersHeight),
                 composerLiveHeight: composerLiveHeight,
-                bottomFadeClearance: composerFadeClearance
+                bottomFadeClearance: composerFadeClearance,
+                usesSwiftUIBottomScrollEdge: true
             )
             .ignoresSafeArea(.container, edges: .bottom)
             .modifier(CodyBottomScrollEdgeHost(

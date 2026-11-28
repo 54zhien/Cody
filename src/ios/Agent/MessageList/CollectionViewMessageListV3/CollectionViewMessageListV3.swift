@@ -130,9 +130,11 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
     /// releases (see `ComposerShrinkAbsorption`). nil = no composer.
     var composerLiveHeight: ComposerLiveHeight? = nil
     var bottomFadeClearance: CGFloat = 0
+    var usesSwiftUIBottomScrollEdge = false
 
     func makeUIViewController(context: Context) -> MessageListViewController {
         let vc = MessageListViewController()
+        vc.usesSwiftUIBottomScrollEdge = usesSwiftUIBottomScrollEdge
         context.coordinator.onRetryLast = onRetryLast
         context.coordinator.attach(to: vc, vm: vm)
         // Drops are handled exclusively by the SwiftUI `.onDrop` on the chat
@@ -265,10 +267,6 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         let cvTop = vc.collectionView!
         coord.extraTopInset = extraTopInset
         vc.topScrollEdgeExtensionHeight = max(CodyMetrics.Conversation.topFadeExtraHeight, extraTopInset)
-        // Bottom scroll-edge fade is driven by SwiftUI `.scrollEdgeEffectStyle(.soft, for: .bottom)`
-        // + `.safeAreaBar(edge: .bottom)` (matching Explore and all tool pages), so keep the UIKit
-        // bottom host hidden to avoid stacking two competing bottom scroll-edge interactions.
-        vc.bottomScrollEdgeExtensionHeight = 0
         if abs(cvTop.contentInset.top - coord.baseContentInsetTop) > 0.5 {
             cvTop.contentInset.top = coord.baseContentInsetTop
         }

@@ -1081,6 +1081,7 @@ final class NoAnimationCollectionView: UICollectionView {
 final class MessageListViewController: UIViewController {
     var collectionView: UICollectionView!
     var messageListLayout: MessageListLayout!
+    var usesSwiftUIBottomScrollEdge = false
 
     /// Extra vertical distance below the navigation bar that Apple's native
     /// iOS 26 `.soft` scroll-edge host covers (at least the default extension
@@ -1189,6 +1190,8 @@ final class MessageListViewController: UIViewController {
         topScrollEdgeHostSpacer = topSpacer
         updateTopScrollEdgeHostFrame()
 
+        // The conversation's shared SwiftUI safeAreaBar owns this edge.
+        guard !usesSwiftUIBottomScrollEdge else { return }
         let bottomHost = UIView(frame: .zero)
         bottomHost.backgroundColor = .clear
         bottomHost.isUserInteractionEnabled = false
