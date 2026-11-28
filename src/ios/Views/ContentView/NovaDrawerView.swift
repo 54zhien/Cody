@@ -7,9 +7,22 @@ private enum NovaDrawerMetrics {
 struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
     let showsActions: Bool
     let showsPinnedHeader: Bool
-    @ViewBuilder let pinnedHeader: () -> PinnedHeader
-    @ViewBuilder let content: () -> Content
-    @ViewBuilder let actions: () -> Actions
+    let pinnedHeader: PinnedHeader
+    let content: Content
+    let actions: Actions
+
+    init(
+        showsActions: Bool, showsPinnedHeader: Bool,
+        @ViewBuilder pinnedHeader: () -> PinnedHeader,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.showsActions = showsActions
+        self.showsPinnedHeader = showsPinnedHeader
+        self.pinnedHeader = pinnedHeader()
+        self.content = content()
+        self.actions = actions()
+    }
 
     private var concentricEdgeInset: CGFloat {
         CodyDisplayGeometry.concentricEdgeInset(forCapsuleHeight: NovaDrawerMetrics.bottomPillHeight)
@@ -28,7 +41,7 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {
                 if showsActions {
-                    actions()
+                    actions
                         .padding(.horizontal, concentricEdgeInset)
                         .offset(y: concentricBottomOffsetY)
                 }
@@ -40,17 +53,17 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
         let protrusionAboveSafeArea = max(0, NovaDrawerMetrics.bottomPillHeight - concentricBottomOffsetY)
         let clearance = max(56, protrusionAboveSafeArea + 14)
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            content()
+            content
                 .modifier(CodyTopScrollEdgeHostModifier(extraHeight: CodySpacing.lg))
                 .safeAreaBar(edge: .top, spacing: 0) {
-                    if showsPinnedHeader { pinnedHeader() }
+                    if showsPinnedHeader { pinnedHeader }
                 }
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .safeAreaBar(edge: .bottom, spacing: 0) {
                     if showsActions { Color.clear.frame(height: clearance) }
                 }
         } else {
-            content()
+            content
                 .mask(alignment: .top) {
                     VStack(spacing: 0) {
                         LinearGradient(colors: [.clear, .white], startPoint: .top, endPoint: .bottom)
@@ -59,7 +72,7 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
                     }
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if showsPinnedHeader { pinnedHeader() }
+                    if showsPinnedHeader { pinnedHeader }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if showsActions { Color.clear.frame(height: clearance) }

@@ -28,10 +28,12 @@ extension ContentView {
         // shortcut without affecting layout; it lives in the list's view tree so
         // the command only fires when the list is visible, not inside a chat.
         .background {
-            Button(action: focusSearch) { EmptyView() }
-                .keyboardShortcut("f", modifiers: .command)
-                .opacity(0)
-                .accessibilityHidden(true)
+            if !useNavigationLinks || isNovaDrawerOpen {
+                Button(action: focusSearch) { EmptyView() }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            }
         }
         // [T-ios-migration-timer-toolbar-uaf-crash / T-ios-migration-timer-sessionlist-uaf-crash]
         // Own the migration-subtitle refresh driver here, on the stable sidebar list
@@ -98,7 +100,9 @@ extension ContentView {
     /// actually builds, so the lookups below are per visible row, not per
     /// session in the library.
     private func stackRow(_ sessionId: String, group: SidebarGroup) -> SessionStackRow {
-        let session = sessionForRow(sessionId) ?? .missingRowPlaceholder(sessionId)
+        let storedSession = sessionForRow(sessionId)
+        let session = storedSession ?? .missingRowPlaceholder(sessionId)
+        let dragSessionID = Self.isNewSessionId(sessionId) ? newSessionRealId : storedSession?.id
         return SessionStackRow(
             session: session,
             isActive: sessionIsRunning(sessionId),
@@ -108,6 +112,7 @@ extension ContentView {
             isRegeneratingTitle: regeneratingTitleSessionId == sessionId,
             inFolder: group.folderId != nil,
             menuActions: menuActions,
+            dragSessionID: dragSessionID,
             isHighlighted: novaDestination == .home && isSessionHighlighted(sessionId)
         )
     }
@@ -316,7 +321,9 @@ extension ContentView {
                 if isSearching {
                     novaHistoryHeader("Search Results")
                 } else if !chatGroups.isEmpty || !remoteDeviceSessions.isEmpty {
-                    novaHistoryHeader("Chats", topPadding: 26)
+                    sessionUnfileDropTarget {
+                        novaHistoryHeader("Chats", topPadding: 26)
+                    }
                 }
             }
             ForEach(Array(chatGroups.enumerated()), id: \.element.id) { index, group in

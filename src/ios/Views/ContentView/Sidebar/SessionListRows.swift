@@ -47,10 +47,23 @@ struct SessionStackRow: View {
     let isRegeneratingTitle: Bool
     let inFolder: Bool
     let menuActions: SessionMenuActionChannel
+    let dragSessionID: String?
     var isHighlighted: Bool = false
 
     var body: some View {
         let _ = HomeListPerf.rowBuilt()
+        HStack(spacing: 0) {
+            menuRow
+            if let dragSessionID {
+                SessionRowDragHandle(sessionID: dragSessionID)
+            }
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+
+    private var menuRow: some View {
         Button { [menuActions, sid = session.id] in
             menuActions.send(.open(sid))
         } label: {
@@ -80,10 +93,7 @@ struct SessionStackRow: View {
                     .allowsHitTesting(false)
             }
         }
-        .listRowInsets(EdgeInsets())
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .contentShape(.contextMenuPreview, Capsule())
+        .contentShape(.contextMenuPreview, SessionMenuLiftShape())
         .contextMenu {
             // [T-ios-crash-contextmenu-uaf] Value-only menu view, no closure captures.
             SessionContextMenu(
@@ -91,6 +101,8 @@ struct SessionStackRow: View {
                 actions: menuActions
             )
             .equatable()
+        } preview: {
+            SessionMenuPreview(title: session.title, sessionID: session.id)
         }
     }
 }
@@ -115,33 +127,10 @@ struct SessionSplitRow: View {
 
     var body: some View {
         let _ = HomeListPerf.rowBuilt()
-        SessionRow(
-            session: session,
-            isHighlighted: isHighlighted,
-            isActive: isActive,
-            isSuspended: isSuspended,
-            highlightQuery: highlightQuery,
-            matchSnippet: matchSnippet
-        )
-        .equatable()
-        .overlay {
-            if isRegeneratingTitle {
-                ZStack {
-                    CodyColors.bgCanvas.opacity(0.7)
-                    ProgressView()
-                }
-            }
-        }
-        // [T-ios-selected-session-contextmenu] On the row CONTENT, below the
-        // selection layer, so it fires on the selected row too (GH#30).
-        .contentShape(.contextMenuPreview, Capsule())
-        .contextMenu {
+        HStack(spacing: 0) {
+            menuRow
             if let menuSid {
-                SessionContextMenu(
-                    key: MenuKey(sid: menuSid, pinned: session.isPinned, title: session.title, filed: session.isFiled),
-                    actions: menuActions
-                )
-                .equatable()
+                SessionRowDragHandle(sessionID: menuSid)
             }
         }
         .tag(session.id)
@@ -174,6 +163,42 @@ struct SessionSplitRow: View {
             }
         )
     }
+
+    private var menuRow: some View {
+        SessionRow(
+            session: session,
+            isHighlighted: isHighlighted,
+            isActive: isActive,
+            isSuspended: isSuspended,
+            highlightQuery: highlightQuery,
+            matchSnippet: matchSnippet
+        )
+        .equatable()
+        .overlay {
+            if isRegeneratingTitle {
+                ZStack {
+                    CodyColors.bgCanvas.opacity(0.7)
+                    ProgressView()
+                }
+            }
+        }
+        // [T-ios-selected-session-contextmenu] On the row CONTENT, below the
+        // selection layer, so it fires on the selected row too (GH#30).
+        .contentShape(.contextMenuPreview, SessionMenuLiftShape())
+        .contextMenu {
+            if let menuSid {
+                SessionContextMenu(
+                    key: MenuKey(sid: menuSid, pinned: session.isPinned, title: session.title, filed: session.isFiled),
+                    actions: menuActions
+                )
+                .equatable()
+            }
+        } preview: {
+            if menuSid != nil {
+                SessionMenuPreview(title: session.title, sessionID: session.id)
+            }
+        }
+    }
 }
 
 extension ChatSession {
@@ -197,11 +222,62 @@ struct SessionRowPressStyle: ButtonStyle {
             .contentShape(Rectangle())
             .background {
                 if configuration.isPressed {
-                    Capsule()
+                    RoundedRectangle(cornerRadius: CodyRadius.control)
                         .fill(CodyColors.bgSecondary)
                         .padding(.horizontal, CodySpacing.xsPlus)
                         .allowsHitTesting(false)
                 }
             }
+    }
+}
+
+/// Limits the snapshot lifted from the row during the native menu transition.
+struct SessionMenuLiftShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let bounds = CGRect(
+            x: rect.minX, y: rect.minY + 4,
+            width: min(rect.width, 248), height: max(0, rect.height - 8)
+        )
+        return RoundedRectangle(cornerRadius: 12).path(in: bounds)
+    }
+}
+
+/// The settled menu shows its own opaque title instead of a snapshot of the list.
+struct SessionMenuPreview: View {
+    let title: String?
+    let sessionID: String?
+    @ObservedObject private var locks = SessionLockStore.shared
+
+    private var label: String {
+        if let sessionID, locks.isVisuallyLocked(sessionID) {
+            return AppLocalized("Locked")
+        }
+        return title ?? AppLocalized("New Chat")
+    }
+
+    var body: some View {
+        Text(verbatim: label)
+            .font(.headline)
+            .foregroundStyle(CodyColors.textPrimary)
+            .lineLimit(1)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 248)
+            .fixedSize(horizontal: true, vertical: true)
+            .background(CodyColors.bgPrimary, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct SessionRowDragHandle: View {
+    let sessionID: String
+
+    var body: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(CodyColors.textTertiary)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .draggable(sessionID)
+            .accessibilityLabel("Move to Group")
     }
 }

@@ -381,16 +381,12 @@ extension ContentView {
 
     func openNovaDrawer() {
         dismissNovaKeyboard()
-        withAnimation(CodyMotion.resolved(CodyMotion.drawer, reduceMotion: reduceMotion)) {
-            isNovaDrawerOpen = true
-        }
+        isNovaDrawerOpen = true
     }
 
     func closeNovaDrawer() {
         searchFocused = false
-        withAnimation(CodyMotion.resolved(CodyMotion.drawer, reduceMotion: reduceMotion)) {
-            isNovaDrawerOpen = false
-        }
+        isNovaDrawerOpen = false
     }
 
     func dismissNovaKeyboard() {

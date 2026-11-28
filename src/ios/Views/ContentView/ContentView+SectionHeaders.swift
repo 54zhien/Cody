@@ -72,24 +72,28 @@ extension ContentView {
             .accessibilityAddTraits(allSelected ? .isSelected : [])
             .listRowInsets(EdgeInsets())
         } else if index > 0 || group.label == "Pinned" {
-            HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
-                if group.label == "Pinned" {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10))
-                        .accessibilityHidden(true)
+            sessionUnfileDropTarget {
+                HStack(spacing: CodyMetrics.Sidebar.pinnedIconSpacing) {
+                    if group.label == "Pinned" {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 10))
+                    }
+                    Text(LocalizedStringKey(group.label))
                 }
-                // group.label stays an English key for logic; LocalizedStringKey
-                // resolves the display string per system language.
-                Text(LocalizedStringKey(group.label))
+                .modifier(SidebarSectionHeaderStyle())
             }
-            .modifier(SidebarSectionHeaderStyle())
+        }
+    }
+
+    /// The Chats header on iPhone and date headers on iPad accept conversations
+    /// dragged out of folders.
+    func sessionUnfileDropTarget<Header: View>(@ViewBuilder _ header: () -> Header) -> some View {
+        header()
             .background(
                 RoundedRectangle(cornerRadius: CodyRadius.md)
                     .fill(dropTargetFolderId == "" ? CodyColors.textAccent.opacity(0.18) : Color.clear)
             )
-            // Dropping on a date-bucket header moves the sessions OUT of any
-            // folder — the drag gesture works both directions, otherwise
-            // moving out would still require a trip through the menu.
+            .contentShape(Rectangle())
             .dropDestination(for: String.self) { sessionIds, _ in
                 Task { @MainActor in
                     await ChatStore.shared.setFolder(nil, forSessions: sessionIds)
@@ -103,7 +107,6 @@ extension ContentView {
                     dropTargetFolderId = nil
                 }
             }
-        }
     }
 
     /// Display aggregates for the Move-to-Group picker rows: the same

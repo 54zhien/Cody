@@ -2,54 +2,41 @@ import SwiftUI
 import UIKit
 
 struct CodySidebarDrawer<Content: View, Drawer: View>: View {
-    @Binding var isOpen: Bool
-    var edgeDragEnabled: Bool = true
-    @ViewBuilder let content: () -> Content
-    @ViewBuilder let drawer: () -> Drawer
+    @Binding private var isOpen: Bool
+    private let edgeDragEnabled: Bool
+    private let content: Content
+    private let drawer: Drawer
 
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @StateObject private var motion = CodySidebarMotion()
+    // Only CodySidebarPresentation subscribes to the per-frame publisher.
+    @State private var motion = CodySidebarMotion()
     @State private var dragStart: CGFloat?
+    @State private var hasMountedDrawer = false
 
-    private var backdropRadius: CGFloat {
-        guard horizontalSizeClass == .compact else { return 32 }
-        return verticalSizeClass == .compact ? 5.5 : 10
+    init(
+        isOpen: Binding<Bool>, edgeDragEnabled: Bool,
+        @ViewBuilder content: () -> Content, @ViewBuilder drawer: () -> Drawer
+    ) {
+        _isOpen = isOpen
+        self.edgeDragEnabled = edgeDragEnabled
+        self.content = content()
+        self.drawer = drawer()
     }
 
     var body: some View {
         GeometryReader { geometry in
             let travelWidth = max(1, min(geometry.size.width * 0.88, 380))
-            let visibility = min(1, max(0, motion.progress))
-            let showingDrawer = isOpen || visibility > 0
 
-            ZStack(alignment: .leading) {
-                content()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .scaleEffect(reduceMotion ? 1 : 1 - visibility * 0.05)
-                    .blur(radius: reduceTransparency ? 0 : visibility * 8)
-                    .allowsHitTesting(!showingDrawer && dragStart == nil)
-                    .accessibilityHidden(showingDrawer)
-
-                if showingDrawer {
-                    backdrop
-                        .opacity(visibility)
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture { settle(open: false) }
-                        .accessibilityHidden(true)
-
-                    drawer()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .offset(x: reduceMotion ? 0 : ((motion.progress - 1) * travelWidth * 2 / 3).rounded())
-                        .opacity(visibility)
-                        .allowsHitTesting(isOpen && dragStart == nil)
-                        .accessibilityAddTraits(.isModal)
-                }
-            }
+            CodySidebarPresentation(
+                motion: motion,
+                content: content,
+                drawer: drawer,
+                isOpen: isOpen,
+                isDragging: dragStart != nil,
+                hasMountedDrawer: hasMountedDrawer || isOpen,
+                travelWidth: travelWidth,
+                onBackdropTap: { settle(open: false) }
+            )
             .background {
                 CodySidebarPanSurface(
                     isOpen: isOpen,
@@ -57,6 +44,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                     onBegin: {
                         motion.interrupt()
                         dragStart = min(1, max(0, motion.progress))
+                        hasMountedDrawer = true
                     },
                     onMove: { translation in
                         if let dragStart {
@@ -76,14 +64,81 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                 .accessibilityHidden(true)
             }
         }
-        .onAppear { motion.synchronize(open: isOpen) }
+        .onAppear {
+            if isOpen { hasMountedDrawer = true }
+            motion.synchronize(open: isOpen)
+        }
         .onChange(of: isOpen) { open in
+            if open { hasMountedDrawer = true }
             dragStart = nil
             motion.settle(open: open, immediate: reduceMotion)
         }
         .onDisappear {
             dragStart = nil
             motion.interrupt()
+        }
+    }
+
+    private func settle(open: Bool) {
+        dragStart = nil
+        motion.settle(open: open, immediate: reduceMotion)
+        if isOpen != open {
+            isOpen = open
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+    }
+}
+
+private struct CodySidebarPresentation<Content: View, Drawer: View>: View {
+    @ObservedObject var motion: CodySidebarMotion
+    let content: Content
+    let drawer: Drawer
+    let isOpen: Bool
+    let isDragging: Bool
+    let hasMountedDrawer: Bool
+    let travelWidth: CGFloat
+    let onBackdropTap: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var backdropRadius: CGFloat {
+        guard horizontalSizeClass == .compact else { return 32 }
+        return verticalSizeClass == .compact ? 5.5 : 10
+    }
+
+    var body: some View {
+        let visibility = min(1, max(0, motion.progress))
+        let showingDrawer = isOpen || visibility > 0
+
+        ZStack(alignment: .leading) {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(reduceMotion ? 1 : 1 - visibility * 0.05, anchor: .top)
+                .blur(radius: reduceTransparency ? 0 : visibility * 8)
+                .allowsHitTesting(!showingDrawer && !isDragging)
+                .accessibilityHidden(showingDrawer)
+
+            if hasMountedDrawer {
+                backdrop
+                    .opacity(visibility)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onBackdropTap)
+                    .allowsHitTesting(showingDrawer && !isDragging)
+                    .accessibilityHidden(true)
+
+                drawer
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .offset(x: reduceMotion ? 0 : ((motion.progress - 1) * travelWidth * 2 / 3).rounded())
+                    .opacity(visibility)
+                    .allowsHitTesting(isOpen && !isDragging)
+                    .accessibilityHidden(!isOpen)
+                    .accessibilityAddTraits(.isModal)
+            }
         }
     }
 
@@ -112,15 +167,6 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                     startPoint: .leading, endPoint: .trailing
                 )
             }
-        }
-    }
-
-    private func settle(open: Bool) {
-        dragStart = nil
-        motion.settle(open: open, immediate: reduceMotion)
-        if isOpen != open {
-            isOpen = open
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }
 }

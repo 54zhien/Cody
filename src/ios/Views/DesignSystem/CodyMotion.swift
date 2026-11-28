@@ -7,7 +7,6 @@ enum CodyMotion {
     static let promptCard = Animation.spring(response: 0.20, dampingFraction: 0.85)
     static let gentle = Animation.spring(response: 0.50, dampingFraction: 0.85)
     static let plain = Animation.spring(response: 0.50, dampingFraction: 1.0)
-    static let drawer = Animation.interpolatingSpring(stiffness: 460, damping: 38)
 
     static let pressedOpacity: Double = 0.60
     static let disabledOpacity: Double = 0.55

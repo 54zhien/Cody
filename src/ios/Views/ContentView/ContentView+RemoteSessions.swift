@@ -62,7 +62,7 @@ extension ContentView {
                                       ? CodyColors.interactiveSecondaryBg : .clear)
                                 .padding(.horizontal, isWideLayout ? CodySpacing.xsPlus : 0)
                         )
-                        .contentShape(.contextMenuPreview, Capsule())
+                        .contentShape(.contextMenuPreview, SessionMenuLiftShape())
                         .contextMenu {
                             Button {
                                 // [T-ios-state-publish-offmain-crash] @MainActor
@@ -80,6 +80,8 @@ extension ContentView {
                             } label: {
                                 Label("Fork Session", systemImage: "arrow.branch")
                             }
+                        } preview: {
+                            SessionMenuPreview(title: session.title, sessionID: nil)
                         }
                     }
                 }
