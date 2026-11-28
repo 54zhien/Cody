@@ -61,9 +61,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                             if reduceTransparency {
                                 CodyColors.bgPrimary
                             } else {
-                                // Left-heavy progressive blur + airy transparent right side:
-                                // keeps the left half richly frosted under the navigation & session list
-                                // while tapering smoothly to high transparency on the right half.
+                                // Keep the left four fifths frosted and taper across the right fifth.
                                 ZStack {
                                     Rectangle()
                                         .fill(.regularMaterial)
@@ -72,9 +70,9 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                                             LinearGradient(
                                                 stops: [
                                                     .init(color: .white, location: 0.0),
-                                                    .init(color: .white.opacity(0.96), location: 0.36),
-                                                    .init(color: .white.opacity(0.56), location: 0.60),
-                                                    .init(color: .white.opacity(0.16), location: 0.82),
+                                                    .init(color: .white.opacity(0.96), location: 0.80),
+                                                    .init(color: .white.opacity(0.56), location: 0.875),
+                                                    .init(color: .white.opacity(0.16), location: 0.95),
                                                     .init(color: .white.opacity(0.05), location: 1.0),
                                                 ],
                                                 startPoint: .leading,
@@ -93,13 +91,13 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                                                 color: colorScheme == .dark
                                                     ? Color.black.opacity(0.20)
                                                     : Color.white.opacity(0.12),
-                                                location: 0.42
+                                                location: 0.80
                                             ),
                                             .init(
                                                 color: colorScheme == .dark
                                                     ? Color.black.opacity(0.05)
                                                     : Color.black.opacity(0.02),
-                                                location: 0.76
+                                                location: 0.95
                                             ),
                                             .init(color: .clear, location: 1.0),
                                         ],

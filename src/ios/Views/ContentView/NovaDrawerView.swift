@@ -24,20 +24,15 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showsPinnedHeader {
-                pinnedHeader()
+        contentHost
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                if showsActions {
+                    actions()
+                        .padding(.horizontal, concentricEdgeInset)
+                        .offset(y: concentricBottomOffsetY)
+                }
             }
-            contentHost
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .overlay(alignment: .bottom) {
-            if showsActions {
-                actions()
-                    .padding(.horizontal, concentricEdgeInset)
-                    .offset(y: concentricBottomOffsetY)
-            }
-        }
     }
 
     @ViewBuilder
@@ -46,12 +41,26 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
         let clearance = max(56, protrusionAboveSafeArea + 14)
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
             content()
+                .modifier(CodyTopScrollEdgeHostModifier(extraHeight: CodySpacing.lg))
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    if showsPinnedHeader { pinnedHeader() }
+                }
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .safeAreaBar(edge: .bottom, spacing: 0) {
                     if showsActions { Color.clear.frame(height: clearance) }
                 }
         } else {
             content()
+                .mask(alignment: .top) {
+                    VStack(spacing: 0) {
+                        LinearGradient(colors: [.clear, .white], startPoint: .top, endPoint: .bottom)
+                            .frame(height: CodySpacing.sm)
+                        Rectangle().fill(.white)
+                    }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if showsPinnedHeader { pinnedHeader() }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if showsActions { Color.clear.frame(height: clearance) }
                 }

@@ -198,6 +198,51 @@ struct CodyEdgeFadeBar: View {
     }
 }
 
+/// The native bottom edge used by tool lists and the conversation list.
+struct CodyBottomScrollEdgeHost: ViewModifier {
+    let clearance: CGFloat
+    var contentManagesBottomInset = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    if clearance > 0 {
+                        Color.clear.frame(height: clearance)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+        } else if contentManagesBottomInset {
+            content.overlay(alignment: .bottom) {
+                if clearance > 0 {
+                    VStack(spacing: 0) {
+                        legacyRamp
+                        CodyColors.bgCanvas.frame(height: clearance)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+            }
+        } else {
+            content.safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: clearance)
+                    .background(alignment: .top) {
+                        if clearance > 0 {
+                            legacyRamp.offset(y: -CodyMetrics.Conversation.bottomFadeHeight)
+                        }
+                    }
+            }
+        }
+    }
+
+    private var legacyRamp: some View {
+        CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
+    }
+}
+
 /// Extends Apple's native iOS 26 `.soft` top scroll-edge effect on any SwiftUI ScrollView / List
 /// to match the Chat page's `safeAreaInsets.top + topFadeExtraHeight` host band without adding
 /// resting whitespace above the first scrolled item or intercepting touches.

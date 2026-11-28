@@ -145,6 +145,10 @@ extension AIChatView {
                 bottomFadeClearance: composerFadeClearance
             )
             .ignoresSafeArea(.container, edges: .bottom)
+            .modifier(CodyBottomScrollEdgeHost(
+                clearance: showsComposerFade ? composerFadeFloorHeight : 0,
+                contentManagesBottomInset: true
+            ))
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
@@ -168,13 +172,6 @@ extension AIChatView {
                 .padding(.horizontal, CodySpacing.lg)
                 .padding(.top, Self.listTopInset(forTopBanners: topBannersHeight))
                 .padding(.bottom, inputBarHeight)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if showsComposerFade && !vm.messages.isEmpty {
-                CodyComposerBackdrop(height: composerFadeFloorHeight)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottom) {
@@ -254,7 +251,8 @@ extension AIChatView {
     /// Reserve the part of the ramp above the list's existing 8pt breathing room.
     private var composerFadeClearance: CGFloat {
         guard showsComposerFade else { return 0 }
-        return 36 - 2 * CodySpacing.sm
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive { return 12 }
+        return CodyMetrics.Conversation.bottomFadeHeight - 2 * CodySpacing.sm
     }
 
     /// Shared label style for the floating scroll buttons (up / down).
@@ -345,37 +343,6 @@ extension AIChatView {
     /// capped in regular (landscape / iPad) for readability.
     var maxContentWidth: CGFloat? {
         hSizeClass == .regular ? 900 : nil
-    }
-}
-
-/// A fixed fade attached to the measured composer, independent of scroll position.
-private struct CodyComposerBackdrop: View {
-    let height: CGFloat
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            if !reduceTransparency {
-                Rectangle()
-                    .fill(.regularMaterial)
-                    .mask {
-                        LinearGradient(stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .white, location: 0.65),
-                            .init(color: .white, location: 1)
-                        ], startPoint: .top, endPoint: .bottom)
-                    }
-                    .frame(height: height + 12)
-            }
-
-            LinearGradient(stops: [
-                .init(color: CodyColors.bgCanvas.opacity(0), location: 0),
-                .init(color: CodyColors.bgCanvas, location: 0.35),
-                .init(color: CodyColors.bgCanvas, location: 1)
-            ], startPoint: .top, endPoint: .bottom)
-            .opacity(reduceTransparency ? 1 : 0.5)
-            .frame(height: height + 36)
-        }
     }
 }
 

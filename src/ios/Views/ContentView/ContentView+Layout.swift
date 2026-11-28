@@ -292,32 +292,13 @@ private struct NovaDestinationToolbar: ViewModifier {
     }
 }
 
-/// Shared native iOS 26 `.soft` bottom scroll-edge fade matching `NovaExploreView` across every
-/// Nova tab page (Files, Skills, MCP, Tools, Memory, Soul, Providers, Usage, etc.).
+/// Adds top and bottom scroll-edge effects to Nova tool destinations.
 struct NovaBottomScrollEdgeHost: ViewModifier {
     let clearance: CGFloat
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            content
-                .modifier(CodyTopScrollEdgeHostModifier(extraHeight: CodyMetrics.Conversation.topFadeExtraHeight))
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
-                .safeAreaBar(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: clearance)
-                }
-        } else {
-            content
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: clearance)
-                        .background(alignment: .top) {
-                            if clearance > 0 {
-                                CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
-                                    .offset(y: -CodyMetrics.Conversation.bottomFadeHeight)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-                }
-        }
+        content
+            .modifier(CodyTopScrollEdgeHostModifier(extraHeight: CodyMetrics.Conversation.topFadeExtraHeight))
+            .modifier(CodyBottomScrollEdgeHost(clearance: clearance))
     }
 }
