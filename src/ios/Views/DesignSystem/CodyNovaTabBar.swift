@@ -116,7 +116,8 @@ struct CodyNovaTabBar: View {
 
                 Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, height: Self.barHeight)
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.barHeight)
         }
         .frame(height: Self.barHeight)
         .onGeometryChange(for: CGRect.self) { proxy in

@@ -329,9 +329,9 @@ struct AIChatView: View {
     // [T-p2-agent-in-toolbar] Agent blocks now live in the floating tool bar
     // like every other tool; this sheet target only serves the notification-
     // tap / debug-RPC `openHelperSheet` route.
-    @State private var helperSheetTarget: HelperSheetTarget?
+    @State var helperSheetTarget: HelperSheetTarget?
     // [T-p3-agent-callback-cell] Detail sheet for a tapped agent callback cell.
-    @State private var agentCallbackDetail: AgentCallbackDetailTarget?
+    @State var agentCallbackDetail: AgentCallbackDetailTarget?
     @State var showFileBrowser = false
     // [T-browser-download-ux-v2] Downloads panel + "Show in Files" locate target.
     @State var showDownloadsPanel = false
