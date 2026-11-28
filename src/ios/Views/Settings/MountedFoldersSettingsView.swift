@@ -63,7 +63,8 @@ struct MountedFoldersSettingsView: View {
                 Button {
                     showingPicker = true
                 } label: {
-                    Image(systemName: "plus")
+                    CodyIconView(.plus, size: 24)
+                        .foregroundStyle(CodyColors.iconPrimary)
                         .accessibilityLabel(Text("Mount External Folders"))
                 }
                 .disabled(model.isAtCapacity)

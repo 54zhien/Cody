@@ -165,8 +165,7 @@ struct SoulSettingsView: View {
                     .overlay { Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px) }
                     .contentShape(Circle())
                     .overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 11, weight: .semibold))
+                        CodyIconView(.pencil, size: 13)
                             .foregroundStyle(CodyColors.iconPrimary)
                             .frame(width: 24, height: 24)
                             .background(CodySettingsHairline.cardFill, in: Circle())
@@ -248,7 +247,7 @@ struct SoulSettingsView: View {
         let check = SoulStore.isOverLimit(bodyText)
         return HStack(spacing: 6) {
             if check.isOverLimit {
-                Image(systemName: "exclamationmark.triangle.fill")
+                CodyIconView(.warningFilled, size: 16)
                     .foregroundStyle(CodyColors.statusErrorText)
                     .accessibilityHidden(true)
             }

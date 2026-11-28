@@ -246,6 +246,7 @@ private struct ChatNovaDrawerButton: View {
 
     var body: some View {
         Button {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             openNovaDrawer?()
         } label: {
             // Bare glyph (no fixed 40pt frame) so iOS 26 wraps it in a perfect 1:1 circular Liquid Glass button.
@@ -261,6 +262,7 @@ private struct ChatNovaNewChatButton: View {
 
     var body: some View {
         Button {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             if let novaNewChatAction {
                 novaNewChatAction()
             } else {
@@ -529,6 +531,9 @@ private struct ChatTrailingMenu: View, Equatable {
             CodyIconView(.ellipsis, size: 22)
                 .foregroundStyle(CodyColors.iconPrimary)
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        })
         // [T-ios-voiceover-labels] Matches the label the UIKit ellipsis button
         // elsewhere in this file already sets, so both read the same.
         .accessibilityLabel(Text("More options", comment: "VoiceOver label for the overflow menu button"))

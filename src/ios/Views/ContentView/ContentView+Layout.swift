@@ -128,8 +128,7 @@ extension ContentView {
             bottomClearance: isWide ? 0 : novaBottomClearance,
             onOpenDrawer: isWide ? { columnVisibility = .all } : openNovaDrawer,
             onSelectTool: { selectNovaDestination(.tool($0)) },
-            onOpenSettings: { activeToolSheet = .settings },
-            onReturnToChat: isWide ? nil : { selectNovaDestination(.home) }
+            onOpenSettings: { activeToolSheet = .settings }
         )
     }
 
@@ -244,6 +243,7 @@ struct NovaBottomScrollEdgeHost: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
             content
+                .modifier(CodyTopScrollEdgeHostModifier(extraHeight: CodyMetrics.Conversation.topFadeExtraHeight))
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .safeAreaBar(edge: .bottom, spacing: 0) {
                     Color.clear.frame(height: clearance)

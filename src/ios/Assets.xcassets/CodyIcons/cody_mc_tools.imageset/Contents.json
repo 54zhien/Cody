@@ -1,7 +1,17 @@
 {
   "images": [
     {
-      "filename": "cody_mc_tools.svg",
+      "filename": "cody_mc_tools_light.svg",
+      "idiom": "universal"
+    },
+    {
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ],
+      "filename": "cody_mc_tools_dark.svg",
       "idiom": "universal"
     }
   ],

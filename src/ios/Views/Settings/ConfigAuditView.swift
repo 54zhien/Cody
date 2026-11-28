@@ -65,7 +65,7 @@ struct ConfigAuditView: View {
                                 revert(entry)
                             } label: {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "arrow.uturn.backward")
+                                    CodyIconView(.undo, size: 16)
                                         .accessibilityHidden(true)
                                     Text("Revert")
                                 }
@@ -139,8 +139,7 @@ struct ConfigAuditView: View {
                     Text(displayJSON(entry.oldValueJSON))
                         .lineLimit(1)
                         .foregroundStyle(.secondary)
-                    Image(systemName: "arrow.right")
-                        .font(.caption2)
+                    CodyIconView(.arrowRight, size: 13)
                         .foregroundStyle(CodyColors.iconTertiary)
                         .accessibilityHidden(true)
                     Text(displayJSON(entry.newValueJSON))
@@ -157,8 +156,7 @@ struct ConfigAuditView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                 } icon: {
-                    Image(systemName: "text.quote")
-                        .font(.caption2)
+                    CodyIconView(.quote, size: 13)
                         .foregroundStyle(CodyColors.iconTertiary)
                         .accessibilityHidden(true)
                 }

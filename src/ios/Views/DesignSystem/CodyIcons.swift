@@ -53,8 +53,25 @@ enum CodyIcon: String, CaseIterable {
     case chevronRight = "cody_chevron_right"
     case chevronDown = "cody_chevron_down"
     case chevronUp = "cody_chevron_up"
+    case chevronLeft = "cody_chevron_left"
+    case chevronUpDown = "cody_chevron_up_down"
     case waveform = "cody_waveform"
     case check = "cody_check"
+    case checkCircle = "cody_check_circle"
+    case checkCircleFilled = "cody_check_circle_filled"
+    case warning = "cody_warning"
+    case warningFilled = "cody_warning_filled"
+    case pencil = "cody_pencil"
+    case eye = "cody_eye"
+    case eyeSlash = "cody_eye_slash"
+    case externalLink = "cody_external_link"
+    case undo = "cody_undo"
+    case arrowRight = "cody_arrow_right"
+    case quote = "cody_quote"
+    case ellipsisCircle = "cody_ellipsis_circle"
+    case phone = "cody_phone"
+    case minusCircle = "cody_minus_circle"
+    case keyboard = "cody_keyboard"
 
     /// Maps an existing SF Symbol name to its matching self-drawn vector SVG asset, if available.
     static func fromSystemName(_ systemName: String) -> CodyIcon? {
@@ -88,25 +105,42 @@ enum CodyIcon: String, CaseIterable {
         case "arrow.up": return .arrowUp
         case "stop.fill": return .stop
         case "ellipsis": return .ellipsis
-        case "doc.on.doc": return .copy
+        case "doc.on.doc", "doc.on.clipboard": return .copy
         case "arrow.clockwise": return .refresh
-        case "arrow.triangle.2.circlepath", "clock.arrow.circlepath": return .sync
+        case "arrow.triangle.2.circlepath", "arrow.triangle.2.circlepath.circle.fill", "clock.arrow.circlepath": return .sync
         case "speaker.wave.2", "speaker.wave.2.fill": return .speaker
         case "arrow.branch": return .branch
         case "square.and.arrow.up": return .share
         case "trash": return .trash
         case "pin", "pin.fill": return .pin
         case "icloud", "icloud.fill": return .cloud
-        case "externaldrive", "externaldrive.fill": return .storage
+        case "externaldrive", "externaldrive.fill", "externaldrive.badge.timemachine", "externaldrive.badge.questionmark": return .storage
         case "moon", "moon.stars": return .moon
         case "checkmark.shield", "checkmark.shield.fill": return .shieldCheck
-        case "doc.text", "doc.text.fill", "doc": return .doc
+        case "doc.text", "doc.text.fill", "doc", "arrow.down.doc.fill": return .doc
         case "bubble.left.and.bubble.right", "bubble.left.fill": return .chatBubbles
-        case "chevron.forward", "chevron.right": return .chevronRight
+        case "chevron.forward", "chevron.right", "chevron.compact.right": return .chevronRight
+        case "chevron.backward", "chevron.left": return .chevronLeft
         case "chevron.down": return .chevronDown
         case "chevron.up": return .chevronUp
+        case "chevron.up.chevron.down": return .chevronUpDown
         case "waveform": return .waveform
         case "checkmark": return .check
+        case "checkmark.circle": return .checkCircle
+        case "checkmark.circle.fill": return .checkCircleFilled
+        case "exclamationmark.triangle", "exclamationmark.circle": return .warning
+        case "exclamationmark.triangle.fill", "exclamationmark.circle.fill": return .warningFilled
+        case "pencil": return .pencil
+        case "eye": return .eye
+        case "eye.slash": return .eyeSlash
+        case "arrow.up.right.square": return .externalLink
+        case "arrow.uturn.backward", "arrow.uturn.backward.circle.fill": return .undo
+        case "arrow.right": return .arrowRight
+        case "text.quote": return .quote
+        case "ellipsis.circle": return .ellipsisCircle
+        case "iphone": return .phone
+        case "minus.circle", "minus.circle.fill": return .minusCircle
+        case "keyboard": return .keyboard
         default: return nil
         }
     }

@@ -38,7 +38,7 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
             ZStack(alignment: .leading) {
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .blur(radius: reduceTransparency ? 0 : progress * 16)
+                    .blur(radius: reduceTransparency ? 0 : progress * 7)
                     .allowsHitTesting(progress < 0.05)
 
                 // Left-edge drag hotzone when drawer is closed (contentShape applied BEFORE vertical
@@ -61,13 +61,51 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                             if reduceTransparency {
                                 CodyColors.bgPrimary
                             } else {
+                                // Left-heavy progressive blur + airy transparent right side:
+                                // keeps the left half richly frosted under the navigation & session list
+                                // while tapering smoothly to high transparency on the right half.
                                 ZStack {
                                     Rectangle()
-                                        .fill(.ultraThinMaterial)
-                                        .opacity(colorScheme == .dark ? 0.86 : 0.72)
-                                    (colorScheme == .dark
-                                        ? Color.black.opacity(0.24)
-                                        : Color.black.opacity(0.04))
+                                        .fill(.regularMaterial)
+                                        .opacity(colorScheme == .dark ? 0.92 : 0.86)
+                                        .mask {
+                                            LinearGradient(
+                                                stops: [
+                                                    .init(color: .white, location: 0.0),
+                                                    .init(color: .white.opacity(0.96), location: 0.36),
+                                                    .init(color: .white.opacity(0.56), location: 0.60),
+                                                    .init(color: .white.opacity(0.16), location: 0.82),
+                                                    .init(color: .white.opacity(0.05), location: 1.0),
+                                                ],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        }
+                                    LinearGradient(
+                                        stops: [
+                                            .init(
+                                                color: colorScheme == .dark
+                                                    ? Color.black.opacity(0.30)
+                                                    : Color.white.opacity(0.24),
+                                                location: 0.0
+                                            ),
+                                            .init(
+                                                color: colorScheme == .dark
+                                                    ? Color.black.opacity(0.20)
+                                                    : Color.white.opacity(0.12),
+                                                location: 0.42
+                                            ),
+                                            .init(
+                                                color: colorScheme == .dark
+                                                    ? Color.black.opacity(0.05)
+                                                    : Color.black.opacity(0.02),
+                                                location: 0.76
+                                            ),
+                                            .init(color: .clear, location: 1.0),
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 }
                             }
                         }

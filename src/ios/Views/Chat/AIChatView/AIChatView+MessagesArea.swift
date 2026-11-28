@@ -191,6 +191,7 @@ extension AIChatView {
                         // way up to the first turn, it hides — nothing further up.
                         if !vm.isAtFirstTurn {
                             Button {
+                                dismissChatKeyboard()
                                 vm.forceScrollToTop.send()
                             } label: {
                                 // arrow.up.to.line: "jump to a top anchor" reads truer
@@ -207,6 +208,7 @@ extension AIChatView {
                         // near the bottom (within the 20pt nearBottom threshold), so
                         // it appears as soon as you leave the bottom.
                         Button {
+                            dismissChatKeyboard()
                             vm.forceScrollToBottom.send()
                         } label: {
                             scrollFloatingButtonLabel("chevron.down")
@@ -231,6 +233,7 @@ extension AIChatView {
         // the session has no download records.
         .overlay(alignment: .bottom) {
             BrowserDownloadFloatingButton(sessionId: vm.sessionId ?? "") {
+                dismissChatKeyboard()
                 showDownloadsPanel = true
             }
             .padding(.trailing, 4)

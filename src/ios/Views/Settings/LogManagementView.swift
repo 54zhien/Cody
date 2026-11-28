@@ -128,7 +128,8 @@ struct LogManagementView: View {
                     Button {
                         showShareSheet = true
                     } label: {
-                        Image(systemName: "square.and.arrow.up")
+                        CodyIconView(.share, size: 22)
+                            .foregroundStyle(CodyColors.iconPrimary)
                             .accessibilityLabel(Text("Share Logs"))
                     }
                 }

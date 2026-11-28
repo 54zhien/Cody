@@ -773,10 +773,27 @@ struct ContentView: View {
         .sheet(isPresented: $showAlarmList, onDismiss: { fetchAlarmsIfNeeded() }) {
             AlarmListView()
         }
-        .sheet(item: $activeToolSheet) { sheet in
+        .fullScreenCover(isPresented: Binding(
+            get: { activeToolSheet == .settings },
+            set: { isPresented in
+                if !isPresented, activeToolSheet == .settings {
+                    activeToolSheet = nil
+                }
+            }
+        )) {
+            SettingsSheet(showTerminal: $showTerminal)
+        }
+        .sheet(item: Binding<ToolSheet?>(
+            get: { activeToolSheet == .settings ? nil : activeToolSheet },
+            set: { newValue in
+                if newValue != nil || activeToolSheet != .settings {
+                    activeToolSheet = newValue
+                }
+            }
+        )) { sheet in
             switch sheet {
             case .settings:
-                SettingsSheet(showTerminal: $showTerminal)
+                EmptyView()
             case .rootfsManagement:
                 NavigationStack {
                     RootfsManagementView()

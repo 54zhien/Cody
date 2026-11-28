@@ -397,6 +397,7 @@ struct AIChatView: View {
     /// True while unsent share-extension content is in the input bar.
     @State var hasInjectedShareContent = false
     @State var showModelPicker = false
+    @Namespace var composerSheetNamespace
     @State var showThinkingLevelSheet = false
     @State var showSessionSkills = false
     @State var showSessionMCPs = false
@@ -974,12 +975,14 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showModelPicker) {
-            NavigationStack {
-                SessionModelPicker(sessionId: vm.sessionId) {
-                    await vm.ensureSessionReturningId()
-                }
-            }
-            .presentationDetents([.large])
+            NovaComposerModelSheet(
+                vm: cached.vm,
+                sessionId: vm.sessionId,
+                ensureSessionId: { await vm.ensureSessionReturningId() }
+            )
+            .modifier(ComposerZoomDestinationModifier(id: "composerModelSheet", namespace: composerSheetNamespace))
+            .presentationDetents([.fraction(0.76), .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showTokenUsage) {
             TokenUsageSheet(vm: cached.vm)

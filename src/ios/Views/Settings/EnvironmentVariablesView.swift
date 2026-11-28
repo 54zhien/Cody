@@ -41,8 +41,7 @@ struct EnvironmentVariablesView: View {
             if store.entries.isEmpty {
                 Section {
                     VStack(spacing: 8) {
-                        Image(systemName: "terminal")
-                            .font(CodyTypography.headlineSmall)
+                        CodyIconView(.terminal, size: 28)
                             .foregroundStyle(CodyColors.iconPrimary)
                             .accessibilityHidden(true)
                         Text("No Environment Variables")
@@ -73,7 +72,8 @@ struct EnvironmentVariablesView: View {
                 Button {
                     showingAddSheet = true
                 } label: {
-                    Image(systemName: "plus")
+                    CodyIconView(.plus, size: 24)
+                        .foregroundStyle(CodyColors.iconPrimary)
                         .accessibilityLabel(Text("Add Environment Variable"))
                 }
             }
@@ -179,8 +179,7 @@ struct EnvironmentVariablesView: View {
                         revealedKeys.insert(entry.id)
                     }
                 } label: {
-                    Image(systemName: isRevealed ? "eye.slash" : "eye")
-                        .font(CodyTypography.labelLarge)
+                    CodyIconView(isRevealed ? .eyeSlash : .eye, size: 20)
                         .foregroundStyle(CodyColors.iconSecondary)
                         .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
                         .contentShape(Rectangle())
@@ -195,8 +194,7 @@ struct EnvironmentVariablesView: View {
                         withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { if copiedId == entry.id { copiedId = nil } }
                     }
                 } label: {
-                    Image(systemName: copiedId == entry.id ? "checkmark" : "doc.on.clipboard")
-                        .font(CodyTypography.labelLarge)
+                    CodyIconView(copiedId == entry.id ? .check : .copy, size: 20)
                         .foregroundStyle(copiedId == entry.id ? CodyColors.statusSuccessText : CodyColors.iconSecondary)
                         .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
                         .contentShape(Rectangle())

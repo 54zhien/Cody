@@ -1,7 +1,17 @@
 {
   "images": [
     {
-      "filename": "cody_mc_skills.svg",
+      "filename": "cody_mc_skills_light.svg",
+      "idiom": "universal"
+    },
+    {
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ],
+      "filename": "cody_mc_skills_dark.svg",
       "idiom": "universal"
     }
   ],

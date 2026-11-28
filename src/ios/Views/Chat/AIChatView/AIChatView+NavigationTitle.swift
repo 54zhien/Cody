@@ -184,44 +184,33 @@ extension AIChatView {
     private var titleView: some View {
         let key = navTitleKey
         let reduceMotion = self.reduceMotion
-        return VStack(spacing: CodySpacing.xxs) {
-            HStack(spacing: CodySpacing.xs) {
-                NovaModelPickerButton(key: key, onSelect: { showModelPicker = true },
-                                      onRename: key.sessionTitle == nil && key.canEditTitle
-                                          ? { titlePillEditSession = titlePillSession } : nil)
-
-                if key.showThinkingBadge {
-                    thinkingLevelBadge
-                        .fixedSize()
-                }
+        let displayTitle = key.sessionTitle ?? key.soulName
+        return Button {
+            dismissChatKeyboard()
+            if key.canEditTitle {
+                titlePillEditSession = titlePillSession
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
-            .modifier(NovaModelPillSurface(fallbackPulseOpacity: fallbackPulseOpacity))
-            .onChange(of: vm.fallbackTrigger) { _ in
-                fallbackPulseOpacity = 0
-                for step in 0..<6 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(step) * 0.35) {
-                        withAnimation(CodyMotion.resolved(.easeInOut(duration: 0.35), reduceMotion: reduceMotion)) {
-                            fallbackPulseOpacity = step.isMultiple(of: 2) ? 1 : 0
-                        }
+        } label: {
+            Text(displayTitle)
+                .font(CodyTypography.titleSmall)
+                .foregroundStyle(CodyColors.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.horizontal, 18)
+                .frame(height: 44)
+                .modifier(NovaModelPillSurface(fallbackPulseOpacity: fallbackPulseOpacity))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(displayTitle))
+        .accessibilityHint(key.canEditTitle ? Text("Edit session title") : Text(""))
+        .onChange(of: vm.fallbackTrigger) { _ in
+            fallbackPulseOpacity = 0
+            for step in 0..<6 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(step) * 0.35) {
+                    withAnimation(CodyMotion.resolved(.easeInOut(duration: 0.35), reduceMotion: reduceMotion)) {
+                        fallbackPulseOpacity = step.isMultiple(of: 2) ? 1 : 0
                     }
                 }
-            }
-
-            if let sessionTitle = key.sessionTitle {
-                Button {
-                    titlePillEditSession = titlePillSession
-                } label: {
-                    Text(sessionTitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(CodyColors.textTertiary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint(Text("Edit session title"))
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
@@ -241,6 +230,7 @@ extension AIChatView {
     private var thinkingLevelBadge: some View {
         let level = vm.currentThinkingLevel
         return Button {
+            dismissChatKeyboard()
             showThinkingLevelSheet = true
         } label: {
             HStack(spacing: CodySpacing.xxs) {
@@ -382,7 +372,133 @@ private struct NovaModelPickerButton: View {
     }
 }
 
-/// Standard iOS 26 interactive Liquid Glass capsule surface for the chat header model selector,
+/// Nova sheet expanded directly from long-pressing the chat composer:
+/// combines a hairline-capsule Thinking Intensity pill selector with the full Model Picker.
+struct NovaComposerModelSheet: View {
+    @ObservedObject var vm: AIChatViewModel
+    let sessionId: String?
+    let ensureSessionId: () async -> String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var showsThinkingSection: Bool {
+        !vm.availableThinkingLevels.isEmpty
+            && (vm.currentThinkingLevel.isEnabled || vm.currentModelSupportsReasoning)
+    }
+
+    var body: some View {
+        NavigationStack {
+            SessionModelPicker(sessionId: sessionId, ensureSessionId: ensureSessionId)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if showsThinkingSection {
+                        thinkingIntensityBar
+                    }
+                }
+        }
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
+    }
+
+    private var thinkingIntensityBar: some View {
+        let levels: [ThinkingLevel] = [.off] + vm.availableThinkingLevels
+        let current = vm.currentThinkingLevel
+        return VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            HStack(spacing: CodySpacing.xsPlus) {
+                Image("ThinkingIcon")
+                    .resizable()
+                    .frame(width: 15, height: 15)
+                    .opacity(current.isEnabled ? 1.0 : 0.45)
+                    .accessibilityHidden(true)
+                Text("Thinking Intensity")
+                    .font(CodyTypography.labelLarge)
+                    .foregroundStyle(CodyColors.textPrimary)
+                Spacer(minLength: CodySpacing.sm)
+                Text(current.displayName)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: CodySpacing.xsPlus) {
+                    ForEach(levels, id: \.self) { level in
+                        let isSelected = (level == .off) ? !current.isEnabled : (current == level)
+                        Button {
+                            guard !isSelected else { return }
+                            UISelectionFeedbackGenerator().selectionChanged()
+                            withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                                vm.setThinkingLevel(level)
+                            }
+                        } label: {
+                            Text(level.displayName)
+                                .font(CodyTypography.labelMedium)
+                                .foregroundStyle(isSelected ? CodyColors.interactivePrimaryLabel : CodyColors.textPrimary)
+                                .padding(.horizontal, CodySpacing.md)
+                                .frame(minHeight: 34)
+                                .background {
+                                    Capsule()
+                                        .fill(isSelected ? CodyColors.interactivePrimaryBg : CodySettingsHairline.cardFill)
+                                }
+                                .overlay {
+                                    if !isSelected {
+                                        Capsule()
+                                            .strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(CodyPressableButtonStyle())
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, CodySpacing.mdPlus)
+        .padding(.vertical, CodySpacing.md)
+        .codySettingsCapsulePill()
+        .padding(.horizontal, CodySpacing.lg)
+        .padding(.top, CodySpacing.xs)
+        .padding(.bottom, CodySpacing.sm)
+        .background(CodyColors.bgCanvas)
+    }
+}
+
+/// Marks the chat composer capsule as the iOS 18+ zoom transition source for `NovaComposerModelSheet`.
+struct ComposerZoomSourceModifier: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+    }
+}
+
+/// Applies the iOS 18+ zoom transition (and rounded sheet radius on iOS 16.4+) so
+/// `NovaComposerModelSheet` expands directly out of the composer.
+struct ComposerZoomDestinationModifier: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .navigationTransition(.zoom(sourceID: id, in: namespace))
+                .presentationCornerRadius(32)
+        } else if #available(iOS 16.4, *) {
+            content
+                .presentationCornerRadius(32)
+        } else {
+            content
+        }
+    }
+}
+
+/// Standard iOS 26 interactive Liquid Glass capsule surface for the chat header title capsule,
 /// with clean translucent fallback on iOS 16–25 and Reduce Transparency.
 private struct NovaModelPillSurface: ViewModifier {
     let fallbackPulseOpacity: Double

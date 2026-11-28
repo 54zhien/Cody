@@ -135,8 +135,7 @@ struct AboutView: View {
     private func externalLink(_ title: LocalizedStringKey, url: String) -> some View {
         Link(destination: URL(string: url)!) {
             CodySettingsNovaRowContent(title: title, subtitle: nil, systemImage: nil, tint: nil, showsDisclosure: false) {
-                Image(systemName: "arrow.up.right.square")
-                    .font(CodyTypography.labelMedium)
+                CodyIconView(.externalLink, size: 17)
                     .foregroundStyle(CodyColors.iconDisclosure)
                     .accessibilityHidden(true)
             }

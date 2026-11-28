@@ -185,6 +185,18 @@ extension AIChatView {
             .overlay {
                 ComposerContextGlow(tier: vm.contextUsage?.tier ?? .normal)
             }
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .onEnded { _ in
+                        guard !voiceInputActive,
+                              speechManager.state != .recording,
+                              !inputHasSelection,
+                              !vm.showSlashMenu,
+                              !vm.showMentionMenu else { return }
+                        openComposerModelSheet()
+                    }
+            )
+            .modifier(ComposerZoomSourceModifier(id: "composerModelSheet", namespace: composerSheetNamespace))
             .environment(\.isCompactComposer, compact)
             .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: compact)
             .frame(maxWidth: maxContentWidth)

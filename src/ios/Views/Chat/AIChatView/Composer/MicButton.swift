@@ -61,8 +61,7 @@ struct MicButton: View {
         //   slide left to cancel, slide up to lock into full voice mode, or release to finish.
         Group {
             if isVoiceActive {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 16, weight: .medium))
+                CodyIconView(.keyboard, size: 24)
             } else {
                 CodyIconView(.mic, size: 26)
             }

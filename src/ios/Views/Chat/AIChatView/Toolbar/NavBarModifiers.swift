@@ -39,7 +39,8 @@ struct NavTitleFrameModifier: ViewModifier {
             // alignment. Let transition frames render uncropped so the
             // system's title slide and fade can finish without being sliced.
             content
-                .frame(minHeight: 44, alignment: .center)
+                .frame(height: 44, alignment: .center)
+                .offset(y: 2)
         } else {
             content
         }

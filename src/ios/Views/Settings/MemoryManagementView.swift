@@ -72,7 +72,8 @@ struct MemoryManagementView: View {
                                   systemImage: "arrow.triangle.2.circlepath.icloud")
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        CodyIconView(.ellipsisCircle, size: 22)
+                            .foregroundStyle(CodyColors.iconPrimary)
                             .accessibilityLabel(Text("More options"))
                     }
                 }

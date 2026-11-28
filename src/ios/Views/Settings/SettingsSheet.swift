@@ -168,13 +168,16 @@ struct SettingsSheet: View {
 
     @ViewBuilder
     private func toolbarIcon(_ icon: CodyIcon) -> some View {
+        // Match Apple HIG standard 44pt Liquid Glass toolbar glyph proportions:
+        // cody_close spans ~56% of its 24x24 viewBox (28pt -> ~16pt optical X),
+        // cody_info spans ~83% of its 24x24 viewBox (26pt -> ~21.5pt optical circle).
+        let glyphSize: CGFloat = (icon == .close) ? 28 : 26
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            // Let iOS 26 wrap the bare toolbar glyph in its single-layer native circular Liquid Glass button.
-            CodyIconView(icon, size: 23)
+            CodyIconView(icon, size: glyphSize)
                 .foregroundStyle(CodyColors.iconPrimary)
                 .accessibilityHidden(true)
         } else {
-            CodyIconView(icon, size: 23)
+            CodyIconView(icon, size: glyphSize)
                 .foregroundStyle(CodyColors.iconPrimary)
                 .frame(width: 44, height: 44)
                 .background(CodySettingsHairline.cardFill, in: Circle())
@@ -312,10 +315,12 @@ struct SettingsSheet: View {
             CodySettingsNovaDivider(leadingInset: 54)
             CodySettingsNovaActionRow(
                 "Linux Terminal",
-                systemImage: UIImage(systemName: "apple.terminal") == nil ? "terminal" : "apple.terminal"
+                systemImage: "terminal"
             ) {
-                showTerminal = true
                 dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    showTerminal = true
+                }
             }
         }
     }

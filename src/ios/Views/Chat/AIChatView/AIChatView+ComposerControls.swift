@@ -21,6 +21,18 @@ import UniformTypeIdentifiers
 import WebKit
 
 extension AIChatView {
+    func openComposerModelSheet() {
+        guard !voiceInputActive, speechManager.state != .recording else { return }
+        dismissChatKeyboard()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        showModelPicker = true
+    }
+
+    func dismissChatKeyboard() {
+        inputFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
     /// Attachment "+" button.
     /// iOS 16's Menu has a vertical alignment bug inside HStack that causes it
     /// to sit higher than sibling buttons when the keyboard is up.
@@ -30,27 +42,31 @@ extension AIChatView {
         // [T-ios-voiceover-labels] Labelled on the shared `icon` so both the
         // iOS 17 Menu branch and the iOS 16 confirmationDialog branch below
         // announce the same thing; otherwise VoiceOver reads "plus".
-        let icon = CodyIconView(.plus, size: 26)
+        let icon = CodyIconView(.plus, size: 25)
             .modifier(ComposerSecondaryControlSurface())
             .accessibilityLabel(Text("Add attachment", comment: "VoiceOver label for the attachment button"))
 
         if #available(iOS 17, *) {
             Menu {
-                Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
-                Button { showPhotoPicker = true } label: { Label("Choose Photos & Videos", systemImage: "photo.on.rectangle") }
-                Button { showDocumentPicker = true } label: { Label("Add File", systemImage: "doc") }
+                Button { dismissChatKeyboard(); showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
+                Button { dismissChatKeyboard(); showPhotoPicker = true } label: { Label("Choose Photos & Videos", systemImage: "photo.on.rectangle") }
+                Button { dismissChatKeyboard(); showDocumentPicker = true } label: { Label("Add File", systemImage: "doc") }
                 Button(action: openSlashCommands) { Label("Commands (/)", systemImage: "command") }
             } label: {
                 icon
             }
+            .simultaneousGesture(TapGesture().onEnded { dismissChatKeyboard() })
         } else {
-            Button { showAttachmentMenu = true } label: {
+            Button {
+                dismissChatKeyboard()
+                showAttachmentMenu = true
+            } label: {
                 icon
             }
             .confirmationDialog("Add Attachment", isPresented: $showAttachmentMenu) {
-                Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
-                Button { showPhotoPicker = true } label: { Label("Choose Photos & Videos", systemImage: "photo.on.rectangle") }
-                Button { showDocumentPicker = true } label: { Label("Add File", systemImage: "doc") }
+                Button { dismissChatKeyboard(); showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
+                Button { dismissChatKeyboard(); showPhotoPicker = true } label: { Label("Choose Photos & Videos", systemImage: "photo.on.rectangle") }
+                Button { dismissChatKeyboard(); showDocumentPicker = true } label: { Label("Add File", systemImage: "doc") }
                 Button("Commands (/)", action: openSlashCommands)
             }
         }
@@ -138,6 +154,7 @@ extension AIChatView {
         let on = voiceOutput.isEnabled
         let muted = voiceOutput.isMuted
         return Button {
+            dismissChatKeyboard()
             if on && !muted {
                 // Active → mute (temporary silence, capsule stays visible).
                 voiceOutput.isMuted = true
@@ -231,6 +248,7 @@ extension AIChatView {
     /// "Exit Edit Mode" capsule shown while editing a past message.
     private var editExitButton: some View {
         Button {
+            dismissChatKeyboard()
             vm.cancelEdit()
         } label: {
             Text("Exit Edit Mode", comment: "Cancel message editing")
@@ -250,6 +268,7 @@ extension AIChatView {
     /// Speech language badge shown only while recording.
     private var languageBadgeButton: some View {
         Button {
+            dismissChatKeyboard()
             speechManager.showLanguagePicker = true
         } label: {
             Text(speechManager.languageLabel)
@@ -478,6 +497,19 @@ extension AIChatView {
         .padding(.top, compact ? 0 : topPadding)
         .padding(.bottom, compact ? 0 : CodyMetrics.Composer.paddingV)
         .frame(minHeight: compact ? 0 : CodyMetrics.Composer.minHeight)
+        .overlay {
+            // While unfocused, intercept taps (focus keyboard) and long-presses (expand into
+            // the Model & Thinking sheet) above the UIKit UITextView so UITextView never
+            // swallows the long-press with a text-loupe gesture.
+            if !inputFocused && !voiceInputActive && speechManager.state != .recording {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { inputFocused = true }
+                    .onLongPressGesture(minimumDuration: 0.38) {
+                        openComposerModelSheet()
+                    }
+            }
+        }
         .overlay(alignment: .top) {
             if composerResizeEnabled { composerResizeHandle }
         }

@@ -15,6 +15,14 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
         CodyDisplayGeometry.concentricEdgeInset(forCapsuleHeight: NovaDrawerMetrics.bottomPillHeight)
     }
 
+    private var concentricBottomOffsetY: CGFloat {
+        // Overlay bottom sits at `safeBottom` above the physical screen edge.
+        // Shift by `(safeBottom - concentricEdgeInset)` so the capsule's physical bottom
+        // distance equals its horizontal inset (`R_screen - H/2`), aligning the capsule
+        // semicircle centers concentrically with the physical display corners.
+        CodyDisplayGeometry.bottomSafeAreaInset - concentricEdgeInset
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if showsPinnedHeader {
@@ -25,18 +33,17 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
         }
         .overlay(alignment: .bottom) {
             if showsActions {
-                // Strictly pill-height overlay inside the safe area (no `.ignoresSafeArea` inside overlay)
-                // so the unified scroll drawer stays 100% interactive with clean concentric horizontal margins.
                 actions()
                     .padding(.horizontal, concentricEdgeInset)
-                    .padding(.bottom, 4)
+                    .offset(y: concentricBottomOffsetY)
             }
         }
     }
 
     @ViewBuilder
     private var contentHost: some View {
-        let clearance = max(72, NovaDrawerMetrics.bottomPillHeight + concentricEdgeInset - CodyDisplayGeometry.bottomSafeAreaInset + 16)
+        let protrusionAboveSafeArea = max(0, NovaDrawerMetrics.bottomPillHeight - concentricBottomOffsetY)
+        let clearance = max(56, protrusionAboveSafeArea + 14)
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
             content()
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
@@ -252,7 +259,11 @@ extension ContentView {
         let avatarEdgeInset = (pillHeight - avatarSize) / 2 // 9pt concentric with capsule semicircle
 
         return HStack {
-            Button(action: startNewNovaChat) {
+            Button {
+                searchFocused = false
+                dismissNovaKeyboard()
+                startNewNovaChat()
+            } label: {
                 HStack(spacing: 10) {
                     CodyIconView(.compose, size: 26)
                         .accessibilityHidden(true)
@@ -322,6 +333,8 @@ extension ContentView {
     }
 
     private func openNovaToolSheet(_ sheet: ToolSheet) {
+        searchFocused = false
+        dismissNovaKeyboard()
         closeNovaDrawer()
         activeToolSheet = sheet
     }
