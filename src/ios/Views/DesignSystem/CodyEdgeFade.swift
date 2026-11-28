@@ -1,4 +1,5 @@
 import SwiftUI
+import ObjectiveC
 import UIKit
 
 private enum CodyEdgeFadeRamp {
@@ -378,5 +379,70 @@ private final class CodyTopScrollEdgeHostContainerView: UIView {
             queue.append(contentsOf: candidate.subviews)
         }
         return fallback
+    }
+}
+
+/// A continuous blur profile applied by UIKit to the content behind this view.
+final class CodyVariableBlurView: UIVisualEffectView {
+    enum Ramp {
+        case composer
+        case sidebar
+    }
+
+    private static let composerMask = makeMask(
+        size: CGSize(width: 1, height: 512), end: CGPoint(x: 0, y: 512),
+        locations: [0, 0.65, 1], alpha: [0, 1, 1]
+    )
+    private static let sidebarMask = makeMask(
+        size: CGSize(width: 512, height: 1), end: CGPoint(x: 512, y: 0),
+        locations: [0, 0.80, 1], alpha: [1, 1, 0]
+    )
+
+    private static func makeMask(
+        size: CGSize, end: CGPoint, locations: [CGFloat], alpha: [CGFloat]
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let colors = alpha.map { UIColor(white: 0, alpha: $0).cgColor }
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                            colors: colors as CFArray,
+                                            locations: locations) else { return }
+            context.cgContext.drawLinearGradient(gradient, start: .zero, end: end, options: [])
+        }
+    }
+
+    private var fallbackMask: UIImageView?
+
+    init(radius: CGFloat, ramp: Ramp) {
+        let mask = ramp == .composer ? Self.composerMask : Self.sidebarMask
+        let selector = NSSelectorFromString("effectWithVariableBlurRadius:imageMask:")
+        let variableEffect: UIVisualEffect?
+        if let method = class_getClassMethod(UIBlurEffect.self, selector) {
+            typealias Factory = @convention(c) (AnyClass, Selector, CGFloat, UIImage) -> UIVisualEffect?
+            let makeEffect = unsafeBitCast(method_getImplementation(method), to: Factory.self)
+            variableEffect = makeEffect(UIBlurEffect.self, selector, radius, mask)
+        } else {
+            variableEffect = nil
+        }
+
+        super.init(effect: variableEffect ?? UIBlurEffect(style: .systemMaterial))
+        if variableEffect == nil {
+            fallbackMask = UIImageView(image: mask)
+        }
+        isUserInteractionEnabled = false
+        accessibilityElementsHidden = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("Use init(radius:ramp:)") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if let fallbackMask, fallbackMask.frame != bounds {
+            fallbackMask.frame = bounds
+            mask = fallbackMask
+        }
     }
 }
