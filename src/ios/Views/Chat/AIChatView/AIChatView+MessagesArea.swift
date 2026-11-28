@@ -144,7 +144,7 @@ extension AIChatView {
                 composerLiveHeight: composerLiveHeight,
                 bottomFadeClearance: composerFadeClearance
             )
-            .modifier(MessageListBottomEdgeExtensionModifier())
+            .modifier(MessageListBottomScrollEdgeHost(clearance: showsComposerFade ? composerFadeFloorHeight : 0))
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
@@ -171,17 +171,13 @@ extension AIChatView {
             }
         }
         .overlay(alignment: .bottom) {
-            if showsComposerFade && !vm.messages.isEmpty {
-                if usesLegacyBottomFade {
-                    VStack(spacing: 0) {
-                        CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
-                        CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
-                    }
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                } else {
-                    NovaChatBottomFadeScrim(composerBandHeight: composerFadeFloorHeight)
+            if usesLegacyBottomFade && showsComposerFade && !vm.messages.isEmpty {
+                VStack(spacing: 0) {
+                    CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
+                    CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
                 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottom) {
@@ -359,39 +355,29 @@ extension AIChatView {
     }
 }
 
-private struct MessageListBottomEdgeExtensionModifier: ViewModifier {
+/// Same native iOS 26 `.scrollEdgeEffectStyle(.soft, for: .bottom)` + `.safeAreaBar(edge: .bottom)`
+/// host used by `NovaExploreView` and `NovaBottomScrollEdgeHost` across all tool pages, with
+/// `.ignoresSafeArea(.container, edges: .bottom)` applied directly to the UIKit collection view so
+/// messages scroll behind the composer and bottom tab bar without double-insetting `contentInset.bottom`.
+private struct MessageListBottomScrollEdgeHost: ViewModifier {
+    let clearance: CGFloat
+
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            content.ignoresSafeArea(.container, edges: .bottom)
+            content
+                .ignoresSafeArea(.container, edges: .bottom)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    if clearance > 0 {
+                        Color.clear
+                            .frame(height: clearance)
+                            .allowsHitTesting(false)
+                    }
+                }
         } else {
             content
         }
-    }
-}
-
-/// Touch-pass-through smoothstep canvas scrim reinforcing iOS 26's native `.soft`
-/// `UIScrollEdgeElementContainerInteraction` blur behind the Liquid Glass composer and
-/// Nova bottom tab bar, while keeping scrolled content gently refracted through the glass.
-private struct NovaChatBottomFadeScrim: View {
-    let composerBandHeight: CGFloat
-
-    var body: some View {
-        let totalHeight = max(0, composerBandHeight) + 44
-        LinearGradient(
-            stops: [
-                .init(color: CodyColors.bgCanvas.opacity(0.0), location: 0.0),
-                .init(color: CodyColors.bgCanvas.opacity(0.14), location: 0.25),
-                .init(color: CodyColors.bgCanvas.opacity(0.45), location: 0.55),
-                .init(color: CodyColors.bgCanvas.opacity(0.76), location: 0.82),
-                .init(color: CodyColors.bgCanvas.opacity(0.90), location: 1.0),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: totalHeight)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }
 

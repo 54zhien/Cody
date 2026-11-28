@@ -265,7 +265,10 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         let cvTop = vc.collectionView!
         coord.extraTopInset = extraTopInset
         vc.topScrollEdgeExtensionHeight = max(CodyMetrics.Conversation.topFadeExtraHeight, extraTopInset)
-        vc.bottomScrollEdgeExtensionHeight = max(0, inputBarHeight + floatingBarHeight + 14)
+        // Bottom scroll-edge fade is driven by SwiftUI `.scrollEdgeEffectStyle(.soft, for: .bottom)`
+        // + `.safeAreaBar(edge: .bottom)` (matching Explore and all tool pages), so keep the UIKit
+        // bottom host hidden to avoid stacking two competing bottom scroll-edge interactions.
+        vc.bottomScrollEdgeExtensionHeight = 0
         if abs(cvTop.contentInset.top - coord.baseContentInsetTop) > 0.5 {
             cvTop.contentInset.top = coord.baseContentInsetTop
         }
