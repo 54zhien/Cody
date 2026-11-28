@@ -146,6 +146,7 @@ final class MessageListLayout: UICollectionViewLayout {
 
     /// Vertical spacing between cells.
     var itemSpacing: CGFloat = 0
+    var turnSpacingAfterIndices: Set<Int> = []
 
     /// Cached heights keyed by item index. Persists across invalidation cycles.
     private var heightCache: [Int: CGFloat] = [:]
@@ -268,6 +269,9 @@ final class MessageListLayout: UICollectionViewLayout {
             // bubble) touched the reply. The rule is MessageRowGap.
             y += MessageRowGap.after(height: h, isLast: isLast, nextIsHuggingFooter: nextIsFooter,
                                      gapWithheldBefore: gapWithheld, spacing: itemSpacing)
+            if h > 0 && turnSpacingAfterIndices.contains(i) {
+                y += CodyMetrics.Conversation.compactGroupSpacing - itemSpacing
+            }
             gapWithheld = nextIsFooter && h > 0
         }
         totalHeight = y
@@ -1051,6 +1055,7 @@ final class MessageListLayout: UICollectionViewLayout {
         measuredHeightByContentKey.removeAll()
         contentKeyByIndex.removeAll()
         footerHugByIndex.removeAll()
+        turnSpacingAfterIndices.removeAll()
         stableHeightKeyByContentKey.removeAll()
     }
 

@@ -85,7 +85,12 @@ struct MessageContextMenuPreview: View {
 }
 
 private var chatBubbleShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: CodyRadius.bubble, style: .circular)
+    RoundedRectangle(cornerRadius: 20, style: .continuous)
+}
+
+enum UserMessageBubbleMetrics {
+    static let horizontalPadding = CodySpacing.lg
+    static let verticalPadding = CodySpacing.smPlus
 }
 
 /// The preview is composited over an opaque floor, including queued bubbles.
@@ -139,9 +144,6 @@ private struct UserBubbleSurface: ViewModifier {
             .overlay {
                 if isQueued {
                     shape.strokeBorder(CodyColors.borderDefault, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                        .allowsHitTesting(false)
-                } else {
-                    shape.strokeBorder(CodyColors.borderLight, lineWidth: 0.5)
                         .allowsHitTesting(false)
                 }
             }
@@ -391,8 +393,8 @@ struct ChatMessageRow: View {
                         SearchHighlightText(userDisplayText, key: searchKey())
                             .font(.system(size: FontSettings.shared.scaledMessage(16.5)))
                             .foregroundStyle(message.isQueued ? CodyColors.textSecondary : CodyColors.textPrimary)
-                            .padding(.horizontal, CodySpacing.mdPlus)
-                            .padding(.vertical, CodySpacing.smPlus)
+                            .padding(.horizontal, UserMessageBubbleMetrics.horizontalPadding)
+                            .padding(.vertical, UserMessageBubbleMetrics.verticalPadding)
                             .modifier(UserBubbleSurface(isQueued: message.isQueued))
 
                         if message.isQueued {
@@ -412,7 +414,7 @@ struct ChatMessageRow: View {
             }
             .modifier(CodyOpenURLHandler())
             .contentShape(Rectangle())
-            // The hit area stays rectangular. The lift uses the bubble's circular corners.
+            // The hit area stays rectangular. The lift follows the bubble's shape.
             .contentShape(.contextMenuPreview, chatBubbleShape)
             .contextMenu {
                 Button {

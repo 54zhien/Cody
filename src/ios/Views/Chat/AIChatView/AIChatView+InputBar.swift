@@ -75,8 +75,27 @@ extension AIChatView {
         vm.inputCaret = caret
     }
 
+    var usesCompactSingleRowComposer: Bool {
+        guard !voiceInputActive && vm.editingMessageIndex == nil
+            && vm.attachments.isEmpty && vm.loadingVideoCount == 0 && vm.pastedTexts.isEmpty
+            && !vm.showSlashMenu && !vm.showMentionMenu
+            && !vm.inputText.contains("\n") && vm.inputText.count < 32
+            && !composerResizeEnabled && !chatDynamicTypeSize.isAccessibilitySize
+            && speechManager.state != .recording && !(hasInjectedShareContent && hasMovableShareContent)
+        else { return false }
+
+        // A short draft can still wrap on a narrow phone or in a wider script.
+        guard inputBottomRowWidth > 0, !vm.inputText.isEmpty else { return true }
+        let available = inputBottomRowWidth + 2 * CodyMetrics.Composer.paddingH
+        let font = UIFont.systemFont(ofSize: FontSettings.shared.scaledChatInput(16.5))
+        let textWidth = (vm.inputText as NSString).size(withAttributes: [.font: font]).width
+        return ceil(textWidth) <= available - ComposerRowsLayout.compactChromeWidth
+    }
+
     var inputBar: some View {
-        VStack(spacing: 0) {
+        let compact = usesCompactSingleRowComposer
+        let radius: CGFloat = compact ? 24 : CodyMetrics.Composer.cornerRadius
+        return VStack(spacing: 0) {
             if vm.isSuspended {
                 HStack(spacing: CodySpacing.sm) {
                     ProgressView()
@@ -121,28 +140,9 @@ extension AIChatView {
                     .padding(.top, 8)
                 }
 
-                inputFieldOrWaveform
-
-                inputBottomRow
-                    // [T-ios-de-voice-toolbar] Measure the row so the
-                    // read-aloud toggle can decide whether its label fits.
-                    // `onGeometryChange`, NOT a GeometryReader background —
-                    // [T-ios-geometry-observer-crash] traced an async-renderer
-                    // SIGTRAP to that scaffold, and this file already
-                    // standardised on the observer for exactly that reason.
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.width
-                    } action: { w in
-                        guard w > 0, abs(w - inputBottomRowWidth) > 0.5 else { return }
-                        inputBottomRowWidth = w
-                    }
-                    // Padding applied AFTER the observer, so the measured
-                    // width is the row's own usable space and needs no
-                    // constant subtracted back out of it.
-                    .padding(.horizontal, CodyMetrics.Composer.paddingH)
-                    .padding(.bottom, CodyMetrics.Composer.paddingV)
+                composerRows(compact: compact)
             })
-            .contentShape(RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .onTapGesture { inputFocused = true }
             .onReceive(speechManager.$recognizedText) { text in
                 guard speechManager.state == .recording || !text.isEmpty else { return }
@@ -186,10 +186,13 @@ extension AIChatView {
             .overlay {
                 ComposerContextGlow(tier: vm.contextUsage?.tier ?? .normal)
             }
+            .environment(\.composerCornerRadius, radius)
+            .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: compact)
             .frame(maxWidth: maxContentWidth)
             .padding(.horizontal, CodyMetrics.Composer.outerMarginH)
             .padding(.top, CodySpacing.sm)
-            .padding(.bottom, CodyMetrics.Composer.outerMarginBottom)
+            // Include the tab clearance in the measured composer inset.
+            .padding(.bottom, CodyMetrics.Composer.outerMarginBottom + novaTabBarBottomInset)
             // [T-ios-geometry-observer-crash] onGeometryChange replaces the
             // GeometryReader scaffold (async-renderer SIGTRAP — see the
             // floating-bar site). Fires with the initial value too, so the

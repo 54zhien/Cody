@@ -174,7 +174,7 @@ struct AIChatView: View {
     var vm: AIChatViewModel { cached.vm }
 
     /// Whether this view is in read-only mode (remote session).
-    private var isReadOnly: Bool { remoteDeviceId != nil }
+    var isReadOnly: Bool { remoteDeviceId != nil }
 
     /// Binding to vm.inputText, routed through the stable @StateObject.
     var inputTextBinding: Binding<String> {
@@ -221,6 +221,12 @@ struct AIChatView: View {
     @ObservedObject private var fontSettings = FontSettings.shared
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.isNovaHostedChat) var isNovaHostedChat
+    @Environment(\.openNovaDrawer) var openNovaDrawer
+    @Environment(\.novaNewChatAction) var novaNewChatAction
+    @Environment(\.novaTabBarBottomInset) var novaTabBarBottomInset
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.dynamicTypeSize) var chatDynamicTypeSize
     @State var inputFocused: Bool = false
     /// [T-in-chat-search] The search bar is open (mirrors vm.chatSearch.isActive):
     /// it shows under the navigation bar and the composer is hidden.
@@ -332,12 +338,6 @@ struct AIChatView: View {
     @State private var locateDownloadTarget: DownloadLocateTarget?
     /// [T-cody-folder-link] A tapped cody:// link that names a folder.
     @State var browseCodyFolder: CodyFolderBrowseTarget?
-    /// Total session count snapshot (persisted in DB) — used to decide
-    /// whether to show the New-Chat onboarding directory grid. Only the
-    /// "first-time, no sessions yet" case shows it; returning users with
-    /// any prior chat skip the grid even when starting a new draft.
-    /// Populated lazily on first appearance.
-    @State var totalSessionCount: Int? = nil
     @State var showBrowserSheet = false
     @State var showTerminal = false
     @State private var terminalInitCommand: String?
@@ -803,7 +803,8 @@ struct AIChatView: View {
         // .background position — the gate silently never engaged. EquatableView
         // wrapping is the only guaranteed path to ==.
         .background(
-            ChatToolbarHost(key: chatToolbarKey, showsTrailing: !ChatNavMenuBarItem.isEnabled, title: {
+            ChatToolbarHost(key: chatToolbarKey, showsTrailing: !ChatNavMenuBarItem.isEnabled,
+                            onNewChat: { requestNewChatFromMenu() }, title: {
                 chatNavPrincipalContent
             }, trailing: {
                 trailingMenu
@@ -927,7 +928,7 @@ struct AIChatView: View {
         .alert(AppLocalized("Task Running"), isPresented: $showNewChatStopConfirm) {
             Button(AppLocalized("Stop & New Chat"), role: .destructive) {
                 vm.stopByUser()
-                NotificationCenter.default.post(name: .newChatRequested, object: nil)
+                openNewChat()
             }
             Button(AppLocalized("Cancel"), role: .cancel) {}
         } message: {
@@ -1370,21 +1371,6 @@ struct AIChatView: View {
             vm.draftId = draftId
             vm.remoteDeviceId = remoteDeviceId
             vm.initialGroupId = initialGroupId
-            // Snapshot total session count once so the New-Chat onboarding
-            // grid only appears for first-time users (no prior sessions).
-            // [T-ios-session-coldload-listsessions-block] Use the bare
-            // COUNT(*) query, NOT listSessions().count — the latter ran 4
-            // un-indexable parts_json LIKE subqueries per session (~0.5s cold
-            // on a 100k-message DB) and, on the serialized ChatStore actor,
-            // head-of-line-blocked the loadSession() dispatched below, which
-            // was the reported ~3s cold-open stall. The comment used to claim
-            // "single SQLite COUNT" — now the code actually does one.
-            if totalSessionCount == nil {
-                Task.detached(priority: .utility) {
-                    let count = await ChatStore.shared.sessionCount()
-                    await MainActor.run { totalSessionCount = count }
-                }
-            }
             // [T-codyurl-wrong-active-session] This view (plus the onChange
             // below) is the ONLY writer of activeSessionId: the global means
             // "session whose chat UI is frontmost", and relative cody://
@@ -1453,7 +1439,7 @@ struct AIChatView: View {
                     let totalElapsed = (CFAbsoluteTimeGetCurrent() - reuseStart) * 1000
                     codyLogger.info("[SessionLoad] \(sessionId) — REUSE: \(String(format: "%.1f", totalElapsed))ms [mount: \(String(format: "%.1f", mountElapsed)) | msgs: \(vm.messages.count)]")
                 }
-            } else {
+            } else if !isNovaHostedChat {
                 codyLogger.info("🔄SESSION AIChatView.onAppear nil sessionId — draft mode")
                 // Draft session — auto-focus input for immediate typing
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {

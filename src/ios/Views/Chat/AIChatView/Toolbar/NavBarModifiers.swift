@@ -36,10 +36,8 @@ struct NavTitleFrameModifier: ViewModifier {
             // frames along the 46pt box far more aggressively than the steady
             // state (users saw the title sliced to half a line during the
             // animation). The 46pt frame only *sizes* the item for band
-            // alignment — the 3-row stack's natural height already fits within
-            // it at steady state (spacing -2, ~44pt), so there is nothing to clip
-            // away, and letting transition frames render uncropped restores the
-            // standard system title transition.
+            // alignment. Let transition frames render uncropped so the
+            // system's title slide and fade can finish without being sliced.
             content
                 .frame(height: 46, alignment: .center)
         } else {

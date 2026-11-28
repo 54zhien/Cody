@@ -24,8 +24,10 @@ struct BridgedAssistantFooterV3: View {
     var maxWidth: CGFloat
     /// [T-retry-log-sheet] Which conversation's retry log the marker reads.
     var retryLogKey: String
+    var onBranch: (@MainActor () async -> Void)?
     @ObservedObject private var retryLog = RetryLogStore.shared
     @State private var showRetryLog = false
+    @State private var isBranching = false
     /// [T-in-chat-search] Highlights for the error line; "Search in Chat".
     @Environment(\.chatSearchHighlights) private var searchHighlights
 
@@ -46,8 +48,10 @@ struct BridgedAssistantFooterV3: View {
         let showError = message.error != nil
         let showResume = bridge.canResume && message.error == nil
         let showUsageRow = bridge.showUsage
-        return showTyping || showError || showResume || showUsageRow
+        return showTyping || showError || showResume || showUsageRow || bridge.showsReplyActions
     }
+
+    nonisolated static let replyActionsHeight = CodyControlHeight.standard + 2 * CodySpacing.xxs
 
     var body: some View {
         VStack(alignment: .leading, spacing: CodySpacing.sm) {
@@ -74,6 +78,10 @@ struct BridgedAssistantFooterV3: View {
             // Resume banner
             if bridge.canResume && message.error == nil {
                 resumeBanner
+            }
+
+            if bridge.showsReplyActions {
+                replyActions
             }
 
             // Token usage
@@ -124,20 +132,10 @@ struct BridgedAssistantFooterV3: View {
                     RetryLogSheet(key: retryLogKey)
                 }
                 .contextMenu {
-                    Button {
-                        let text = message.blocks
-                            .filter { if case .text = $0.kind { return true }; return false }
-                            .map(\.content).joined(separator: "\n\n")
-                        UIPasteboard.general.string = text
-                    } label: {
+                    Button(action: copyReply) {
                         Label(AppLocalized("Copy All"), systemImage: "doc.on.doc")
                     }
-                    Button {
-                        let text = message.blocks
-                            .filter { if case .text = $0.kind { return true }; return false }
-                            .map(\.content).joined(separator: "\n\n")
-                        UIPasteboard.general.string = text
-                    } label: {
+                    Button(action: copyReply) {
                         Label(AppLocalized("Copy as Markdown"), systemImage: "text.quote")
                     }
                     if let onReadAloud = bridge.onReadAloud {
@@ -189,6 +187,46 @@ struct BridgedAssistantFooterV3: View {
                         .map(\.content).joined(separator: "\n\n"))
                 }
         }
+    }
+
+    private var replyActions: some View {
+        HStack(spacing: 0) {
+            replyAction("Copy reply", icon: "doc.on.doc", action: copyReply)
+            if let onRetry = bridge.onRetry {
+                replyAction("Regenerate reply", icon: "arrow.clockwise", action: onRetry)
+            }
+            if let onReadAloud = bridge.onReadAloud {
+                replyAction("Read aloud", icon: "speaker.wave.2", action: onReadAloud)
+            }
+            if let onBranch, bridge.onRetry != nil, !bridge.canResume {
+                replyAction("Branch Chat", icon: "arrow.branch") {
+                    isBranching = true
+                    Task {
+                        await onBranch()
+                        isBranching = false
+                    }
+                }
+                .disabled(isBranching)
+            }
+        }
+    }
+
+    private func copyReply() {
+        UIPasteboard.general.string = message.blocks
+            .filter { if case .text = $0.kind { return true }; return false }
+            .map(\.content).joined(separator: "\n\n")
+    }
+
+    private func replyAction(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(CodyColors.iconSecondary)
+                .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(Text(title))
     }
 
     // MARK: - Footer sub-views

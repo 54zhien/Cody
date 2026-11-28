@@ -179,9 +179,17 @@ extension AIChatView {
     /// current chat with a fresh draft. Drafts aren't persisted until the first
     /// message, so leaving an empty/draft session this way leaves no residue,
     /// and a double-tap just re-mints the draft instead of creating two rows.
-    private func requestNewChatFromMenu() {
+    func requestNewChatFromMenu() {
         if vm.isProcessing {
             showNewChatStopConfirm = true
+        } else {
+            openNewChat()
+        }
+    }
+
+    func openNewChat() {
+        if isNovaHostedChat, let novaNewChatAction {
+            novaNewChatAction()
         } else {
             NotificationCenter.default.post(name: .newChatRequested, object: nil)
         }

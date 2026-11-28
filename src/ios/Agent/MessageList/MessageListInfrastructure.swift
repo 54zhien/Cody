@@ -1296,6 +1296,7 @@ final class CellStateBridgeV2: ObservableObject {
     @Published var onSpeakText: ((String) -> Void)?
     /// True while this reply is still streaming — disables "Read from Start".
     @Published var isStreaming: Bool = false
+    @Published var showsReplyActions = false
     @Published var browserPool: BrowserTabPool?
     @Published var toolSnapshots: [ToolSnapshotItem] = []
     /// Tool detail sheet — owned by footer, triggered by block cells.

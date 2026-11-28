@@ -22,6 +22,15 @@ extension CollectionViewMessageListV3.Coordinator {
 
         // MARK: - Footer spacing policy
 
+        func isReplyActionCandidate(_ message: ChatMessage, vm: AIChatViewModel) -> Bool {
+            onRetryLast != nil && vm.remoteDeviceId == nil
+                && message.role == .assistant && message.error == nil && !message.isCompactedHistory
+                && message.blocks.contains {
+                    if case .text = $0.kind { return !$0.content.isEmpty }
+                    return false
+                }
+        }
+
         /// [T-ios-footer-hug] Whether a footer shows prominent content (error
         /// banner, resume banner, typing indicator) and so keeps the full
         /// itemSpacing above it, instead of hugging the block above like the

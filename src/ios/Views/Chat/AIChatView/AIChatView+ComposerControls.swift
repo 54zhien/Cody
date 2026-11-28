@@ -40,6 +40,7 @@ extension AIChatView {
                 Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
                 Button { showPhotoPicker = true } label: { Label("Choose Photos & Videos", systemImage: "photo.on.rectangle") }
                 Button { showDocumentPicker = true } label: { Label("Add File", systemImage: "doc") }
+                Button(action: openSlashCommands) { Label("Commands (/)", systemImage: "command") }
             } label: {
                 icon
             }
@@ -51,39 +52,47 @@ extension AIChatView {
                 Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
                 Button { showPhotoPicker = true } label: { Label("Choose Photos & Videos", systemImage: "photo.on.rectangle") }
                 Button { showDocumentPicker = true } label: { Label("Add File", systemImage: "doc") }
+                Button("Commands (/)", action: openSlashCommands)
             }
         }
     }
 
-    /// Bottom toolbar under the text field (+ / edit-exit / mic / send).
-    /// Returns AnyView to keep `inputBar`'s generic type compact; SwiftUI
-    /// runtime demangle chokes on deep nested types otherwise.
-    var inputBottomRow: AnyView {
-        let row = HStack(spacing: CodyMetrics.Composer.buttonSpacing) {
-            HStack(spacing: CodyMetrics.Composer.buttonSpacing) {
+    /// Erase the rows before applying the input bar's modifier chain.
+    func composerRows(compact: Bool) -> AnyView {
+        let spacing = CodyMetrics.Composer.buttonSpacing
+        return AnyView(ComposerRowsLayout(compact: compact) {
+            HStack(spacing: spacing) {
                 attachmentMenuButton
-                slashMenuButton
+                if !compact { slashMenuButton }
             }
-            if vm.editingMessageIndex != nil {
-                editExitButton
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if voiceInputActive {
-                readAloudToolbarToggle
-                    .frame(maxWidth: .infinity)
-            } else {
-                Spacer(minLength: 0)
+            inputFieldOrWaveform
+            ZStack {
+                Color.clear.frame(width: 0, height: 0)
+                if vm.editingMessageIndex != nil {
+                    editExitButton
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if voiceInputActive {
+                    readAloudToolbarToggle
+                }
             }
-            HStack(spacing: CodyMetrics.Composer.buttonSpacing) {
+            HStack(spacing: spacing) {
                 micButtonContainer
                 sendButton
             }
         }
-        return AnyView(row)
+        // [T-ios-de-voice-toolbar] Observe the usable control row width.
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width - 2 * CodyMetrics.Composer.paddingH
+        } action: { w in
+            guard w > 0, abs(w - inputBottomRowWidth) > 0.5 else { return }
+            inputBottomRowWidth = w
+        })
     }
 
     /// Width of the four outer controls and the four gaps around the center slot.
     private static let readAloudRowFixedWidth: CGFloat =
-        CodyMetrics.Composer.buttonVisualSize * 4 + CodyMetrics.Composer.buttonSpacing * 4
+        CodyMetrics.Composer.buttonVisualSize * 3 + ChatSendButton.visualSize
+        + CodyMetrics.Composer.buttonSpacing * 4
 
     /// Free width below which the toggle drops its text and becomes icon-only.
     ///
@@ -204,8 +213,7 @@ extension AIChatView {
             if vm.showSlashMenu {
                 vm.dismissSlashMenu()
             } else {
-                vm.showSlashMenuOverInput()
-                inputFocused = true
+                openSlashCommands()
             }
         } label: {
             Text("/")
@@ -214,6 +222,11 @@ extension AIChatView {
                 .modifier(ComposerSecondaryControlSurface(isActive: vm.showSlashMenu))
                 .accessibilityLabel(Text("Slash commands"))
         }
+    }
+
+    private func openSlashCommands() {
+        vm.showSlashMenuOverInput()
+        inputFocused = true
     }
 
     /// "Exit Edit Mode" capsule shown while editing a past message.
@@ -361,6 +374,7 @@ extension AIChatView {
             .frame(minHeight: CodyMetrics.Composer.minHeight)
             return AnyView(waveform)
         }
+        let compact = usesCompactSingleRowComposer
         _ = returnKeyBehavior  // [T-send-longpress-return-mode] dependency, see declaration
         let field = PastableTextView(
             text: inputTextBinding,
@@ -372,7 +386,9 @@ extension AIChatView {
             // `%@` form ("Message %@ (@ to mention files)") as the lookup
             // key in Localizable.xcstrings, so translators get one
             // parameterized entry per locale instead of one per soul name.
-            placeholder: AppLocalized("Message \(soulName) (@ to mention files)"),
+            placeholder: compact
+                ? AppLocalized("Message \(soulName)")
+                : AppLocalized("Message \(soulName) (@ to mention files)"),
             // [T-ios-composer-placeholder-rotation] Feature hints cycled
             // while the composer sits empty. Same parameterized-`%@` rule as
             // the default above: the soul name is interpolated INTO the
@@ -437,7 +453,7 @@ extension AIChatView {
             // 120pt inside a taller box and the extra space would be dead.
             maxHeightOverride: composerTextHeight
         )
-        return AnyView(composerBody(field: field, topPadding: topPadding))
+        return AnyView(composerBody(field: field, topPadding: topPadding, compact: compact))
     }
 
     /// [T-ipad-composer-resize] Wraps the text field with its (optional) fixed
@@ -447,7 +463,7 @@ extension AIChatView {
     /// exclusive: fixedSize asks the view for its intrinsic height, which is
     /// exactly what we're overriding once the user has resized. So the two
     /// modes are separate branches rather than modifiers stacked on one view.
-    private func composerBody(field: PastableTextView, topPadding: CGFloat) -> some View {
+    private func composerBody(field: PastableTextView, topPadding: CGFloat, compact: Bool) -> some View {
         Group {
             if let height = composerTextHeight {
                 field.frame(height: height)
@@ -455,10 +471,10 @@ extension AIChatView {
                 field.fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, CodyMetrics.Composer.paddingH)
-        .padding(.top, topPadding)
-        .padding(.bottom, CodyMetrics.Composer.paddingV)
-        .frame(minHeight: CodyMetrics.Composer.minHeight)
+        .padding(.horizontal, compact ? 0 : CodyMetrics.Composer.paddingH)
+        .padding(.top, compact ? 0 : topPadding)
+        .padding(.bottom, compact ? 0 : CodyMetrics.Composer.paddingV)
+        .frame(minHeight: compact ? 0 : CodyMetrics.Composer.minHeight)
         .overlay(alignment: .top) {
             if composerResizeEnabled { composerResizeHandle }
         }

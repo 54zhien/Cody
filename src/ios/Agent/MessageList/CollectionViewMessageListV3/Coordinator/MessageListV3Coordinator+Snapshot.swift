@@ -380,6 +380,7 @@ extension CollectionViewMessageListV3.Coordinator {
             // The first message of a transcript gets a header (nothing to
             // compare against).
             var lastSpeakerWasUser = true
+            let lastAssistantId = messages.last(where: { $0.role == .assistant })?.id
             for message in messages {
                 switch message.role {
                 case .user, .compactDivider, .systemInfo:
@@ -433,16 +434,16 @@ extension CollectionViewMessageListV3.Coordinator {
                         bi += 1
                     }
                     // Only emit a footer cell when it will actually render
-                    // content. A footer with zero visible content (no typing
-                    // indicator, no error, no resume, no usage) was leaving a
+                    // content. A footer with zero visible content was leaving a
                     // phantom 4pt gap above the next user message. When the
                     // footer IS needed later (e.g. showUsage toggled by
                     // double-tap), the toggle triggers a snapshot refresh
                     // which re-evaluates this condition.
-                    let isLastAssistant = (message.id == messages.last(where: { $0.role == .assistant })?.id)
+                    let isLastAssistant = (message.id == lastAssistantId)
                     let needsFooter = isLastAssistant
                         || message.error != nil
                         || (cellBridges[message.id]?.showUsage == true)
+                        || isReplyActionCandidate(message, vm: vm)
                     if needsFooter {
                         newItems.append(.assistantFooter(message.id))
                     }
@@ -586,6 +587,7 @@ extension CollectionViewMessageListV3.Coordinator {
                 // height known now is outgrown by the next chunk, and precalc is
                 // only rewritten when a snapshot applies.
                 let growingIds = Self.liveAssistantMessageIds(messages: messages, isProcessing: vm.isProcessing)
+                layout.turnSpacingAfterIndices.removeAll(keepingCapacity: true)
                 for (i, item) in newItems.enumerated() {
                     // [T-ios-scroll-decel-height-drift] Register the stable
                     // content key for this index so a later self-size writes the
@@ -616,6 +618,7 @@ extension CollectionViewMessageListV3.Coordinator {
                     // `updateBridge`, which re-applies it when the footer's
                     // shape flips without a snapshot apply (Stop → resume banner).
                     var footerProminent = false
+                    var footerShowsReplyActions = false
                     if case .assistantFooter(let footerMsgId) = item {
                         let footerMsg = messageIndex[footerMsgId].flatMap {
                             $0 < messages.count ? messages[$0] : nil
@@ -623,6 +626,18 @@ extension CollectionViewMessageListV3.Coordinator {
                         footerProminent = isFooterProminent(footerMsgId, footerMessage: footerMsg,
                                                             messages: messages, vm: vm)
                         layout.setFooterHug(!footerProminent, at: i)
+                        if let footerMsg {
+                            footerShowsReplyActions = !growingIds.contains(footerMsgId)
+                                && isReplyActionCandidate(footerMsg, vm: vm)
+                            if footerShowsReplyActions, i + 1 < newItems.count,
+                               case .wholeMessage(let nextId) = newItems[i + 1],
+                               let nextIndex = messageIndex[nextId],
+                               messages[nextIndex].role == .user,
+                               messages[nextIndex].agentCallback == nil,
+                               !messages[nextIndex].isQueued {
+                                layout.turnSpacingAfterIndices.insert(i)
+                            }
+                        }
                     }
 
                     guard layout.cachedHeight(at: i) == nil else { continue }
@@ -668,12 +683,13 @@ extension CollectionViewMessageListV3.Coordinator {
                         layout.setEstimatedHeight(layout.headerEstimate(width: cvWidth), at: i)
 
                     case .assistantFooter:
-                        // Prominent banners (error/resume/typing) measure
-                        // ~44-56pt; the quiet meta footer is ~0-4pt. Seeding
-                        // closer to the real height keeps the first-display
-                        // correction (and its scroll shift) small.
-                        // (footerProminent computed above, pre-guard.)
-                        layout.setEstimatedHeight(footerProminent ? 48 : 4, at: i)
+                        // Seed the fixed-height action strip before the cell
+                        // enters view. Banners and usage still self-size.
+                        let baselineHeight: CGFloat = footerProminent ? 48 : 4
+                        let footerEstimate = footerShowsReplyActions
+                            ? BridgedAssistantFooterV3.replyActionsHeight + (footerProminent ? baselineHeight : 0)
+                            : baselineHeight
+                        layout.setEstimatedHeight(footerEstimate, at: i)
                         #if DEBUG
                         // [BottomGapDiag] The footer is the item DIRECTLY BELOW
                         // the last block of the live assistant turn — i.e.
@@ -696,7 +712,7 @@ extension CollectionViewMessageListV3.Coordinator {
                         // real height the layout already holds, so the estimate
                         // can be compared against the truth.
                         AppLogger(category: "BottomGapDiag").info(
-                            "[BottomGapDiag][footer] idx=\(i) seeded=\(footerProminent ? 48 : 4) "
+                            "[BottomGapDiag][footer] idx=\(i) seeded=\(footerEstimate) "
                             + "prominent=\(footerProminent) isProcessing=\(vm.isProcessing) "
                             + "cached=\(layout.cachedHeight(at: i).map { String(format: "%.1f", $0) } ?? "-") "
                             + "precalc=\(layout.precalcHeight(at: i).map { String(format: "%.1f", $0) } ?? "-")")

@@ -176,7 +176,16 @@ extension CollectionViewMessageListV3.Coordinator {
                         message: message,
                         bridge: bridge,
                         maxWidth: width,
-                        retryLogKey: vm.retryLogKey
+                        retryLogKey: vm.retryLogKey,
+                        onBranch: { [weak vm] in
+                            guard let vm, let sid = vm.sessionId, vm.remoteDeviceId == nil,
+                                  vm.messages.last?.id == msgId,
+                                  !vm.isProcessing, !vm.isCompacting, !vm.canResume,
+                                  let branch = await SessionForkManager.shared.duplicateSession(sessionId: sid)
+                            else { return }
+                            NotificationCenter.default.post(name: .openSessionFromIntent, object: nil,
+                                                            userInfo: ["sessionId": branch.id])
+                        }
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)

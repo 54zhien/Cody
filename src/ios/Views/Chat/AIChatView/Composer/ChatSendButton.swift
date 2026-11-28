@@ -34,6 +34,8 @@ private let codyLogger = AppLogger(category: "CodyURL")
 /// idle composer there tells the user it is finished when it is not, and takes
 /// away the control that stops it.
 struct ChatSendButton: View {
+    nonisolated static let visualSize: CGFloat = 34
+
     @ObservedObject var vm: AIChatViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let canSend: Bool
@@ -117,7 +119,7 @@ struct ChatSendButton: View {
                 ZStack {
                     Circle()
                         .fill(CodyColors.interactiveControlDefault)
-                        .frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
+                        .frame(width: Self.visualSize, height: Self.visualSize)
                     ProgressView()
                         .controlSize(.small)
                         .tint(CodyColors.iconPrimary)
@@ -248,7 +250,7 @@ struct ChatSendButton: View {
         Image(systemName: systemImage)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(enabled ? CodyColors.interactivePrimaryLabel : CodyColors.iconSecondary)
-            .frame(width: CodyMetrics.Composer.buttonVisualSize, height: CodyMetrics.Composer.buttonVisualSize)
+            .frame(width: Self.visualSize, height: Self.visualSize)
             .background(Circle().fill(enabled ? CodyColors.interactivePrimaryBg : CodyColors.interactiveControlDefault))
             .contentShape(ComposerControlHitShape())
     }
