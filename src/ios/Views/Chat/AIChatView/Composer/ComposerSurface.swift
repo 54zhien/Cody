@@ -24,15 +24,20 @@ import WebKit
 
 // MARK: - Composer Surface
 
-private struct ComposerCornerRadiusKey: EnvironmentKey {
-    static let defaultValue = CodyMetrics.Composer.cornerRadius
+private struct CompactComposerKey: EnvironmentKey {
+    static let defaultValue = false
 }
 
 extension EnvironmentValues {
-    var composerCornerRadius: CGFloat {
-        get { self[ComposerCornerRadiusKey.self] }
-        set { self[ComposerCornerRadiusKey.self] = newValue }
+    var isCompactComposer: Bool {
+        get { self[CompactComposerKey.self] }
+        set { self[CompactComposerKey.self] = newValue }
     }
+}
+
+func composerShape(compact: Bool) -> AnyShape {
+    if compact { return AnyShape(Capsule()) }
+    return AnyShape(RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous))
 }
 
 /// Positions the same editor and controls in both modes so changing rows
@@ -183,17 +188,39 @@ struct FloatingCircleButtonSurface: ViewModifier {
 /// border and lift on earlier systems and when Reduce Transparency is enabled.
 struct ComposerSurface: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.composerCornerRadius) private var cornerRadius
+    @Environment(\.isCompactComposer) private var isCompact
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: CodyMetrics.Composer.cornerRadius, style: .continuous)
     }
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+            if isCompact {
+                content
+                    .clipShape(Capsule())
+                    .glassEffect(.regular.interactive(), in: .capsule)
+            } else {
+                content
+                    .glassEffect(.regular, in: shape)
+                    .clipShape(shape)
+            }
+        } else if isCompact {
             content
-                .glassEffect(.regular, in: shape)
-                .clipShape(shape)
+                .background {
+                    if reduceTransparency || MacOS27GlassWorkaround.isActive {
+                        Capsule().fill(CodyColors.bgElevatedPrimary)
+                    } else {
+                        Capsule().fill(.ultraThinMaterial)
+                            .overlay { Capsule().fill(CodyColors.bgElevatedPrimary.opacity(0.55)) }
+                    }
+                }
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule().strokeBorder(CodyColors.borderInput, lineWidth: CodySpacing.px)
+                        .allowsHitTesting(false)
+                }
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
         } else {
             content
                 .background(shape.fill(CodyColors.bgPrimary))
@@ -238,13 +265,13 @@ struct ComposerContextGlow: View {
     let tier: ContextUsage.Tier
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.composerCornerRadius) private var cornerRadius
+    @Environment(\.isCompactComposer) private var isCompact
     @State private var breathing = false
 
     /// Must match ComposerSurface's shape exactly: it is the stroke path and
     /// the clip that keeps the glow inside the wall.
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    private var shape: AnyShape {
+        composerShape(compact: isCompact)
     }
     private var color: Color {
         tier == .critical ? Color(UIColor.systemRed) : Color(UIColor.systemOrange)

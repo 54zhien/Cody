@@ -518,7 +518,13 @@ extension ContentView {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    FolderComposedIcon(glyphs: folderMiniBarGlyphs(folder.id), diameter: 30)
+                    if isWideLayout {
+                        FolderComposedIcon(glyphs: folderMiniBarGlyphs(folder.id), diameter: 30)
+                    } else {
+                        Image(systemName: "folder")
+                            .foregroundStyle(CodyColors.iconSecondary)
+                            .accessibilityHidden(true)
+                    }
                     // Folder names are user data — verbatim.
                     Text(folder.name)
                         .font(.system(size: 14, weight: .semibold))
@@ -559,7 +565,12 @@ extension ContentView {
         .frame(height: 48)
         .frame(maxWidth: 320)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.5))
+        .overlay {
+            if isWideLayout {
+                Capsule().stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.5)
+                    .allowsHitTesting(false)
+            }
+        }
         .shadow(color: Color.black.opacity(0.15), radius: 8, y: 2)
         .padding(.top, 8)
         .padding(.horizontal, 24)

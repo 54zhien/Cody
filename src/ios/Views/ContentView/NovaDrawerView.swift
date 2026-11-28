@@ -1,54 +1,70 @@
 import SwiftUI
 
-struct NovaDrawerView<Header: View, History: View, Profile: View>: View {
+struct NovaDrawerView<Header: View, History: View, Actions: View>: View {
+    let showsActions: Bool
     @ViewBuilder let header: () -> Header
     @ViewBuilder let history: () -> History
-    @ViewBuilder let profile: () -> Profile
+    @ViewBuilder let actions: () -> Actions
 
     var body: some View {
         VStack(spacing: 0) {
             header()
             history()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            profile()
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(CodyColors.borderLight)
-                        .frame(height: CodySpacing.px)
-                        .allowsHitTesting(false)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if showsActions { Color.clear.frame(height: 60) }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(CodyColors.bgCanvas.ignoresSafeArea())
+        .overlay(alignment: .bottom) {
+            if showsActions {
+                actions()
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 8)
+                    .background {
+                        LinearGradient(
+                            colors: [.clear, CodyColors.bgCanvas.opacity(0.4)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .ignoresSafeArea(edges: .bottom)
+                        .allowsHitTesting(false)
+                    }
+            }
+        }
     }
 }
 
 extension ContentView {
+    private var novaPrimaryDestinations: [CodyNovaDestination] {
+        [.home] + novaTabStore.pinnedTools.map { .tool($0) } + [.more]
+    }
+
     var novaDrawer: some View {
-        NovaDrawerView {
-            if isSelecting {
-                novaSelectionHeader
-            } else {
-                VStack(spacing: CodySpacing.sm) {
+        NovaDrawerView(showsActions: !isSelecting) {
+            Group {
+                if isSelecting {
+                    novaSelectionHeader
+                } else if showSearchBar {
                     novaSearchHeader
+                } else {
                     VStack(spacing: 0) {
-                        novaDrawerDestination("New Chat", icon: "square.and.pencil", tint: .neutral,
-                                              action: startNewNovaChat)
-                        novaDrawerDestination("Explore & Tools", icon: "square.grid.2x2", tint: .blue) {
-                            selectNovaTab(.explore)
-                        }
-                        novaDrawerDestination("Files", icon: "folder", tint: .neutral) {
-                            selectNovaTab(.files)
+                        ForEach(novaPrimaryDestinations) { destination in
+                            novaDrawerDestination(destination.novaTitle, icon: destination.novaIcon) {
+                                selectNovaDestination(destination)
+                            }
+                            .accessibilityAddTraits(novaDestination == destination ? .isSelected : [])
                         }
                     }
                 }
-                .padding(.horizontal, CodySpacing.md)
-                .padding(.top, CodySpacing.sm)
-                .padding(.bottom, CodySpacing.xs)
             }
+            .padding(.horizontal, 24)
+            .padding(.top, CodySpacing.lg)
+            .padding(.bottom, CodySpacing.sm)
         } history: {
             sessionList(useNavigationLinks: true)
-        } profile: {
-            novaProfileBar
+                .padding(.horizontal, 24)
+        } actions: {
+            novaDrawerActions
         }
         .accessibilityAction(.escape) { closeNovaDrawer() }
         .modifier(NovaOnboardingSheets(
@@ -70,88 +86,99 @@ extension ContentView {
                     .submitLabel(.search)
                     .focused($searchFocused)
                     .onChange(of: searchText) { _ in scheduleSearch() }
+                    .onSubmit { searchFocused = false }
                 if !searchText.isEmpty {
-                    Button {
+                    novaDrawerIcon("Clear search", icon: "xmark.circle.fill") {
                         searchText = ""
                         scheduleSearch()
-                    } label: {
-                        Label("Clear search", systemImage: "xmark.circle.fill")
-                            .labelStyle(.iconOnly)
-                            .foregroundStyle(CodyColors.iconSecondary)
-                            .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
                     }
-                    .buttonStyle(CodyPressableButtonStyle())
                 }
             }
             .padding(.leading, CodySpacing.md)
             .padding(.trailing, searchText.isEmpty ? CodySpacing.md : 0)
-            .frame(minHeight: CodyControlHeight.standard)
-            .background(CodyColors.interactiveSecondaryBg, in: Capsule())
+            .frame(minHeight: 44)
+            .background(.ultraThinMaterial, in: Capsule())
 
-            novaDrawerIcon("New Chat", icon: "square.and.pencil", action: startNewNovaChat)
-                .background(CodyColors.interactiveSecondaryBg, in: Circle())
+            Button("Cancel", action: dismissSearch)
+                .font(CodyTypography.labelLarge)
+                .foregroundStyle(CodyColors.textPrimary)
+                .frame(minHeight: 44)
+                .buttonStyle(CodyPressableButtonStyle())
         }
     }
 
     private var novaSelectionHeader: some View {
         VStack(alignment: .leading, spacing: CodySpacing.xs) {
-            Text(selectedIds.isEmpty ? "Select Sessions" : "\(selectedIds.count) Selected")
-                .font(CodyTypography.titleSmall)
-                .accessibilityAddTraits(.isHeader)
+            Group {
+                if selectedIds.isEmpty {
+                    Text("Select Sessions")
+                } else {
+                    Text("\(selectedIds.count) Selected")
+                }
+            }
+            .font(CodyTypography.titleSmall)
+            .accessibilityAddTraits(.isHeader)
             HStack {
                 Button("Cancel") {
                     isSelecting = false
                     selectedIds.removeAll()
                 }
                 Spacer(minLength: CodySpacing.sm)
-                Button(selectedIds.count == sessions.count ? "Deselect All" : "Select All") {
-                    selectedIds = selectedIds.count == sessions.count ? [] : Set(sessions.map(\.id))
+                let allSelected = !sessions.isEmpty && selectedIds.count == sessions.count
+                Button {
+                    selectedIds = allSelected ? [] : Set(sessions.map(\.id))
+                } label: {
+                    if allSelected {
+                        Text("Deselect All")
+                    } else {
+                        Text("Select All")
+                    }
                 }
             }
             .font(CodyTypography.labelLarge)
-            .frame(minHeight: CodyControlHeight.standard)
+            .frame(minHeight: 44)
         }
-        .padding(.horizontal, CodySpacing.lg)
-        .padding(.top, CodySpacing.sm)
+        .foregroundStyle(CodyColors.textPrimary)
     }
 
     private func novaDrawerDestination(
         _ title: LocalizedStringKey,
         icon: String,
-        tint: CodyCategoryTint,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: CodySpacing.sm) {
-                CodyListIconBadge(systemImage: icon, tint: tint)
+            HStack(spacing: CodySpacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
                 Text(title)
-                    .font(CodyTypography.labelLarge)
-                    .foregroundStyle(CodyColors.textPrimary)
+                    .font(.system(size: 17, weight: .medium))
             }
-            .padding(.horizontal, CodySpacing.xs)
-            .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard, alignment: .leading)
+            .foregroundStyle(CodyColors.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(CodyPressableButtonStyle())
     }
 
     var novaSplitDestinations: some View {
-        HStack(spacing: CodySpacing.sm) {
-            ForEach(CodyNovaTab.allCases) { tab in
+        HStack(spacing: CodySpacing.xxs) {
+            ForEach(novaPrimaryDestinations) { destination in
+                let isSelected = novaDestination == destination
                 Button {
-                    selectNovaTab(tab)
+                    selectNovaDestination(destination)
                 } label: {
-                    Label(tab.title, systemImage: tab.iconName)
-                        .font(CodyTypography.labelMedium)
-                        .multilineTextAlignment(.center)
+                    Image(systemName: destination.novaIcon)
+                        .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
                         .foregroundStyle(CodyColors.textPrimary)
-                        .padding(.horizontal, CodySpacing.sm)
-                        .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard)
-                        .background(novaTab == tab ? CodyColors.interactiveSecondaryBg : .clear,
-                                    in: RoundedRectangle(cornerRadius: CodyRadius.control))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(isSelected ? CodyColors.interactiveSecondaryBg : .clear, in: Capsule())
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(CodyPressableButtonStyle())
-                .accessibilityAddTraits(novaTab == tab ? .isSelected : [])
+                .accessibilityLabel(Text(destination.novaTitle))
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
         .padding(.horizontal, CodySpacing.sm)
@@ -168,85 +195,80 @@ extension ContentView {
                 .font(CodyTypography.bodyMedium)
                 .foregroundStyle(CodyColors.textSecondary)
             if providerStore.instances.isEmpty {
-                novaDrawerDestination("Add a Provider", icon: "plus", tint: .blue) { showAddProvider = true }
+                novaDrawerDestination("Add a Provider", icon: "plus") { showAddProvider = true }
             } else {
-                novaDrawerDestination("Select Models", icon: "cpu", tint: .blue) { showSelectModels = true }
+                novaDrawerDestination("Select Models", icon: "cpu") { showSelectModels = true }
             }
-            novaDrawerDestination("Restore Backup", icon: "clock.arrow.circlepath", tint: .neutral) {
+            novaDrawerDestination("Restore Backup", icon: "clock.arrow.circlepath") {
                 showRestoreBackup = true
             }
         }
         .foregroundStyle(CodyColors.textPrimary)
-        .padding(CodySpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CodyColors.interactiveSecondaryBg,
-                    in: RoundedRectangle(cornerRadius: CodyRadius.surface))
     }
 
-    private var canOpenNovaSync: Bool {
-        if #available(iOS 17.0, *) { return SyncV2Bootstrap.isEnabled }
-        return false
-    }
-
-    private var novaProfileBar: some View {
-        HStack(spacing: CodySpacing.xxs) {
-            Button { openNovaToolSheet(.settings) } label: {
-                HStack(spacing: CodySpacing.sm) {
-                    SoulIconView(icon: SoulStore.cachedMetadata.icon, size: CodySpacing.xxl)
-                        .frame(width: CodyControlHeight.compact, height: CodyControlHeight.compact)
-                        .background(CodyColors.interactiveSecondaryBg, in: Circle())
-                        .clipShape(Circle())
-                        .accessibilityHidden(true)
-                    Text(soulName)
-                        .font(CodyTypography.titleSmall)
-                        .lineLimit(1)
-                    if canOpenNovaSync {
-                        titleSyncIndicator(for: migrationSubtitle)
-                    }
-                }
-                .foregroundStyle(CodyColors.textPrimary)
-                .frame(maxWidth: .infinity, minHeight: CodyControlHeight.standard, alignment: .leading)
-                .contentShape(Rectangle())
+    private var novaDrawerActions: some View {
+        HStack {
+            Button(action: startNewNovaChat) {
+                Label("New Chat", systemImage: "square.and.pencil")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(height: 44)
+                    .background(CodyColors.textAccent, in: Capsule())
+                    .shadow(color: CodyColors.textAccent.opacity(0.25), radius: 8, y: 3)
+                    .contentShape(Capsule())
             }
             .buttonStyle(CodyPressableButtonStyle())
-            .accessibilityHint("Opens Settings")
 
-            novaDrawerIcon("Settings", icon: "gearshape") { openNovaToolSheet(.settings) }
-            novaDrawerIcon("Linux Terminal", icon: "terminal") {
-                closeNovaDrawer()
-                showTerminal = true
+            Spacer(minLength: CodySpacing.sm)
+
+            HStack(spacing: 0) {
+                novaDrawerIcon("Search chats", icon: "magnifyingglass") {
+                    if showSearchBar { dismissSearch() }
+                    else { focusSearch() }
+                }
+                .accessibilityAddTraits(showSearchBar ? .isSelected : [])
+
+                Button { openNovaToolSheet(.settings) } label: {
+                    SoulIconView(icon: SoulStore.cachedMetadata.icon, size: 20)
+                        .frame(width: 30, height: 30)
+                        .background(CodyColors.statusSuccessBg, in: Circle())
+                        .clipShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(CodyPressableButtonStyle())
+                .accessibilityLabel("Settings")
+                .accessibilityValue(Text(verbatim: soulName))
+                .contextMenu { novaProfileMenu }
             }
-            Menu {
-                if canOpenNovaSync {
-                    Button { openNovaToolSheet(.syncMigrationDetail) } label: {
-                        Label("Sync Status", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                }
-                if hasAlarms {
-                    Button {
-                        closeNovaDrawer()
-                        showAlarmList = true
-                    } label: {
-                        Label("Alarms", systemImage: "alarm")
-                    }
-                }
-                Button { openNovaToolSheet(.rootfsManagement) } label: {
-                    Label("Rootfs Management", systemImage: "externaldrive")
-                }
-                Button { openNovaToolSheet(.browserManagement) } label: {
-                    Label("Browser Settings", systemImage: "globe.badge.chevron.backward")
-                }
-                #if DEBUG
-                Button(action: toggleDebugScreenAwake) {
-                    Label("Keep Screen Awake", systemImage: keepScreenAwake ? "checkmark.circle.fill" : "sun.max")
-                }
-                #endif
-            } label: {
-                novaDrawerIconLabel("More tools", icon: "ellipsis")
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(CodyColors.borderDefault, lineWidth: 1)
+                    .allowsHitTesting(false)
             }
         }
-        .padding(.horizontal, CodySpacing.md)
-        .padding(.vertical, CodySpacing.xs)
+    }
+
+    @ViewBuilder
+    private var novaProfileMenu: some View {
+        if #available(iOS 17.0, *), SyncV2Bootstrap.isEnabled {
+            Button { openNovaToolSheet(.syncMigrationDetail) } label: {
+                Label("Sync Status", systemImage: "arrow.triangle.2.circlepath")
+            }
+        }
+        Button { openNovaToolSheet(.rootfsManagement) } label: {
+            Label("Rootfs Management", systemImage: "externaldrive")
+        }
+        Button { openNovaToolSheet(.browserManagement) } label: {
+            Label("Browser Settings", systemImage: "globe.badge.chevron.backward")
+        }
+        #if DEBUG
+        Button(action: toggleDebugScreenAwake) {
+            Label("Keep Screen Awake", systemImage: keepScreenAwake ? "checkmark.circle.fill" : "sun.max")
+        }
+        #endif
     }
 
     private func openNovaToolSheet(_ sheet: ToolSheet) {
@@ -255,17 +277,33 @@ extension ContentView {
     }
 
     private func novaDrawerIcon(_ label: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { novaDrawerIconLabel(label, icon: icon) }
-            .buttonStyle(CodyPressableButtonStyle())
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.body.weight(.medium))
+                .foregroundStyle(CodyColors.iconPrimary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(Text(label))
+    }
+}
+
+private extension CodyNovaDestination {
+    var novaTitle: LocalizedStringKey {
+        switch self {
+        case .home: "Home"
+        case .tool(let tool): tool.title
+        case .more: "More"
+        }
     }
 
-    private func novaDrawerIconLabel(_ label: LocalizedStringKey, icon: String) -> some View {
-        Label(label, systemImage: icon)
-            .labelStyle(.iconOnly)
-            .font(.body.weight(.medium))
-            .foregroundStyle(CodyColors.iconPrimary)
-            .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
-            .contentShape(Rectangle())
+    var novaIcon: String {
+        switch self {
+        case .home: "house"
+        case .tool(let tool): tool.iconName
+        case .more: "square.grid.2x2"
+        }
     }
 }
 

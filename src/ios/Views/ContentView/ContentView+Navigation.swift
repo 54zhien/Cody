@@ -401,13 +401,29 @@ extension ContentView {
         handleNewChatRequest()
     }
 
-    func selectNovaTab(_ tab: CodyNovaTab) {
+    func selectNovaDestination(_ destination: CodyNovaDestination) {
+        dismissSearchIfEmptyOnNavigate()
         closeNovaDrawer()
-        novaTab = tab
+        switch destination {
+        case .tool(.terminal):
+            showTerminal = true
+        case .tool(.browser):
+            activeToolSheet = .browser
+        case .tool(.alarms):
+            if #available(iOS 26.0, *), alarmkit_is_usable() {
+                showAlarmList = true
+            } else {
+                novaDestination = destination
+            }
+        default:
+            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                novaDestination = destination
+            }
+        }
     }
 
-    func novaTabChanged(_ tab: CodyNovaTab) {
-        if tab != .chat {
+    func novaDestinationChanged(_ destination: CodyNovaDestination) {
+        if destination != .home {
             let leaving = isWideLayout ? selectedSessionId : currentStackSessionId
             suspendNovaSessionForTransition(leaving.flatMap { persistedSessionId(for: $0) })
             AIChatViewModel.activeSessionId = nil
@@ -432,7 +448,7 @@ extension ContentView {
     }
 
     var splitSessionSelection: Binding<String?> {
-        Binding(get: { novaTab == .chat ? selectedSessionId : nil }, set: { id in
+        Binding(get: { novaDestination == .home ? selectedSessionId : nil }, set: { id in
             if let id { openSession(id) }
             else { selectedSessionId = nil }
         })
@@ -449,7 +465,7 @@ extension ContentView {
         }
         currentStackSessionId = route
         selectedSessionId = route
-        novaTab = .chat
+        novaDestination = .home
         clearNovaUnread(route)
     }
 
@@ -474,7 +490,7 @@ extension ContentView {
         if let draftId, Self.isNewSessionId(draftId), draftId == route {
             newSessionRealId = sessionId
             activeDraftId = draftId
-            if novaTab == .chat, isWideLayout || navigationPath.isEmpty {
+            if novaDestination == .home, isWideLayout || navigationPath.isEmpty {
                 SessionBadgeStore.shared.remove(.unread, for: sessionId)
             }
             draftLog.info("🔑DRAFT sessionDidCreate ACCEPTED newSessionRealId=\(sessionId) activeDraftId=\(draftId)")
@@ -483,7 +499,7 @@ extension ContentView {
     }
 
     func novaChatAppeared(_ id: String, isPushed: Bool = false) {
-        guard !isWideLayout, novaTab == .chat, isPushed || navigationPath.isEmpty else { return }
+        guard !isWideLayout, novaDestination == .home, isPushed || navigationPath.isEmpty else { return }
         currentStackSessionId = id
         selectedSessionId = id
         clearNovaUnread(id)
@@ -519,7 +535,7 @@ extension ContentView {
         if isWideLayout {
             let route = draftRoute(for: id)
             if route != selectedSessionId { clearDraftTracking() }
-            novaTab = .chat
+            novaDestination = .home
             selectedSessionId = route
             draftLog.info("🔑DRAFT openSession DONE selectedSessionId=\(id)")
         } else {

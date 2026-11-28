@@ -1,154 +1,155 @@
 import SwiftUI
 
 struct NovaExploreView: View {
+    @ObservedObject var tabStore: CodyNovaTabStore
     let bottomClearance: CGFloat
-    let onOpenBrowser: () -> Void
-    let onOpenTerminal: () -> Void
+    let onOpenDrawer: () -> Void
+    let onSelectTool: (CodyNovaPinnedTool) -> Void
     let onOpenSettings: () -> Void
 
-    @AppStorage("novaExplorePinnedIds") private var storedPins = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var searchText = ""
-    @State private var presentedTool: Tool?
     @FocusState private var searchFocused: Bool
 
-    private var pinnedTools: [Tool] {
-        storedPins.split(separator: ",").compactMap { Tool(rawValue: String($0)) }
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+
+    private var matchingTools: [CodyNovaPinnedTool] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return CodyNovaPinnedTool.allCases }
+        return CodyNovaPinnedTool.allCases.filter { tool in
+            let titles = searchTitles(for: tool)
+            return titles.localized.localizedStandardContains(query)
+                || titles.english.localizedStandardContains(query)
+                || tool.rawValue.localizedStandardContains(query)
+        }
     }
 
-    private var matchingTools: [Tool] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Tool.allCases.filter { tool in
-            tool.isAvailable && (query.isEmpty
-                || AppLocalized(String.LocalizationValue(tool.title)).localizedStandardContains(query)
-                || AppLocalized(String.LocalizationValue(tool.category.rawValue)).localizedStandardContains(query))
+    private func searchTitles(for tool: CodyNovaPinnedTool) -> (localized: String, english: String) {
+        switch tool {
+        case .files: (AppLocalized("Files"), "Files")
+        case .terminal: (AppLocalized("Terminal"), "Terminal")
+        case .skills: (AppLocalized("Skills"), "Skills")
+        case .mcp: (AppLocalized("MCP"), "MCP")
+        case .browser: (AppLocalized("Browser"), "Browser")
+        case .agentTools: (AppLocalized("Agent Tools"), "Agent Tools")
+        case .subAgents: (AppLocalized("Sub Agents"), "Sub Agents")
+        case .soul: (AppLocalized("Soul"), "Soul")
+        case .memory: (AppLocalized("Memory"), "Memory")
+        case .providers: (AppLocalized("Providers"), "Providers")
+        case .usage: (AppLocalized("Usage"), "Usage")
+        case .alarms: (AppLocalized("Alarms"), "Alarms")
         }
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CodySpacing.xxl) {
-                searchBar
-                let matches = matchingTools
-                let pinned = pinnedTools.filter(matches.contains)
-                if !pinned.isEmpty { section("Pinned", tools: pinned) }
-                ForEach(Category.allCases, id: \.self) { category in
-                    let tools = matches.filter { $0.category == category && !pinned.contains($0) }
-                    if !tools.isEmpty { section(LocalizedStringKey(category.rawValue), tools: tools) }
-                }
-                if matches.isEmpty {
+        VStack(spacing: 0) {
+            header
+
+            ScrollView {
+                let tools = matchingTools
+                if tools.isEmpty {
                     Text("No matching tools")
                         .font(CodyTypography.bodyMedium)
                         .foregroundStyle(CodyColors.textSecondary)
                         .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.horizontal, CodySpacing.lg)
-            .padding(.top, CodySpacing.md)
-            .padding(.bottom, bottomClearance + CodySpacing.xl)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .background(CodyColors.bgCanvas)
-        .navigationTitle("Explore")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $presentedTool) { tool in
-            if tool == .alarms {
-                if #available(iOS 26.0, *), alarmkit_is_usable() {
-                    AlarmListView()
-                }
-            } else {
-                NavigationStack {
-                    toolDestination(tool)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Close") { presentedTool = nil }
-                            }
+                        .padding(.top, CodySpacing.xl)
+                } else {
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(tools) { tool in
+                            toolCard(tool)
                         }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, CodySpacing.sm)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+
+            footer
+                .padding(.bottom, bottomClearance)
         }
+        .background(CodyColors.bgCanvas)
     }
 
-    private var searchBar: some View {
-        HStack(spacing: CodySpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .accessibilityHidden(true)
-            TextField("Search tools & capabilities", text: $searchText)
-                .font(CodyTypography.bodyMedium)
-                .foregroundStyle(CodyColors.textPrimary)
-                .submitLabel(.search)
-                .focused($searchFocused)
-                .onSubmit { searchFocused = false }
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Label("Clear search", systemImage: "xmark.circle.fill")
-                        .labelStyle(.iconOnly)
-                        .frame(minWidth: CodyControlHeight.standard, minHeight: CodyControlHeight.standard)
+    private var header: some View {
+        HStack {
+            headerButton("Open sidebar", action: onOpenDrawer) {
+                CodyDrawerGlyph()
+            }
+            Spacer()
+            headerButton("Settings", action: onOpenSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(CodyColors.iconPrimary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, CodySpacing.sm)
+    }
+
+    private func headerButton<Glyph: View>(
+        _ title: LocalizedStringKey,
+        action: @escaping () -> Void,
+        @ViewBuilder glyph: () -> Glyph
+    ) -> some View {
+        Button {
+            searchFocused = false
+            action()
+        } label: {
+            glyph()
+                .frame(width: 40, height: 40)
+                .background(CodyColors.bgElevatedPrimary, in: Circle())
+                .overlay {
+                    Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
+                        .allowsHitTesting(false)
                 }
-                .buttonStyle(CodyPressableButtonStyle())
-            }
+                .contentShape(Circle())
         }
-        .foregroundStyle(CodyColors.iconSecondary)
-        .padding(.leading, CodySpacing.lg)
-        .padding(.trailing, searchText.isEmpty ? CodySpacing.lg : 0)
-        .frame(minHeight: CodyControlHeight.standard)
-        .background(CodyColors.interactiveSecondaryBg, in: Capsule())
+        .buttonStyle(CodyPressableButtonStyle())
+        .accessibilityLabel(Text(title))
     }
 
-    private func section(_ title: LocalizedStringKey, tools: [Tool]) -> some View {
-        VStack(alignment: .leading, spacing: CodySpacing.md) {
-            Text(title)
-                .font(CodyTypography.titleSmall)
-                .foregroundStyle(CodyColors.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: CodySpacing.md, alignment: .top),
-                               count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
-                spacing: CodySpacing.md
-            ) {
-                ForEach(tools) { tool in toolCard(tool) }
-            }
-        }
-    }
-
-    private func toolCard(_ tool: Tool) -> some View {
-        let color = tool.tint.color
-        let isPinned = pinnedTools.contains(tool)
-        let shape = RoundedRectangle(cornerRadius: CodyRadius.surface, style: .continuous)
+    private func toolCard(_ tool: CodyNovaPinnedTool) -> some View {
+        let isPinned = tabStore.isPinned(tool)
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
         return Button {
             searchFocused = false
-            switch tool {
-            case .browser: onOpenBrowser()
-            case .terminal: onOpenTerminal()
-            case .settings: onOpenSettings()
-            default: presentedTool = tool
-            }
+            onSelectTool(tool)
         } label: {
-            VStack(alignment: .leading, spacing: CodySpacing.md) {
-                HStack {
-                    CodyListIconBadge(systemImage: tool.icon, tint: tool.tint)
+            VStack(alignment: .leading, spacing: CodySpacing.sm) {
+                HStack(alignment: .firstTextBaseline, spacing: CodySpacing.xs) {
+                    Text(tool.title)
+                        .font(CodyTypography.titleSmall)
+                        .foregroundStyle(CodyColors.textPrimary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
                     Spacer(minLength: 0)
                     if isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.caption)
-                            .foregroundStyle(color)
+                        Circle()
+                            .fill(tool.exploreGlyphColor)
+                            .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
                     }
                 }
-                Text(LocalizedStringKey(tool.title))
-                    .font(CodyTypography.labelLarge)
-                    .foregroundStyle(CodyColors.textPrimary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: tool.iconName)
+                    .font(.system(size: 26, weight: .medium))
+                    .foregroundStyle(tool.exploreGlyphColor)
+                    .accessibilityHidden(true)
             }
-            .padding(CodySpacing.lg)
-            .frame(maxWidth: .infinity, minHeight: 106, alignment: .topLeading)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(height: 108, alignment: .topLeading)
             .background {
                 shape.fill(CodyColors.bgElevatedPrimary)
-                    .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
+                    .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
             }
-            .overlay { shape.strokeBorder(CodyColors.borderLight, lineWidth: 1).allowsHitTesting(false) }
+            .overlay {
+                shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
             .contentShape(shape)
         }
         .buttonStyle(CodyPressableButtonStyle())
@@ -156,98 +157,63 @@ struct NovaExploreView: View {
         .contextMenu {
             Button {
                 withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
-                    let pins = isPinned ? pinnedTools.filter { $0 != tool } : pinnedTools + [tool]
-                    storedPins = pins.map(\.rawValue).joined(separator: ",")
+                    tabStore.togglePin(tool)
                 }
             } label: {
-                Label(isPinned ? "Unpin" : "Pin to Top", systemImage: isPinned ? "pin.slash" : "pin")
+                if isPinned {
+                    Label("Unpin from Tab Bar", systemImage: "pin.slash")
+                } else {
+                    Label("Pin to Tab Bar", systemImage: "pin")
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func toolDestination(_ tool: Tool) -> some View {
-        switch tool {
-        case .skills: SkillsManagementView()
-        case .mcp: MCPIntegrationsView()
-        case .agentTools: ToolsSettingsView()
-        case .subAgents: HelperSettingsView()
-        case .soul: SoulSettingsView()
-        case .memory: MemoryManagementView()
-        case .providers: ProviderInstancesView()
-        case .usage: UsageStatsView()
-        case .browser, .terminal, .alarms, .settings: EmptyView()
-        }
-    }
+    private var footer: some View {
+        VStack(spacing: CodySpacing.sm) {
+            Text("Long-press an item to pin it to the tab bar")
+                .font(CodyTypography.bodySmall)
+                .foregroundStyle(CodyColors.textTertiary)
+                .multilineTextAlignment(.center)
 
-    private enum Category: String, CaseIterable {
-        case capabilities = "Capabilities"
-        case workspace = "Workspace"
-        case configuration = "Configuration"
-    }
+            HStack(spacing: CodySpacing.sm) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(CodyColors.iconSecondary)
+                    .frame(width: 36)
+                    .accessibilityHidden(true)
 
-    private enum Tool: String, CaseIterable, Identifiable {
-        case skills, mcp, agentTools, subAgents, soul, memory
-        case browser, terminal, providers, usage, alarms, settings
+                TextField("Search", text: $searchText)
+                    .font(CodyTypography.bodyMedium)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .submitLabel(.search)
+                    .focused($searchFocused)
+                    .onSubmit { searchFocused = false }
 
-        var id: String { rawValue }
-
-        var category: Category {
-            switch self {
-            case .skills, .mcp, .agentTools, .subAgents, .soul, .memory: .capabilities
-            case .browser, .terminal, .alarms: .workspace
-            case .providers, .usage, .settings: .configuration
+                if searchText.isEmpty {
+                    Color.clear.frame(width: 36)
+                        .accessibilityHidden(true)
+                } else {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(CodyColors.iconSecondary)
+                            .frame(width: 36, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(CodyPressableButtonStyle())
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, CodySpacing.sm)
+            .frame(height: 48)
+            .background(CodyColors.bgElevatedPrimary, in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
+                    .allowsHitTesting(false)
             }
         }
-
-        var isAvailable: Bool {
-            guard self == .alarms else { return true }
-            if #available(iOS 26.0, *) { return alarmkit_is_usable() }
-            return false
-        }
-
-        var title: String {
-            switch self {
-            case .skills: "Skills"
-            case .mcp: "MCP Integrations"
-            case .agentTools: "Agent Tools"
-            case .subAgents: "Sub Agents"
-            case .soul: "Soul & Persona"
-            case .memory: "Memory"
-            case .browser: "Web Browser"
-            case .terminal: "Linux Terminal"
-            case .providers: "Providers & Models"
-            case .usage: "Token Usage"
-            case .alarms: "Alarms"
-            case .settings: "Settings"
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .skills: "puzzlepiece.extension"
-            case .mcp: "square.stack.3d.up"
-            case .agentTools: "wrench.and.screwdriver.fill"
-            case .subAgents: "sparkles.rectangle.stack"
-            case .soul: "sparkles"
-            case .memory: "brain.head.profile"
-            case .browser: "safari"
-            case .terminal: "terminal"
-            case .providers: "cpu"
-            case .usage: "chart.line.uptrend.xyaxis"
-            case .alarms: "alarm"
-            case .settings: "gearshape.fill"
-            }
-        }
-
-        var tint: CodyCategoryTint {
-            switch self {
-            case .skills, .browser, .providers: .blue
-            case .mcp, .terminal, .usage: .green
-            case .agentTools, .subAgents, .soul, .memory: .purple
-            case .alarms: .orange
-            case .settings: .neutral
-            }
-        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, CodySpacing.sm)
     }
 }

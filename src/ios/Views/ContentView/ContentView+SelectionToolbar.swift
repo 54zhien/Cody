@@ -106,11 +106,15 @@ extension ContentView {
         .foregroundStyle(CodyColors.textPrimary)
         .tint(CodyColors.textPrimary)
         .padding(.vertical, CodySpacing.xs)
-        .background(CodyColors.bgElevatedPrimary)
-        .overlay(alignment: .top) {
-            CodyColors.borderLight.frame(height: CodySpacing.px)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+        .background {
+            if isWideLayout {
+                CodyColors.bgElevatedPrimary
+                    .overlay(alignment: .top) {
+                        CodyColors.borderLight.frame(height: CodySpacing.px)
+                    }
+            } else {
+                Rectangle().fill(.ultraThinMaterial)
+            }
         }
     }
 

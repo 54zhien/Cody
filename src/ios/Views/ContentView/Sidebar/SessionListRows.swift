@@ -46,7 +46,6 @@ struct SessionStackRow: View {
     let matchSnippet: String?
     let isRegeneratingTitle: Bool
     let inFolder: Bool
-    let isLastInFolder: Bool
     let menuActions: SessionMenuActionChannel
     var isHighlighted: Bool = false
 
@@ -63,11 +62,13 @@ struct SessionStackRow: View {
                 isActive: isActive,
                 isSuspended: isSuspended,
                 highlightQuery: highlightQuery,
-                matchSnippet: matchSnippet
+                matchSnippet: matchSnippet,
+                isFrameless: true
             )
             // [T-ios-session-list-equatable-jank] Gate parent-driven re-eval on
             // SessionRow's cheap custom ==.
             .equatable()
+            .padding(.leading, inFolder ? 18 : 0)
         }
         .buttonStyle(SessionRowPressStyle())
         .accessibilityAddTraits(isHighlighted ? .isSelected : [])
@@ -76,27 +77,19 @@ struct SessionStackRow: View {
         .draggable(session.id)
         .overlay {
             if isRegeneratingTitle {
-                ZStack {
-                    CodyColors.bgCanvas.opacity(0.7)
-                    ProgressView()
-                }
+                ProgressView()
+                    .padding(.trailing, CodySpacing.sm)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .allowsHitTesting(false)
             }
         }
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
-        .listRowBackground(ZStack {
-            if inFolder {
-                FolderMemberRowBackground(isLast: isLastInFolder)
-            } else {
-                CodyColors.bgCanvas
-            }
-            if isHighlighted {
-                RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
-                    .fill(CodyColors.interactiveSecondaryBg)
-                    .padding(.horizontal, CodySpacing.xsPlus)
-                    .padding(.vertical, CodySpacing.xxs)
-            }
-        })
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                .fill(isHighlighted ? CodyColors.interactiveSecondaryBg.opacity(0.65) : .clear)
+                .padding(.vertical, CodySpacing.xxs)
+        )
         .contextMenu {
             // [T-ios-crash-contextmenu-uaf] Value-only menu view, no closure captures.
             SessionContextMenu(

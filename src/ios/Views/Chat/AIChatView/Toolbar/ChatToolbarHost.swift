@@ -248,9 +248,9 @@ private struct ChatNovaDrawerButton: View {
         Button {
             openNovaDrawer?()
         } label: {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(CodyColors.iconPrimary)
+            CodyDrawerGlyph()
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel(Text("Open sidebar"))
     }

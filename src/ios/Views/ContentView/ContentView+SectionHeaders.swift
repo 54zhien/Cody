@@ -28,7 +28,7 @@ extension ContentView {
                     .font(.system(size: 18))
                     .foregroundStyle(isSelected ? CodyColors.textAccent : CodyColors.textTertiary)
                     .accessibilityHidden(true)
-                SessionRow(session: session)
+                SessionRow(session: session, isFrameless: !isWideLayout)
             }
             .padding(.leading, CodyMetrics.Sidebar.indicatorLeadingPadding)
             .contentShape(Rectangle())
@@ -156,13 +156,112 @@ extension ContentView {
     /// `scrollProxy` is forwarded to `toggleFolderCollapsed` so an expand can
     /// re-anchor this header after the accordion removes the previously-open
     /// folder's rows ([T-ios-folder-accordion-scroll-anchor]).
-    func folderSectionHeader(_ group: SidebarGroup, scrollProxy: ScrollViewProxy? = nil) -> some View {
+    func folderSectionHeader(
+        _ group: SidebarGroup,
+        scrollProxy: ScrollViewProxy? = nil,
+        frameless: Bool = false
+    ) -> some View {
         // Content + onTapGesture instead of a Button: the Button's own
         // long-press handling raced the contextMenu recognizer on some
         // platforms (long-press on the card did not reliably pop the menu).
         // With a bare tap gesture the long-press belongs to the contextMenu
         // alone; the accessibility action keeps the card activatable for
         // AX clients and the debug tap harness.
+        Group {
+            if frameless {
+                novaFolderLabel(group)
+            } else {
+                folderCardLabel(group)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let fid = group.folderId { toggleFolderCollapsed(fid, scrollProxy: scrollProxy) }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(searchResultsActive ? Text("") : (group.isCollapsed ? Text("Expand") : Text("Collapse")))
+        .accessibilityAction {
+            if let fid = group.folderId { toggleFolderCollapsed(fid, scrollProxy: scrollProxy) }
+        }
+        // Re-anchor the folder after another expanded section collapses.
+        .background {
+            if let fid = group.folderId {
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { folderHeaderTopY[fid] = geo.frame(in: .global).minY }
+                        .onChange(of: geo.frame(in: .global).minY) { folderHeaderTopY[fid] = $0 }
+                }
+            }
+        }
+        .background {
+            if let fid = group.folderId, !group.isCollapsed, !group.ids.isEmpty {
+                FolderHeaderVisibilityProbe(
+                    folderId: fid,
+                    thresholdY: folderMiniBarTopY,
+                    onVisibilityChange: setFolderHeaderOffscreen)
+            }
+        }
+        .id("folderHeader-\(group.folderId ?? "")")
+        .listRowInsets(EdgeInsets())
+        .dropDestination(for: String.self) { sessionIds, _ in
+            guard let fid = group.folderId else { return false }
+            Task { @MainActor in
+                await ChatStore.shared.setFolder(fid, forSessions: sessionIds)
+                refreshSessionList()
+            }
+            return true
+        } isTargeted: { over in
+            if over {
+                dropTargetFolderId = group.folderId
+            } else if dropTargetFolderId == group.folderId {
+                dropTargetFolderId = nil
+            }
+        }
+        .contextMenu { folderMenu(group) }
+    }
+
+    private func novaFolderLabel(_ group: SidebarGroup) -> some View {
+        HStack(spacing: CodySpacing.sm) {
+            Image(systemName: "folder")
+                .font(.system(size: 18))
+                .accessibilityHidden(true)
+            if searchResultsActive {
+                Text(SessionRow.highlightedAttributedString(
+                    text: group.label, query: searchQuery, baseColor: CodyColors.textPrimary))
+                    .lineLimit(1)
+            } else {
+                Text(verbatim: group.label)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: CodySpacing.sm)
+            if group.isCollapsed && group.anyActive {
+                SidebarRowActivity(isSuspended: false, tint: CodyColors.textAccent)
+            }
+            if group.isCollapsed && group.anyPaused {
+                SidebarRowBadge(systemImage: "pause.fill", tint: CodyColors.statusWarningText)
+            }
+            if group.isCollapsed && group.anyUnread { SidebarUnreadDot() }
+            if !searchResultsActive {
+                Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .font(.system(size: 16, weight: .medium))
+        .foregroundStyle(CodyColors.textPrimary)
+        .padding(.trailing, CodySpacing.sm)
+        .frame(minHeight: 42)
+        .background {
+            if dropTargetFolderId == group.folderId {
+                RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
+                    .fill(CodyColors.textAccent.opacity(0.12))
+            }
+        }
+    }
+
+    private func folderCardLabel(_ group: SidebarGroup) -> some View {
         HStack(spacing: CodyMetrics.Sidebar.itemSpacing) {
                 FolderComposedIcon(glyphs: group.glyphs)
 
@@ -246,67 +345,16 @@ extension ContentView {
             .frame(minHeight: CodyMetrics.Sidebar.rowMinHeight)
             .textCase(nil)
             .contentShape(Rectangle())
-            // Mini-bar trigger: only an EXPANDED, populated group needs its
-            // header tracked (a collapsed card scrolling away is just a card).
-            .background {
-                if let fid = group.folderId, !group.isCollapsed, !group.ids.isEmpty {
-                    FolderHeaderVisibilityProbe(
-                        folderId: fid,
-                        thresholdY: folderMiniBarTopY,
-                        onVisibilityChange: setFolderHeaderOffscreen)
-                }
-            }
             .modifier(FolderCardBackground(
                 isDropTarget: dropTargetFolderId == group.folderId,
                 isExpanded: !group.isCollapsed && !group.ids.isEmpty))
             .padding(.horizontal, CodySpacing.xsPlus)
             .padding(.top, CodySpacing.xs)
             .padding(.bottom, (group.isCollapsed || group.ids.isEmpty) ? CodySpacing.xs : 0)
-        .onTapGesture {
-            if let fid = group.folderId { toggleFolderCollapsed(fid, scrollProxy: scrollProxy) }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(searchResultsActive ? Text("") : (group.isCollapsed ? Text("Expand") : Text("Collapse")))
-        .accessibilityAction {
-            if let fid = group.folderId { toggleFolderCollapsed(fid, scrollProxy: scrollProxy) }
-        }
-        // [T-ios-folder-accordion-scroll-anchor] Record this header's on-screen
-        // position so the accordion can decide whether a scroll correction is
-        // needed. Unlike FolderHeaderVisibilityProbe (mini-bar, expanded folders
-        // only) this tracks EVERY header including collapsed ones — the folder
-        // about to be expanded is collapsed at the moment of the tap, so its
-        // pre-toggle position is exactly what has to be known.
-        //
-        // A background GeometryReader: it reads the row's own frame without
-        // participating in its layout, so no sizing behaviour changes.
-        .background {
-            if let fid = group.folderId {
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear { folderHeaderTopY[fid] = geo.frame(in: .global).minY }
-                        .onChange(of: geo.frame(in: .global).minY) { folderHeaderTopY[fid] = $0 }
-                }
-            }
-        }
-        // ScrollViewReader anchor for the mini-bar's "back to header" jump.
-        .id("folderHeader-\(group.folderId ?? "")")
-        .listRowInsets(EdgeInsets())
-        .dropDestination(for: String.self) { sessionIds, _ in
-            guard let fid = group.folderId else { return false }
-            Task { @MainActor in
-                await ChatStore.shared.setFolder(fid, forSessions: sessionIds)
-                refreshSessionList()
-            }
-            return true
-        } isTargeted: { over in
-            if over {
-                dropTargetFolderId = group.folderId
-            } else if dropTargetFolderId == group.folderId {
-                dropTargetFolderId = nil
-            }
-        }
-        .contextMenu {
+    }
+
+    @ViewBuilder
+    private func folderMenu(_ group: SidebarGroup) -> some View {
             if let fid = group.folderId, let folder = folders.first(where: { $0.id == fid }) {
                 Button {
                     Task { @MainActor in
@@ -358,7 +406,6 @@ extension ContentView {
                     Label("Delete Group & \(group.totalCount) Sessions", systemImage: "trash")
                 }
             }
-        }
     }
 
     /// "New chat in folder": file the just-promoted draft. Separate from the

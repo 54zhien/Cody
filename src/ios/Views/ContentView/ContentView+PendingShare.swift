@@ -16,7 +16,7 @@ extension ContentView {
     // MARK: - Share Extension Handling
 
     var foregroundShareSessionId: String? {
-        guard novaTab == .chat, UIApplication.shared.applicationState != .background else { return nil }
+        guard novaDestination == .home, UIApplication.shared.applicationState != .background else { return nil }
         let route = isWideLayout ? selectedSessionId : (navigationPath.isEmpty ? novaActiveSessionId : currentStackSessionId)
         guard let route, Self.remoteSessionRoute(route) == nil else { return nil }
         return route // The mounted chat continues accepting its draft key after persistence.

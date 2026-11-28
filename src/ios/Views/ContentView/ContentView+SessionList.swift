@@ -65,7 +65,7 @@ extension ContentView {
         }
     }
 
-    /// Plain List with NavigationLink for stack (iPhone) layout.
+    /// Transparent List for the compact drawer.
     /// ScrollViewReader feeds the mini-bar's "back to header" jump; wrapping
     /// the List is inert otherwise (no layout/behavior change).
     // [T-ios-stacklist-metadata-explosion] Split points for the generic type.
@@ -93,11 +93,6 @@ extension ContentView {
 
     /// One session row with its full modifier stack, erased.
     ///
-    /// This is the deepest sub-chain in the list (equatable → draggable →
-    /// overlay → background → listRowInsets → listRowSeparator →
-    /// listRowBackground → contextMenu). Erasing here removes the largest
-    /// single contributor to the mangled name, and it is also the chain that
-    /// gets instantiated once per visible row.
     /// [T-home-list-lazy-rows] The iPhone row for one id, as a concrete
     /// `SessionStackRow` (one view, fixed type). Runs only for rows the List
     /// actually builds, so the lookups below are per visible row, not per
@@ -112,9 +107,8 @@ extension ContentView {
             matchSnippet: isSearching ? searchMatchSnippets[sessionId] : nil,
             isRegeneratingTitle: regeneratingTitleSessionId == sessionId,
             inFolder: group.folderId != nil,
-            isLastInFolder: group.isLastMemberRow(sessionId),
             menuActions: menuActions,
-            isHighlighted: isSessionHighlighted(sessionId)
+            isHighlighted: novaDestination == .home && isSessionHighlighted(sessionId)
         )
     }
 
@@ -127,7 +121,7 @@ extension ContentView {
         let menuSid = Self.isNewSessionId(session.id) ? newSessionRealId : session.id
         return SessionSplitRow(
             session: session,
-            isHighlighted: novaTab == .chat && isSessionHighlighted(session.id),
+            isHighlighted: novaDestination == .home && isSessionHighlighted(session.id),
             isActive: sessionIsRunning(session.id),
             isSuspended: sidebarConcurrencyManager.isSuspended(session.id),
             highlightQuery: isSearching ? searchQuery : nil,
@@ -143,8 +137,9 @@ extension ContentView {
     /// [T-search-folder-pages] "Show N more" at the foot of a search-expanded
     /// folder whose matches exceed the pages shown. It is the card's bottom
     /// segment, styled like a member row's subtitle line; each tap adds a page.
+    @ViewBuilder
     private func searchFolderShowMoreRow(_ group: SidebarGroup) -> some View {
-        Button {
+        let row = Button {
             guard let fid = group.folderId else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 searchFolderPages[fid, default: 1] += 1
@@ -166,8 +161,13 @@ extension ContentView {
         .buttonStyle(.plain)
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
-        .listRowBackground(FolderMemberRowBackground(isLast: true))
         .modifier(SelectionDisabledIfAvailable())
+
+        if isWideLayout {
+            row.listRowBackground(FolderMemberRowBackground(isLast: true))
+        } else {
+            row.listRowBackground(Color.clear)
+        }
     }
 
     static let searchFolderPageSize = 20
@@ -190,7 +190,7 @@ extension ContentView {
     private func erasedFolderSectionHeader(_ group: SidebarGroup,
                                            scrollProxy: ScrollViewProxy?) -> AnyView {
         AnyView(
-            folderSectionHeader(group, scrollProxy: scrollProxy)
+            folderSectionHeader(group, scrollProxy: scrollProxy, frameless: true)
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -204,10 +204,79 @@ extension ContentView {
     }
     }
 
-    /// The list itself. Split from `stackList` so the outer chrome chain
-    /// (`safeAreaInset` → `ignoresSafeArea` → `navigationBarTitleDisplayMode` →
-    /// `toolbar`) is instantiated separately from the list's own generic tree
-    /// rather than wrapping it.
+    private func novaHistoryHeader(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(CodyColors.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .modifier(SelectionDisabledIfAvailable())
+    }
+
+    @ViewBuilder
+    private func novaPinnedSections(_ groups: [SidebarGroup], scrollProxy: ScrollViewProxy) -> some View {
+        let pinnedFolders = groups.filter(\.isFolderPinned)
+        let pinnedFolderIds = Set(pinnedFolders.compactMap(\.folderId))
+        let pinnedChats = sessions.filter { session in
+            guard session.isPinned else { return false }
+            if let folderId = session.folderId, pinnedFolderIds.contains(folderId) {
+                return false
+            }
+            return true
+        }.sorted {
+            if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+            return ($0.pinnedAt ?? .distantPast) > ($1.pinnedAt ?? .distantPast)
+        }
+        let pinCount = pinnedFolders.count + pinnedChats.count
+        if pinCount > 0 {
+            let limit = showsAllNovaPins ? pinCount : 3
+            let pinnedGroup = SidebarGroup(
+                label: "Pinned",
+                ids: pinnedChats.prefix(max(0, limit - pinnedFolders.count)).map(\.id)
+            )
+            novaHistoryHeader("Pinned")
+            ForEach(pinnedFolders.prefix(limit)) { group in
+                Section {
+                    erasedFolderSectionHeader(group, scrollProxy: scrollProxy)
+                    ForEach(group.ids, id: \.self) { sessionId in
+                        stackRow(sessionId, group: group)
+                    }
+                }
+            }
+            ForEach(pinnedGroup.ids, id: \.self) { sessionId in
+                stackRow(sessionId, group: pinnedGroup)
+            }
+            if pinCount > 3 {
+                Button {
+                    withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                        showsAllNovaPins.toggle()
+                        offscreenFolderHeaderIds.removeAll()
+                    }
+                } label: {
+                    Group {
+                        if showsAllNovaPins {
+                            Label("Show less", systemImage: "chevron.up")
+                        } else {
+                            Label("Show all", systemImage: "chevron.down")
+                        }
+                    }
+                    .font(CodyTypography.bodySmall.weight(.medium))
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(CodyPressableButtonStyle())
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+        }
+    }
+
+    /// The erased boundary keeps the list's generic type out of the drawer.
     private func stackListBody(scrollProxy: ScrollViewProxy) -> AnyView {
         AnyView(
         List {
@@ -233,17 +302,20 @@ extension ContentView {
             #if DEBUG
             let _ = SidebarIdentityTracer.note(groups, site: "sidebar")
             #endif
-            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+            let showPinnedSection = !isSelecting && !isSearching
+            if showPinnedSection { novaPinnedSections(groups, scrollProxy: scrollProxy) }
+            let chatGroups = showPinnedSection ? groups.filter { group in
+                !group.isFolderPinned && (group.folderId != nil || group.label != "Pinned")
+            } : groups
+            if !isSelecting {
+                if isSearching {
+                    novaHistoryHeader("Search Results")
+                } else if !chatGroups.isEmpty || !remoteDeviceSessions.isEmpty {
+                    novaHistoryHeader("Chats")
+                }
+            }
+            ForEach(Array(chatGroups.enumerated()), id: \.element.id) { index, group in
                 Section {
-                    // Folder card as the section's FIRST ROW, not its header:
-                    // plain-List headers carry platform-specific chrome
-                    // (spacing/padding differ between iPhone, iPad sidebar and
-                    // Catalyst), which visibly detached the card from its
-                    // member rows on iPad/macOS. Row-to-row adjacency is a
-                    // guaranteed 0pt on every platform, so the container
-                    // segments actually weld. (Cost: the card no longer pins
-                    // while its members scroll — acceptable, accordion keeps
-                    // sections short.)
                     if group.folderId != nil, !isSelecting {
                         erasedFolderSectionHeader(group, scrollProxy: scrollProxy)
                     }
@@ -259,6 +331,8 @@ extension ContentView {
                             selectableRow(sessionForRow(sessionId) ?? .missingRowPlaceholder(sessionId))
                                 .id("select-\(sessionId)")
                                 .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
                         }
                     } else {
                         ForEach(group.ids, id: \.self) { sessionId in
@@ -273,17 +347,17 @@ extension ContentView {
                     // ROW (above); the header slot serves the date buckets,
                     // the select-mode select-all, and — on the first folder
                     // group only — the "Groups" divider label.
-                    if group.folderId == nil || isSelecting {
+                    if isSelecting {
                         sectionHeader(index: index, group: group)
-                    } else if group.showsGroupsHeader {
-                        Text("Groups")
-                            .modifier(SidebarSectionHeaderStyle())
                     }
                 }
             }
             if !isSelecting { remoteDeviceSessionSections }
         }
-        .modifier(SidebarListCanvas())
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .environment(\.defaultMinListRowHeight, 0)
         #if DEBUG
         // TEMPORARY scroll-phase markers to bracket the jitter window in the
         // log. Pair with the [ROWH] probe: a [ROWH] line appearing during
