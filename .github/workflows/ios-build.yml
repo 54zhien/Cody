@@ -50,7 +50,7 @@ jobs:
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           fi
           xcodebuild -version
-          XCODE_VER=$(xcodebuild -version | head -n 1 | awk '{print $2}')
+          XCODE_VER=$(xcodebuild -version | awk 'NR==1 {print $2}')
           echo "version=$XCODE_VER" >> "$GITHUB_OUTPUT"
 
       - name: Ensure Metal Toolchain
@@ -157,7 +157,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VER="${GITHUB_REF#refs/tags/v}"
           else
-            VER=$(xcodebuild -project src/ios/Cody.xcodeproj -scheme Cody -configuration Release -showBuildSettings 2>/dev/null | awk '/^[[:space:]]*MARKETING_VERSION = /{print $3; exit}')
+            VER=$(xcodebuild -project src/ios/Cody.xcodeproj -scheme Cody -configuration Release -showBuildSettings 2>/dev/null | awk '/^[[:space:]]*MARKETING_VERSION = / && !v {v=$3} END {print v}')
             VER="${VER:-0.1.0}"
           fi
           CONFIG="${{ inputs.configuration || 'Release' }}"
