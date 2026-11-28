@@ -74,7 +74,7 @@ struct LogManagementView: View {
                 logsBody
             }
         }
-        .background(CodyColors.bgGrouped)
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
         .navigationTitle("Diagnostic Logs")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -89,18 +89,18 @@ struct LogManagementView: View {
     private var logsBody: some View {
         CodySettingsScrollPage {
             loggingSection
-            fileSection("Log Files", files: vm.runningFiles, isCrash: false)
+            fileSection("Log Files", files: vm.runningFiles)
             if !vm.crashFiles.isEmpty {
-                fileSection("Crash Reports", files: vm.crashFiles, isCrash: true)
+                fileSection("Crash Reports", files: vm.crashFiles)
             }
 
             CodySettingsNovaSection {
-                CodySettingsNovaNavRow("Crash Diagnostics", systemImage: "stethoscope", tint: .orange) {
+                CodySettingsNovaNavRow("Crash Diagnostics", systemImage: nil) {
                     CrashDiagnosticsView()
                 }
                 if #available(iOS 17.0, *) {
-                    CodySettingsNovaDivider()
-                    CodySettingsNovaNavRow("iCloud Sync Logs", systemImage: "icloud", tint: .blue) {
+                    CodySettingsNovaDivider(leadingInset: 18)
+                    CodySettingsNovaNavRow("iCloud Sync Logs", systemImage: nil) {
                         Text(SyncLogStore.shared.entries.count, format: .number)
                             .font(CodyTypography.bodySmall.monospacedDigit())
                             .foregroundStyle(CodyColors.textSecondary)
@@ -112,7 +112,7 @@ struct LogManagementView: View {
 
             if !vm.logFiles.isEmpty {
                 CodySettingsNovaSection(footer: "Total log storage: \(vm.format(vm.totalSize))") {
-                    CodySettingsNovaActionRow("Delete All Logs", systemImage: "trash", isDestructive: true, action: {
+                    CodySettingsNovaActionRow("Delete All Logs", systemImage: nil, isDestructive: true, action: {
                         showDeleteAllConfirm = true
                     }) {
                         Text(vm.format(vm.totalSize))
@@ -155,20 +155,27 @@ struct LogManagementView: View {
                 : "When enabled, all console output is captured to daily log files."
         ) {
             Toggle("Enable Logging", isOn: $loggingManager.isEnabled)
+                .tint(.green)
                 .settingsNovaControlRow()
             if loggingManager.isEnabled {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                Picker("Detail Level", selection: $loggingManager.level) {
-                    Text("Info").tag(AppLogger.Level.info)
-                    Text("Verbose").tag(AppLogger.Level.verbose)
+                CodySettingsNovaDivider(leadingInset: 18)
+                Menu {
+                    Picker("Detail Level", selection: $loggingManager.level) {
+                        Text("Info").tag(AppLogger.Level.info)
+                        Text("Verbose").tag(AppLogger.Level.verbose)
+                    }
+                } label: {
+                    SettingsNovaPickerLabel(
+                        title: "Detail Level",
+                        value: Text(loggingManager.level == .verbose ? "Verbose" : "Info")
+                    )
                 }
-                .pickerStyle(.menu)
-                .settingsNovaControlRow()
+                .buttonStyle(CodyPressableButtonStyle())
             }
         }
     }
 
-    private func fileSection(_ title: LocalizedStringKey, files: [LogManagementViewModel.LogFile], isCrash: Bool) -> some View {
+    private func fileSection(_ title: LocalizedStringKey, files: [LogManagementViewModel.LogFile]) -> some View {
         CodySettingsNovaSection(title) {
             if files.isEmpty {
                 Text("No log files")
@@ -177,14 +184,13 @@ struct LogManagementView: View {
             } else {
                 ForEach(files) { file in
                     if file.id != files.first?.id {
-                        CodySettingsNovaDivider()
+                        CodySettingsNovaDivider(leadingInset: 18)
                     }
                     HStack(spacing: 0) {
                         CodySettingsNovaNavRow(
                             "\(file.name)",
                             subtitle: "\(vm.format(file.size))",
-                            systemImage: isCrash ? "exclamationmark.triangle.fill" : "doc.text",
-                            tint: isCrash ? .orange : .neutral
+                            systemImage: nil
                         ) {
                             LogDetailView(url: file.url, name: file.name)
                         }
@@ -222,7 +228,7 @@ struct LogDetailView: View {
         .padding(.horizontal, CodySpacing.lg)
         .padding(.vertical, CodySpacing.md)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(CodyColors.bgGrouped.ignoresSafeArea())
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

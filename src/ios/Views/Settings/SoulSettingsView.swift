@@ -25,6 +25,7 @@ struct SoulSettingsView: View {
     @State private var didJustSave: Bool = false
     @State private var showRestoreConfirm: Bool = false
     @State private var showForceSyncDone: Bool = false
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var loadedRef = LoadedFileRef()
     /// Mirrors `SyncV2Bootstrap.isEnabled` so the Force iCloud Sync row
@@ -42,35 +43,28 @@ struct SoulSettingsView: View {
 
     var body: some View {
         CodySettingsScrollPage {
-            CodySettingsNovaSection {
-                previewCard
-                    .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
+            profileHeader
+
+            VStack(spacing: CodySpacing.md) {
+                TextField("Cody", text: $name)
+                    .textInputAutocapitalization(.words)
+                    .submitLabel(.done)
+                    .settingsNovaField("Name")
+                TextField(AppLocalized("e.g. Warm, direct, opinionated"), text: $style)
+                    .settingsNovaField("Style")
             }
 
-            CodySettingsNovaSection("Identity") {
-                LabeledContent(AppLocalized("Name")) {
-                    TextField("Cody", text: $name)
-                        .multilineTextAlignment(.trailing)
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.done)
-                        .accessibilityLabel(Text("Name"))
-                }
-                .settingsNovaControlRow()
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                LabeledContent(AppLocalized("Style")) {
-                    TextField(AppLocalized("e.g. Warm, direct, opinionated"), text: $style)
-                        .multilineTextAlignment(.trailing)
-                        .accessibilityLabel(Text("Style"))
-                }
-                .settingsNovaControlRow()
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                Picker(AppLocalized("Language"), selection: $lang) {
-                    ForEach(Self.langOptions, id: \.value) { opt in
-                        Text(opt.label).tag(opt.value)
+            CodySettingsNovaSection {
+                Menu {
+                    Picker("Language", selection: $lang) {
+                        ForEach(Self.langOptions, id: \.value) { opt in
+                            Text(opt.label).tag(opt.value)
+                        }
                     }
+                } label: {
+                    SettingsNovaPickerLabel(title: "Language", value: Text(verbatim: languageLabel))
                 }
-                .pickerStyle(.menu)
-                .settingsNovaControlRow()
+                .buttonStyle(CodyPressableButtonStyle())
             }
 
             VStack(alignment: .leading, spacing: CodySpacing.sm) {
@@ -83,13 +77,13 @@ struct SoulSettingsView: View {
             }
 
             CodySettingsNovaSection {
-                CodySettingsNovaActionRow("Restore Default", systemImage: "arrow.uturn.backward", isDestructive: true) {
+                CodySettingsNovaActionRow("Restore Default", systemImage: nil, isDestructive: true) {
                     showRestoreConfirm = true
                 }
 
                 if #available(iOS 17.0, *), iCloudSyncEnabled {
-                    CodySettingsNovaDivider()
-                    CodySettingsNovaActionRow("Force iCloud Sync", systemImage: "icloud.and.arrow.up", tint: .blue, action: {
+                    CodySettingsNovaDivider(leadingInset: 18)
+                    CodySettingsNovaActionRow("Force iCloud Sync", systemImage: nil, action: {
                         Task { await forceSyncSoul() }
                     }) {
                         if showForceSyncDone {
@@ -109,16 +103,14 @@ struct SoulSettingsView: View {
                         .settingsNovaControlRow()
                 }
             }
+
+            SettingsNovaEditorActions(isSaveDisabled: !isDirty || isBodyOverLimit, save: save) {
+                dismiss()
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(AppLocalized("Soul"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(AppLocalized("Save")) { save() }
-                    .disabled(!isDirty || isBodyOverLimit)
-            }
-        }
         .onAppear(perform: reload)
         // Using .alert (not .confirmationDialog) so the dialog stays
         // centered on iPad / Mac. confirmationDialog without a source
@@ -157,46 +149,29 @@ struct SoulSettingsView: View {
 
     // MARK: - Subviews
 
-    private var previewCard: some View {
-        HStack(alignment: .center, spacing: 12) {
-            // [T-soul-custom-icon] Tappable, and it has to LOOK tappable: a
-            // bare glyph sitting on the card reads as decoration, and the
-            // pencil badge alone was too easy to miss. A filled circle gives
-            // the icon a defined edge and a hit area the eye can find, which
-            // is the same treatment the category badges elsewhere in Settings
-            // use. It doubles as a backdrop for transparent PNG icons, whose
-            // whole point is having no background of their own.
+    private var languageLabel: String {
+        Self.langOptions.first { $0.value == lang }?.label ?? lang
+    }
+
+    private var profileHeader: some View {
+        VStack(spacing: CodySpacing.sm) {
             Button {
                 showIconOptions = true
             } label: {
-                // Inset inside the 52pt button so the grey disc stays visible
-                // as a ring even when the icon is an image, which otherwise
-                // fills the whole frame and hides the affordance entirely.
-                SoulIconView(icon: icon, size: SoulIconImage.renderPoints)
-                    .frame(width: 44, height: 44)
-                    .frame(width: 52, height: 52)
-                    .background(Circle().fill(CodyColors.bgListIcon))
-                    .overlay(
-                        Circle().strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
-                    )
-                    // The badge sits INSIDE the circle's bounds rather than
-                    // straddling its edge. Overhanging it (even with padding)
-                    // gets clipped to a sliver by the enclosing Button label,
-                    // which is what made the pencil hard to see.
-                    //
-                    // Drawn as an explicit filled Circle + pencil glyph rather
-                    // than `pencil.circle.fill` with .palette: that symbol's
-                    // "circle" layer is the BACKGROUND, so on the white card it
-                    // rendered as an invisible disc with a bare diagonal stroke
-                    // floating over it. Compositing it ourselves also lets the
-                    // badge keep a contrasting ring against a dark icon image.
+                SoulIconView(icon: icon, size: SoulIconImage.isDataURI(icon) ? 72 : 40)
+                    .frame(width: 72, height: 72)
+                    .background(CodySettingsHairline.cardFill, in: Circle())
+                    .clipShape(Circle())
+                    .overlay { Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px) }
+                    .contentShape(Circle())
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "pencil")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(CodyColors.interactivePrimaryLabel)
-                            .frame(width: 18, height: 18)
-                            .background(CodyColors.interactivePrimaryBg, in: Circle())
-                            .overlay(Circle().strokeBorder(CodyColors.bgGroupedSurface, lineWidth: CodySpacing.px))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(CodyColors.iconPrimary)
+                            .frame(width: 24, height: 24)
+                            .background(CodySettingsHairline.cardFill, in: Circle())
+                            .overlay { Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px) }
+                            .allowsHitTesting(false)
                             .accessibilityHidden(true)
                     }
             }
@@ -228,18 +203,19 @@ struct SoulSettingsView: View {
                 // case, `unreadable`, and nothing checks for transparency.
                 Text(AppLocalized("Any image works. It's cropped to a square and shown with rounded corners."))
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name.isEmpty ? "Cody" : name)
-                    .font(CodyTypography.titleLarge)
-                if !style.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text(style)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+            Text(verbatim: name.isEmpty ? "Cody" : name)
+                .font(CodyTypography.titleLarge.weight(.bold))
+                .foregroundStyle(CodyColors.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            if !style.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(verbatim: style)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
             }
-            Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, CodySpacing.sm)
+        .multilineTextAlignment(.center)
     }
 
     private var personalityEditor: some View {

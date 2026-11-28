@@ -23,6 +23,7 @@ struct MemoryManagementView: View {
         CodySettingsScrollPage {
             CodySettingsNovaSection(footer: "settings_memory_global_enabled_footer") {
                 Toggle(AppLocalized("settings_memory_global_enabled"), isOn: $memoryGlobalEnabled)
+                    .tint(.green)
                     .settingsNovaControlRow()
             }
 
@@ -30,7 +31,7 @@ struct MemoryManagementView: View {
                 CodySettingsNovaSection {
                     ForEach(memoryFiles) { file in
                         if file.id != memoryFiles.first?.id {
-                            CodySettingsNovaDivider()
+                            CodySettingsNovaDivider(leadingInset: 18)
                         }
                         HStack(spacing: 0) {
                             NavigationLink {
@@ -152,7 +153,6 @@ struct MemoryManagementView: View {
 
     private func memoryRow(_ file: MemoryFileItem) -> some View {
         HStack(spacing: CodySpacing.md) {
-            CodySettingsIconBadge(systemImage: file.isGlobal ? "brain.head.profile" : "doc.text", tint: .purple)
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 Text(file.name)
                     .font(CodyTypography.bodyLarge)
@@ -167,6 +167,8 @@ struct MemoryManagementView: View {
                         .lineLimit(1)
                 }
             }
+            Spacer(minLength: CodySpacing.sm)
+            SettingsNovaDisclosure()
         }
         .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
     }
@@ -252,7 +254,8 @@ private struct MemoryFileEditView: View {
                 .font(CodyTypography.code)
                 .foregroundStyle(CodyColors.textPrimary)
                 .scrollContentBackground(.hidden)
-                .background(CodyColors.bgGroupedSurface)
+                .padding(CodySpacing.md)
+                .codySettingsCapsulePill()
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onChange(of: content) { _ in
@@ -270,7 +273,7 @@ private struct MemoryFileEditView: View {
         // blank pane under "2026-05-21.md" nav title). Anchor the VStack
         // to the available space so the TextEditor has somewhere to live.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(CodyColors.bgGrouped)
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
         .navigationTitle(fileName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

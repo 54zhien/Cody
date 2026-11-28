@@ -590,31 +590,38 @@ struct StorageManagementView: View {
 
     private var storageContent: some View {
         List {
-            Section {
-                storageRow(icon: "terminal", tint: .neutral, label: "Shell Container", value: vm.format(vm.shellContainerSize))
-                storageRow(icon: "cylinder", tint: .blue, label: "Chat Database", value: vm.format(vm.chatDatabaseSize))
-                storageRow(icon: "doc", tint: .purple, label: "Session Files", value: vm.format(vm.totalSessionSize))
-                storageRow(icon: "doc.text", tint: .orange, label: "Logs & Caches", value: vm.format(vm.logsAndCachesSize))
-                storageRow(icon: "clock", tint: .green, label: "Temporary Files", value: vm.format(vm.temporarySize))
+            CodySettingsNovaSection(
+                "Overview",
+                footer: "Total is the app's full container size and should match the figure iOS Settings shows for Cody. \"Other\" covers everything not itemized above, so the categories always add up to the total."
+            ) {
+                storageRow(label: "Shell Container", value: vm.format(vm.shellContainerSize))
+                CodySettingsNovaDivider(leadingInset: 18)
+                storageRow(label: "Chat Database", value: vm.format(vm.chatDatabaseSize))
+                CodySettingsNovaDivider(leadingInset: 18)
+                storageRow(label: "Session Files", value: vm.format(vm.totalSessionSize))
+                CodySettingsNovaDivider(leadingInset: 18)
+                storageRow(label: "Logs & Caches", value: vm.format(vm.logsAndCachesSize))
+                CodySettingsNovaDivider(leadingInset: 18)
+                storageRow(label: "Temporary Files", value: vm.format(vm.temporarySize))
                 conditionalOverviewRows
-                storageRow(icon: "ellipsis", tint: .neutral, label: "Other", value: vm.format(vm.otherSize))
-                HStack {
-                    Text("Total")
-                        .font(CodyTypography.titleMedium)
-                        .foregroundStyle(CodyColors.textPrimary)
-                    Spacer()
+                CodySettingsNovaDivider(leadingInset: 18)
+                storageRow(label: "Other", value: vm.format(vm.otherSize))
+                CodySettingsNovaDivider(leadingInset: 18)
+                LabeledContent {
                     Text(vm.format(vm.containerTotalSize))
                         .font(CodyTypography.titleMedium.monospacedDigit())
                         .foregroundStyle(CodyColors.textPrimary)
+                } label: {
+                    Text("Total")
+                        .font(CodyTypography.titleMedium)
+                        .foregroundStyle(CodyColors.textPrimary)
                 }
-                    .settingsNovaListCardRow()
-            } header: {
-                Text("Overview")
-                    .settingsSectionHeading()
-            } footer: {
-                Text("Total is the app's full container size and should match the figure iOS Settings shows for Cody. \"Other\" covers everything not itemized above, so the categories always add up to the total.")
-                    .settingsSectionFooter()
+                .settingsNovaControlRow()
             }
+            .listRowInsets(EdgeInsets(top: CodySpacing.xs, leading: CodySpacing.lg,
+                                     bottom: CodySpacing.xs, trailing: CodySpacing.lg))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
 
             // [T-storage-clear-logs-caches]
             Section {
@@ -627,7 +634,8 @@ struct StorageManagementView: View {
                                 .controlSize(.small)
                             Text("Clearing…")
                         } else {
-                            SettingsIconLabel(title: Text("Clear Logs & Caches"), systemImage: "trash", tint: .red)
+                            Text("Clear Logs & Caches")
+                                .foregroundStyle(CodyColors.statusErrorText)
                         }
                     }
                 }
@@ -729,14 +737,17 @@ struct StorageManagementView: View {
         // Only shown when non-zero: these two are failure residue, and a
         // permanent "0 bytes" row would read as a normal part of the app.
         if vm.orphanedSessionSize > 0 {
-            storageRow(icon: "questionmark.folder", tint: .orange, label: "Orphaned Session Files", value: vm.format(vm.orphanedSessionSize))
+            CodySettingsNovaDivider(leadingInset: 18)
+            storageRow(label: "Orphaned Session Files", value: vm.format(vm.orphanedSessionSize))
         }
         if vm.staleRootfsSize > 0 {
-            storageRow(icon: "exclamationmark.triangle", tint: .red, label: "Stale Shell Leftovers", value: vm.format(vm.staleRootfsSize))
+            CodySettingsNovaDivider(leadingInset: 18)
+            storageRow(label: "Stale Shell Leftovers", value: vm.format(vm.staleRootfsSize))
         }
         // [T-storage-orphan-cleanup] Was folded into "orphaned".
         if vm.sharedDataSize > 0 {
-            storageRow(icon: "square.stack.3d.up", tint: .purple, label: "Skills, Memory & Shared Files", value: vm.format(vm.sharedDataSize))
+            CodySettingsNovaDivider(leadingInset: 18)
+            storageRow(label: "Skills, Memory & Shared Files", value: vm.format(vm.sharedDataSize))
         }
     }
 
@@ -791,7 +802,7 @@ struct StorageManagementView: View {
         } else {
             HStack {
                 Label("Clean Up Orphaned Session Files", systemImage: "trash")
-                    .labelStyle(StorageCleanupLabelStyle())
+                    .labelStyle(.titleOnly)
                 Spacer()
                 Text(vm.format(vm.orphanedSessionSize))
                     .foregroundStyle(.secondary)
@@ -814,7 +825,7 @@ struct StorageManagementView: View {
                         .foregroundStyle(selected ? CodyColors.iconAccent : CodyColors.iconSecondary)
                         .font(CodyTypography.titleLarge)
                         .accessibilityHidden(true)
-                    sessionLabel(session, busy: busy)
+                    sessionLabel(session, busy: busy, showsDisclosure: false)
                 }
                 .contentShape(Rectangle())
             }
@@ -826,7 +837,7 @@ struct StorageManagementView: View {
             NavigationLink {
                 SessionStorageDetailView(sessionId: session.id, fallback: session, vm: vm)
             } label: {
-                sessionLabel(session, busy: busy)
+                sessionLabel(session, busy: busy, showsDisclosure: true)
             }
             .disabled(busy)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -850,7 +861,7 @@ struct StorageManagementView: View {
         }
     }
 
-    private func sessionLabel(_ session: StorageManagementViewModel.SessionStorage, busy: Bool) -> some View {
+    private func sessionLabel(_ session: StorageManagementViewModel.SessionStorage, busy: Bool, showsDisclosure: Bool = false) -> some View {
         HStack {
             Text(session.title ?? "Untitled")
                 .font(CodyTypography.bodyLarge)
@@ -864,6 +875,9 @@ struct StorageManagementView: View {
                 Text(vm.format(session.totalSize))
                     .font(CodyTypography.bodyMedium.monospacedDigit())
                     .foregroundStyle(CodyColors.textSecondary)
+                if showsDisclosure {
+                    SettingsNovaDisclosure()
+                }
             }
         }
     }
@@ -873,7 +887,6 @@ struct StorageManagementView: View {
         let allSelected = !allIds.isEmpty && selection.count == allIds.count
         let selectedBytes = vm.sessions.filter { selection.contains($0.id) }.reduce(Int64(0)) { $0 + $1.totalSize }
         return VStack(spacing: 0) {
-            Divider()
             HStack {
                 Button(allSelected ? AppLocalized("Deselect All") : AppLocalized("Select All")) {
                     selection = allSelected ? [] : Set(allIds)
@@ -906,7 +919,10 @@ struct StorageManagementView: View {
                     .padding(.bottom, CodySpacing.sm)
             }
         }
-        .background(CodyColors.bgGroupedSurface)
+        .codySettingsCapsulePill()
+        .padding(.horizontal, CodySpacing.lg)
+        .padding(.vertical, CodySpacing.xs)
+        .background(CodyColors.bgCanvas)
     }
 
     private func confirm(_ action: StorageManagementViewModel.SessionAction, _ ids: [String]) {
@@ -984,9 +1000,8 @@ struct StorageManagementView: View {
         }
     }
 
-    private func storageRow(icon: String, tint: CodyCategoryTint, label: String, value: String) -> some View {
+    private func storageRow(label: String, value: String) -> some View {
         HStack(spacing: CodySpacing.md) {
-            CodySettingsIconBadge(systemImage: icon, tint: tint)
             // [T-storage-orphan-cleanup] `Text(label)` with a String shows the
             // key itself: every overview row was English in every language,
             // although all of them are in the catalog.
@@ -998,20 +1013,10 @@ struct StorageManagementView: View {
                 .font(CodyTypography.bodyMedium.monospacedDigit())
                 .foregroundStyle(CodyColors.textSecondary)
         }
-        .settingsNovaListCardRow()
+        .settingsNovaControlRow()
     }
 }
 
-private struct StorageCleanupLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Label {
-            configuration.title
-        } icon: {
-            CodySettingsIconBadge(systemImage: "trash", tint: .red)
-        }
-        .labelStyle(.titleAndIcon)
-    }
-}
 
 // MARK: - Session Storage Detail View
 
@@ -1054,10 +1059,12 @@ struct SessionStorageDetailView: View {
                         FileBrowserView(rootPath: codyURL)
                     } label: {
                         HStack {
-                            SettingsIconLabel(title: Text("Browse Files"), systemImage: "folder", tint: .blue)
+                            Text("Browse Files")
+                                .foregroundStyle(CodyColors.textPrimary)
                             Spacer()
                             Text(formatter.string(fromByteCount: currentCodySize))
                                 .foregroundStyle(.secondary)
+                            SettingsNovaDisclosure()
                         }
                     }
                         .settingsNovaListCardRow()
@@ -1081,7 +1088,8 @@ struct SessionStorageDetailView: View {
                                 .controlSize(.small)
                             Text("Clearing…")
                         } else {
-                            SettingsIconLabel(title: Text("Clear Session Files"), systemImage: "trash", tint: .red)
+                            Text("Clear Session Files")
+                                .foregroundStyle(CodyColors.statusErrorText)
                         }
                         Spacer()
                         if !isClearing {

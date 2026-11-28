@@ -27,6 +27,7 @@ struct EnhancedBackgroundSettingsView: View {
 
             CodySettingsNovaSection(footer: "Keeps agent tasks running when the app is in the background. Shows progress via Live Activity on the Lock Screen and Dynamic Island. Also turns on Background Speak so text-to-speech narration keeps playing.") {
                 Toggle("Enhanced Background Execution", isOn: $keepAlive.enhancedBackgroundEnabled)
+                    .tint(.green)
                     .settingsNovaControlRow()
                     .focusHighlight(shouldFocus("enhancedBackgroundExecution", current: keepAlive.enhancedBackgroundEnabled), reduceMotion: reduceMotion)
             }
@@ -38,6 +39,7 @@ struct EnhancedBackgroundSettingsView: View {
             if #available(iOS 26.0, *) {
                 CodySettingsNovaSection(footer: "Shows a Cody task status on screen so the task keeps processing in the background.") {
                     Toggle("Prefer Continued Background Processing (iOS 26+)", isOn: $keepAlive.continuedProcessingPreferred)
+                        .tint(.green)
                         .settingsNovaControlRow()
                         .focusHighlight(shouldFocus("continuedProcessingPreferred", current: keepAlive.continuedProcessingPreferred), reduceMotion: reduceMotion)
                 }
@@ -51,6 +53,7 @@ struct EnhancedBackgroundSettingsView: View {
             if AgentLiveActivityManager.isLiveActivitySupported {
                 CodySettingsNovaSection(footer: "Show agent task progress on the Lock Screen and in the Dynamic Island. Turning this off also removes the currently displayed Live Activity. Tip: enable Location Tracking below so the Live Activity keeps refreshing while the app stays in the background — without it, updates pause about 30 seconds after you leave the app.") {
                     Toggle("Live Activity", isOn: $keepAlive.liveActivityEnabled)
+                        .tint(.green)
                         .settingsNovaControlRow()
                         .focusHighlight(shouldFocus("liveActivityEnabled", current: keepAlive.liveActivityEnabled), reduceMotion: reduceMotion)
                 }
@@ -58,6 +61,7 @@ struct EnhancedBackgroundSettingsView: View {
 
             CodySettingsNovaSection(footer: "Show local notifications when agent tasks start and complete, including tasks triggered by Shortcuts.") {
                 Toggle("Task Notifications", isOn: $keepAlive.backgroundNotificationsEnabled)
+                    .tint(.green)
                     .settingsNovaControlRow()
             }
 
@@ -68,11 +72,13 @@ struct EnhancedBackgroundSettingsView: View {
                 // Display name only — the persisted key stays
                 // `liveActivityPrivacyMode` so existing installs keep their setting.
                 Toggle("Task Status Privacy", isOn: $keepAlive.liveActivityPrivacyMode)
+                    .tint(.green)
                     .settingsNovaControlRow()
             }
 
             CodySettingsNovaSection(footer: "Enables background audio playback for text-to-speech narration and music/audio playback while the app is in the background.") {
                 Toggle("Background Speak", isOn: $keepAlive.backgroundSpeakEnabled)
+                    .tint(.green)
                     .settingsNovaControlRow()
                     .focusHighlight(shouldFocus("backgroundSpeakEnabled", current: keepAlive.backgroundSpeakEnabled), reduceMotion: reduceMotion)
             }
@@ -98,7 +104,7 @@ struct EnhancedBackgroundSettingsView: View {
                 }
                 .settingsNovaControlRow()
 
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Pitch")
@@ -113,7 +119,7 @@ struct EnhancedBackgroundSettingsView: View {
                 }
                 .settingsNovaControlRow()
 
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Volume")
@@ -132,7 +138,7 @@ struct EnhancedBackgroundSettingsView: View {
             CodySettingsNovaSection("Voice", footer: "Choose a specific voice for each language. Download more voices in Settings > Accessibility > Spoken Content > Voices.") {
                 voicePicker(label: "English Voice", language: "en", selection: $keepAlive.speechVoiceEn)
                     .settingsNovaControlRow()
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 voicePicker(label: "中文语音", language: "zh", selection: $keepAlive.speechVoiceZh)
                     .settingsNovaControlRow()
             }
@@ -141,8 +147,8 @@ struct EnhancedBackgroundSettingsView: View {
                 CodySettingsNovaActionRow("Reset to Defaults") {
                     keepAlive.resetSpeechSettings()
                 }
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                CodySettingsNovaActionRow("Preview", systemImage: "play", tint: .blue) {
+                CodySettingsNovaDivider(leadingInset: 18)
+                CodySettingsNovaActionRow("Preview", systemImage: nil) {
                     previewSpeech()
                 }
             }
@@ -151,6 +157,7 @@ struct EnhancedBackgroundSettingsView: View {
 
             CodySettingsNovaSection(footer: "Lets the agent keep working in the background and keeps the task Live Activity refreshing in real time. Uses coarse, low-accuracy location only as a background heartbeat — it does not track or store your precise location.") {
                 Toggle("Location Tracking", isOn: $keepAlive.locationTrackingEnabled)
+                    .tint(.green)
                     .onChange(of: keepAlive.locationTrackingEnabled) { enabled in
                         if enabled && keepAlive.locationAuthStatus == .notDetermined {
                             keepAlive.requestLocationPermission()
@@ -185,7 +192,7 @@ struct EnhancedBackgroundSettingsView: View {
                 }
                 .settingsNovaControlRow()
 
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 HStack {
                     Text("Location Permission")
                     Spacer()
@@ -221,13 +228,20 @@ struct EnhancedBackgroundSettingsView: View {
             .filter { $0.language.hasPrefix(language) }
             .sorted { $0.name < $1.name }
 
-        Picker(label, selection: selection) {
-            Text("System Default").tag("")
-            ForEach(voices, id: \.identifier) { voice in
-                Text(voiceDisplayName(voice)).tag(voice.identifier)
+        HStack {
+            Text(LocalizedStringKey(label))
+                .foregroundStyle(CodyColors.textPrimary)
+            Spacer(minLength: CodySpacing.sm)
+            Picker(LocalizedStringKey(label), selection: selection) {
+                Text("System Default").tag("")
+                ForEach(voices, id: \.identifier) { voice in
+                    Text(voiceDisplayName(voice)).tag(voice.identifier)
+                }
             }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .tint(CodyColors.textSecondary)
         }
-        .pickerStyle(.menu)
     }
 
     private func voiceDisplayName(_ voice: AVSpeechSynthesisVoice) -> String {

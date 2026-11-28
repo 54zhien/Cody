@@ -31,6 +31,7 @@ struct FaceIDProtectionSettingsView: View {
                             .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
+                .tint(.green)
                 .onChange(of: appLockEnabled) { newValue in
                     guard newValue else {
                         store.appLockEnabled = false
@@ -52,14 +53,21 @@ struct FaceIDProtectionSettingsView: View {
 
             if appLockEnabled {
                 CodySettingsNovaSection("App Lock Timeout", footer: "How long after leaving the app before the lock re-engages.") {
-                    Picker(AppLocalized("Require unlock"), selection: $appLockIdleSeconds) {
-                        ForEach(SessionLockIdleOption.allOptions) { opt in
-                            Text(opt.labelKey).tag(opt.seconds)
+                    HStack {
+                        Text(AppLocalized("Require unlock"))
+                            .foregroundStyle(CodyColors.textPrimary)
+                        Spacer(minLength: CodySpacing.sm)
+                        Picker(AppLocalized("Require unlock"), selection: $appLockIdleSeconds) {
+                            ForEach(SessionLockIdleOption.allOptions) { opt in
+                                Text(opt.labelKey).tag(opt.seconds)
+                            }
                         }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: appLockIdleSeconds) { newValue in
-                        store.appLockIdleSeconds = newValue
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .tint(CodyColors.textSecondary)
+                        .onChange(of: appLockIdleSeconds) { newValue in
+                            store.appLockIdleSeconds = newValue
+                        }
                     }
                     .settingsNovaControlRow()
                 }
@@ -75,6 +83,7 @@ struct FaceIDProtectionSettingsView: View {
                             .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
+                .tint(.green)
                 .onChange(of: enabled) { newValue in
                     guard newValue else { return }
                     Task { @MainActor in
@@ -90,12 +99,19 @@ struct FaceIDProtectionSettingsView: View {
 
             if enabled {
                 CodySettingsNovaSection("Session Lock Timeout", footer: "After leaving an unlocked session, the lock re-engages once the idle window elapses.") {
-                    Picker(AppLocalized("Re-lock after idle"), selection: $idleSeconds) {
-                        ForEach(SessionLockIdleOption.allOptions) { opt in
-                            Text(opt.labelKey).tag(opt.seconds)
+                    HStack {
+                        Text(AppLocalized("Re-lock after idle"))
+                            .foregroundStyle(CodyColors.textPrimary)
+                        Spacer(minLength: CodySpacing.sm)
+                        Picker(AppLocalized("Re-lock after idle"), selection: $idleSeconds) {
+                            ForEach(SessionLockIdleOption.allOptions) { opt in
+                                Text(opt.labelKey).tag(opt.seconds)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .tint(CodyColors.textSecondary)
                     }
-                    .pickerStyle(.menu)
                     .settingsNovaControlRow()
                 }
 
@@ -109,8 +125,8 @@ struct FaceIDProtectionSettingsView: View {
                     }
                     .settingsNovaControlRow()
                     if !store.lockedSessionIds.isEmpty {
-                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                        Button(role: .destructive) {
+                        CodySettingsNovaDivider(leadingInset: 18)
+                        CodySettingsNovaActionRow("Remove All Locks", systemImage: nil, isDestructive: true) {
                             Task { @MainActor in
                                 let reason = AppLocalized("Remove all session locks")
                                 let ok = await BiometricAuth.authenticate(reason: reason)
@@ -120,12 +136,7 @@ struct FaceIDProtectionSettingsView: View {
                                     }
                                 }
                             }
-                        } label: {
-                            SettingsIconLabel(title: Text("Remove All Locks"), systemImage: "lock.open", tint: .red)
-                                .foregroundStyle(CodyColors.statusErrorText)
-                                .settingsNovaControlRow()
                         }
-                        .buttonStyle(CodyPressableButtonStyle())
                     }
                 }
             }

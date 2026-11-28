@@ -134,7 +134,7 @@ struct ToolsSettingsView: View {
             CodySettingsNovaSection(
                 footer: "Browse the web in the in-app browser: open pages, read them, click and type. Stable and on by default. When off, the tool is removed from every conversation — the model does not see it at all."
             ) {
-                toolRow(AppLocalized("Browser Use"), tool: "browser_use", icon: "globe", isOn: $browserEnabled)
+                toolRow(AppLocalized("Browser Use"), tool: "browser_use", isOn: $browserEnabled)
                     .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             }
             userAskSections
@@ -154,7 +154,7 @@ struct ToolsSettingsView: View {
             CodySettingsNovaSection(
                 footer: "Lets the assistant ask you to choose between options, or to confirm a risky action before doing it, on a card in the chat. Only in chats you are in — never for sub agents, Shortcuts or scheduled tasks. When off, the assistant decides for itself and does not take risky actions without your go-ahead."
             ) {
-                toolRow(AppLocalized("User Interaction"), tool: "user_ask", icon: "questionmark.bubble", isOn: $userAskEnabled)
+                toolRow(AppLocalized("User Interaction"), tool: "user_ask", isOn: $userAskEnabled)
                     .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                 userAskControls
             }
@@ -170,40 +170,43 @@ struct ToolsSettingsView: View {
     private var userAskControls: some View {
         if userAskEnabled {
             VStack(spacing: 0) {
-                CodySettingsNovaDivider(leadingInset: CodyMetrics.Settings.rowPaddingH + Self.subRowIndent)
-                Picker(selection: $userAskTimeout) {
-                    ForEach(UserAskSettings.timeoutChoices, id: \.self) { m in
-                        Text(m == 0 ? AppLocalized("Indefinitely") : AppLocalized("\(m) min")).tag(m)
-                    }
-                } label: {
+                CodySettingsNovaDivider(leadingInset: 18)
+                HStack {
                     Text(AppLocalized("Wait for an answer")).padding(.leading, Self.subRowIndent)
+                    Spacer(minLength: CodySpacing.sm)
+                    Picker("", selection: $userAskTimeout) {
+                        ForEach(UserAskSettings.timeoutChoices, id: \.self) { m in
+                            Text(m == 0 ? AppLocalized("Indefinitely") : AppLocalized("\(m) min")).tag(m)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(CodyColors.textSecondary)
                 }
-                .pickerStyle(.menu)
                 .settingsNovaControlRow()
-                CodySettingsNovaDivider(leadingInset: CodyMetrics.Settings.rowPaddingH + Self.subRowIndent)
+                CodySettingsNovaDivider(leadingInset: 18)
                 Toggle(isOn: $userAskNotify) {
                     Text(AppLocalized("Notify when in the background")).padding(.leading, Self.subRowIndent)
                 }
+                .tint(.green)
                 .settingsNovaControlRow()
             }
         }
     }
 
-    /// Align the nested controls with the title after the badge.
+    /// The wait and notification options are subordinate to the interaction switch.
     static let toolIconColumn = CodyMetrics.Sidebar.iconSize
     static let toolIconSpacing = CodySpacing.smPlus
     static let subRowIndent: CGFloat = toolIconColumn + toolIconSpacing
 
-    private func toolRow(_ title: String, tool: String, icon: String, isOn: Binding<Bool>) -> some View {
+    private func toolRow(_ title: String, tool: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
-            HStack(spacing: Self.toolIconSpacing) {
-                CodySettingsIconBadge(systemImage: icon, tint: isOn.wrappedValue ? .blue : .neutral)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(CodyTypography.bodyLarge)
-                    Text(tool).font(CodyTypography.code).foregroundStyle(CodyColors.textSecondary)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(CodyTypography.bodyLarge)
+                Text(tool).font(CodyTypography.code).foregroundStyle(CodyColors.textSecondary)
             }
         }
+        .tint(.green)
     }
 }
 

@@ -17,12 +17,12 @@ struct ConfigAuditView: View {
     @State private var revertCandidate: ConfigAuditEntry?
 
     var body: some View {
-        List {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection {
                 HStack {
                     Text("\(usage.count) / \(usage.capacity) used")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CodyColors.textSecondary)
                     Spacer()
                     if !entries.isEmpty {
                         Button("Clear All", role: .destructive) {
@@ -34,28 +34,52 @@ struct ConfigAuditView: View {
                         .buttonStyle(CodyPressableButtonStyle())
                     }
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
             }
 
             if entries.isEmpty {
-                Text("No config changes recorded yet.")
-                    .foregroundStyle(.secondary)
-                    .settingsRowSurface()
+                CodySettingsNovaSection {
+                    Text("No config changes recorded yet.")
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .settingsNovaControlRow()
+                }
             } else {
                 ForEach(entries) { entry in
-                    // [T-config-readable] Tap a record for its details: the
-                    // readable description plus the full raw change.
-                    NavigationLink {
-                        ConfigAuditDetailView(entry: entry)
-                    } label: {
-                        auditRow(entry)
+                    CodySettingsNovaSection {
+                        // [T-config-readable] Tap a record for its details: the
+                        // readable description plus the full raw change.
+                        NavigationLink {
+                            ConfigAuditDetailView(entry: entry)
+                        } label: {
+                            HStack(spacing: CodySpacing.sm) {
+                                auditRow(entry)
+                                SettingsNovaDisclosure()
+                            }
+                            .settingsNovaControlRow()
+                        }
+                        .buttonStyle(CodyPressableButtonStyle())
+
+                        if entry.status == .applied {
+                            CodySettingsNovaDivider(leadingInset: 18)
+                            Button {
+                                revert(entry)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .accessibilityHidden(true)
+                                    Text("Revert")
+                                }
+                                .font(CodyTypography.labelLarge)
+                                .foregroundStyle(CodyColors.textPrimary)
+                                .settingsNovaControlRow()
+                            }
+                            .buttonStyle(CodyPressableButtonStyle())
+                            .disabled(revertingId == entry.id)
+                        }
                     }
-                        .settingsRowSurface()
                 }
             }
         }
-        .settingsGroupedCanvas()
-        .listStyle(.insetGrouped)
         .onAppear { reload() }
         .onChange(of: log.revision) { _ in reload() }
         .alert(item: $revertResult) { msg in
@@ -140,26 +164,7 @@ struct ConfigAuditView: View {
                 }
             }
 
-            if entry.status == .applied {
-                Button {
-                    revert(entry)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .accessibilityHidden(true)
-                        Text("Revert")
-                    }
-                    .font(CodyTypography.labelLarge)
-                    .foregroundStyle(CodyColors.textPrimary)
-                    .padding(.horizontal, CodySpacing.md)
-                    .frame(minHeight: CodyControlHeight.standard)
-                    .background(CodyColors.interactiveSecondaryBg, in: RoundedRectangle(cornerRadius: CodyRadius.control))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(CodyPressableButtonStyle())
-                .disabled(revertingId == entry.id)
-                .padding(.top, 2)
-            } else if entry.status == .reverted {
+            if entry.status == .reverted {
                 Label("Reverted", systemImage: "arrow.uturn.backward.circle.fill")
                     .font(.caption2)
                     .foregroundStyle(.purple)

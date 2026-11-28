@@ -73,24 +73,22 @@ struct AboutView: View {
             brandingHeader
             CodySettingsNovaSection {
                 detailsRow("Version", value: appVersion)
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 detailsRow("Built", value: buildDate)
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 detailsRow("Environment", value: environmentLine)
             }
             CodySettingsNovaSection("Licenses") {
-                externalLink("Cody License", systemImage: "doc.text", tint: .neutral,
-                             url: "https://github.com/54zhien/Cody/blob/main/LICENSE")
-                CodySettingsNovaDivider()
-                externalLink("Third-Party Licenses", systemImage: "doc.on.doc", tint: .neutral,
-                             url: "https://github.com/54zhien/Cody/blob/main/THIRD_PARTY_LICENSES.md")
+                externalLink("Cody License", url: "https://github.com/54zhien/Cody/blob/main/LICENSE")
+                CodySettingsNovaDivider(leadingInset: 18)
+                externalLink("Third-Party Licenses", url: "https://github.com/54zhien/Cody/blob/main/THIRD_PARTY_LICENSES.md")
             }
             CodySettingsNovaSection("Links") {
-                externalLink("GitHub Repository", systemImage: "link", tint: .blue,
-                             url: "https://github.com/54zhien/Cody")
-                CodySettingsNovaDivider()
-                externalLink("Report an Issue", systemImage: "exclamationmark.bubble", tint: .orange,
-                             url: "https://github.com/54zhien/Cody/issues")
+                externalLink("GitHub Repository", url: "https://github.com/54zhien/Cody")
+                CodySettingsNovaDivider(leadingInset: 18)
+                externalLink("Report an Issue", url: "https://github.com/54zhien/Cody/issues")
+                CodySettingsNovaDivider(leadingInset: 18)
+                externalLink("Privacy Policy", url: "https://54zhien.github.io/Cody/privacy-policy.html")
             }
         }
         .navigationTitle("About")
@@ -105,7 +103,7 @@ struct AboutView: View {
                     .resizable()
                     .frame(width: 80, height: 80)
                     .clipShape(shape)
-                    .overlay { shape.strokeBorder(CodyColors.borderDefault, lineWidth: CodySpacing.px) }
+                    .overlay { shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px) }
                     .accessibilityHidden(true)
             }
             Text("Cody")
@@ -134,9 +132,9 @@ struct AboutView: View {
         .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
     }
 
-    private func externalLink(_ title: LocalizedStringKey, systemImage: String, tint: CodyCategoryTint, url: String) -> some View {
+    private func externalLink(_ title: LocalizedStringKey, url: String) -> some View {
         Link(destination: URL(string: url)!) {
-            CodySettingsNovaRowContent(title: title, subtitle: nil, systemImage: systemImage, tint: tint) {
+            CodySettingsNovaRowContent(title: title, subtitle: nil, systemImage: nil, tint: nil, showsDisclosure: false) {
                 Image(systemName: "arrow.up.right.square")
                     .font(CodyTypography.labelMedium)
                     .foregroundStyle(CodyColors.iconDisclosure)

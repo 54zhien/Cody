@@ -156,30 +156,28 @@ struct BackupRestoreView: View {
         if !folders.isEmpty || !remotes.isEmpty {
             CodySettingsNovaSection("Backup Destinations", footer: "Tap a destination to browse its folders and pick a backup.") {
                 ForEach(folders) { folder in
-                    if folder.id != folders.first?.id { CodySettingsNovaDivider() }
+                    if folder.id != folders.first?.id { CodySettingsNovaDivider(leadingInset: 18) }
                     NavigationLink {
                         FolderPackageListView(folder: folder, onPicked: load)
                     } label: {
                         destinationRow(
                             name: folder.name,
-                            subtitle: AppLocalized("Shared Folder"),
-                            systemName: "externaldrive.connected.to.line.below.fill",
-                            tint: .green)
+                            subtitle: AppLocalized("Shared Folder")
+                        )
                             .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                     }
                     .buttonStyle(CodyPressableButtonStyle())
                     .disabled(isWorking)
                 }
                 ForEach(remotes) { r in
-                    if !folders.isEmpty || r.id != remotes.first?.id { CodySettingsNovaDivider() }
+                    if !folders.isEmpty || r.id != remotes.first?.id { CodySettingsNovaDivider(leadingInset: 18) }
                     NavigationLink {
                         ServerPackageListView(remote: r, onPicked: load)
                     } label: {
                         destinationRow(
                             name: r.name,
-                            subtitle: "\(r.backend.uppercased()) · /\(r.path)",
-                            systemName: "network",
-                            tint: .purple)
+                            subtitle: "\(r.backend.uppercased()) · /\(r.path)"
+                        )
                             .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                     }
                     .buttonStyle(CodyPressableButtonStyle())
@@ -189,18 +187,19 @@ struct BackupRestoreView: View {
         }
     }
 
-    private func destinationRow(name: String, subtitle: String,
-                                systemName: String, tint: CodyCategoryTint) -> some View {
-        HStack(spacing: 12) {
-            CodySettingsIconBadge(systemImage: systemName, tint: tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private func destinationRow(name: String, subtitle: String) -> some View {
+        HStack(spacing: CodySpacing.md) {
+            VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                Text(verbatim: name)
+                    .foregroundStyle(CodyColors.textPrimary)
+                Text(verbatim: subtitle)
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+            Spacer(minLength: CodySpacing.sm)
+            SettingsNovaDisclosure()
         }
     }
 
@@ -215,13 +214,13 @@ struct BackupRestoreView: View {
     /// becomes a destination and moves up into the list above.
     private var otherSourcesSection: some View {
         CodySettingsNovaSection("Other Sources", footer: "Pick a .codybak file from Files, iCloud Drive, or any connected storage — or add a server your backups were saved to.") {
-            CodySettingsNovaActionRow("Choose from Files…", systemImage: "folder.fill", tint: .blue) {
+            CodySettingsNovaActionRow("Choose from Files…", systemImage: nil) {
                 showPicker = true
             }
             .disabled(isWorking)
 
-            CodySettingsNovaDivider()
-            CodySettingsNovaActionRow("Browse Other Servers…", systemImage: "globe", tint: .purple) {
+            CodySettingsNovaDivider(leadingInset: 18)
+            CodySettingsNovaActionRow("Browse Other Servers…", systemImage: nil) {
                 showServerPicker = true
             }
             .disabled(isWorking)
@@ -287,7 +286,6 @@ struct BackupRestoreView: View {
         CodySettingsNovaSection("Selected Backup") {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 12) {
-                    CodySettingsIconBadge(systemImage: "doc.zipper", tint: .green)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(packageURL?.lastPathComponent ?? AppLocalized("Backup"))
                             .font(.callout.weight(.medium))
@@ -301,7 +299,7 @@ struct BackupRestoreView: View {
             }
             .settingsNovaControlRow()
 
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             LabeledContent("Created",
                            value: m.createdAt.formatted(date: .abbreviated, time: .shortened))
                 .settingsNovaControlRow()
@@ -310,16 +308,16 @@ struct BackupRestoreView: View {
             // not in the package, and the user should see that before
             // deciding this is the backup they want.
             if let snapshotAt = m.snapshotAt, snapshotAt != m.createdAt {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("Data as of",
                                value: snapshotAt.formatted(date: .abbreviated, time: .shortened))
                     .settingsNovaControlRow()
             }
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             LabeledContent("From", value: "\(m.deviceName) · \(m.app.platform) \(m.app.version)")
                 .settingsNovaControlRow()
             if m.encryption != nil {
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("Encrypted", value: AppLocalized("Yes"))
                     .settingsNovaControlRow()
             }
@@ -328,14 +326,14 @@ struct BackupRestoreView: View {
                 // can restore conversations but none of their attachments.
                 // Saying "size limit" here would be misleading — nothing was
                 // too big, the user chose to leave files out.
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("File contents",
                                value: "Not included (\(m.limits.skippedFiles) file(s) listed)")
                     .settingsNovaControlRow()
             } else if let limits = m.limits.maxFileBytes, limits > 0 {
                 // §3.4 — the package is known-incomplete, and the user should
                 // learn that here rather than after restoring.
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("Excluded (size limit)",
                                value: "\(m.limits.skippedFiles) file(s)")
                     .settingsNovaControlRow()
@@ -344,8 +342,8 @@ struct BackupRestoreView: View {
             // Escape hatch, kept with the thing it replaces rather than in the
             // pickers below: having chosen the wrong package, "choose another"
             // is the next action, and it should be where the user is looking.
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-            CodySettingsNovaActionRow("Choose a Different Backup", systemImage: "arrow.triangle.2.circlepath", tint: .neutral) {
+            CodySettingsNovaDivider(leadingInset: 18)
+            CodySettingsNovaActionRow("Choose a Different Backup", systemImage: nil) {
                 clearSelection()
             }
             .disabled(isWorking)
@@ -440,38 +438,34 @@ struct BackupRestoreView: View {
         CodySettingsNovaSection("Restore", footer: "Merge: items are matched by id. Existing items are only replaced when the backup's copy is newer. Nothing is deleted.") {
             let categories = availableCategories(m)
             ForEach(categories, id: \.self) { category in
-                if category != categories.first { CodySettingsNovaDivider() }
+                if category != categories.first { CodySettingsNovaDivider(leadingInset: 18) }
                 Toggle(isOn: binding(for: category)) {
-                    // Same badge as the Backup tab, so a category is
-                    // recognisable across both screens rather than only by
-                    // its wording.
-                    HStack(spacing: 12) {
-                        SettingsBackupCategoryBadge(category: category)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(displayName(category))
-                            if let stat = m.categories[category.rawValue] {
-                                Text(detailText(category, stat))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                    VStack(alignment: .leading, spacing: CodySpacing.xxs) {
+                        Text(displayName(category))
+                        if let stat = m.categories[category.rawValue] {
+                            Text(detailText(category, stat))
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                     }
                 }
+                .tint(.green)
                 .settingsNovaControlRow()
             }
         }
     }
 
     private var passphraseSection: some View {
-        CodySettingsNovaSection("Encryption", footer: "This backup is encrypted. Without its passphrase it cannot be opened.") {
-            // [T-restore-lock-passphrase] Locked while the restore runs: the
-            // passphrase is already in use, and a focused field kept raising
-            // the keyboard over the progress line.
+        VStack(alignment: .leading, spacing: CodySpacing.xs) {
+            // [T-restore-lock-passphrase] A focused field raised the keyboard
+            // over the progress line while the passphrase was in use.
             SecureField("Passphrase", text: $passphrase)
                 .textContentType(.password)
                 .focused($passphraseFocused)
                 .disabled(isWorking)
-                .settingsNovaControlRow()
+                .settingsNovaField("Passphrase")
+            Text("This backup is encrypted. Without its passphrase it cannot be opened.")
+                .settingsNovaFooter()
         }
     }
 
@@ -514,7 +508,7 @@ struct BackupRestoreView: View {
     /// literal a `LocalizedStringKey`.
     private func restoreNotice(_ text: Text) -> some View {
         VStack(spacing: 0) {
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             Label {
                 text
             } icon: {
@@ -533,23 +527,23 @@ struct BackupRestoreView: View {
                 LabeledContent("Restored", value: "\(r.totalImported)")
                     .settingsNovaControlRow()
                 if r.totalUpdated > 0 {
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    CodySettingsNovaDivider(leadingInset: 18)
                     LabeledContent("Updated", value: "\(r.totalUpdated)")
                         .settingsNovaControlRow()
                 }
                 // "Skipped" is the expected outcome for anything already present,
                 // so it is labelled as such rather than looking like a failure.
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("Already up to date", value: "\(r.totalSkipped)")
                     .settingsNovaControlRow()
                 if r.totalUnreadable > 0 {
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    CodySettingsNovaDivider(leadingInset: 18)
                     LabeledContent("Unreadable", value: "\(r.totalUnreadable)")
                         .settingsNovaControlRow()
                 }
                 let credsRestored = r.categories.reduce(0) { $0 + $1.credentialsRestored }
                 if credsRestored > 0 {
-                    CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                    CodySettingsNovaDivider(leadingInset: 18)
                     LabeledContent("API keys restored", value: "\(credsRestored)")
                         .settingsNovaControlRow()
                 }
@@ -563,7 +557,7 @@ struct BackupRestoreView: View {
                 // gone fine.
                 ForEach(r.categories, id: \.category) { c in
                     if let failed = c.failed {
-                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                        CodySettingsNovaDivider(leadingInset: 18)
                         Text("\(displayNameRaw(c.category)): \(failed)")
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -895,7 +889,7 @@ struct FolderPackageListView: View {
                     ProgressView()
                     Text("Looking for backups…").foregroundStyle(.secondary)
                 }
-                    .settingsRowSurface()
+                    .settingsNovaListCardRow()
             } else if packages.isEmpty {
                 // Distinguishes "nothing there" from "couldn't reach it" — an
                 // offline share contributes no rows, and the user needs to
@@ -915,6 +909,7 @@ struct FolderPackageListView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
+                .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
 
@@ -946,14 +941,14 @@ struct FolderPackageListView: View {
                         Label(AppLocalized("Delete"), systemImage: "trash")
                     }
                 }
-                    .settingsRowSurface()
+                    .settingsNovaListCardRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             }
 
             if let errorText {
                 Text(errorText)
                     .font(CodyTypography.sectionHeader)
                     .foregroundStyle(CodyColors.statusErrorText)
-                    .settingsRowSurface()
+                    .settingsNovaListCardRow()
             }
             } footer: {
                 if !packages.isEmpty {
@@ -962,7 +957,7 @@ struct FolderPackageListView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .settingsGroupedCanvas()
         .refreshable { await reload() }
         .navigationTitle(folder.name)
@@ -1036,41 +1031,41 @@ struct ServerRestorePickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            CodySettingsScrollPage {
                 if !remotes.isEmpty {
-                    Section {
+                    CodySettingsNovaSection("Servers") {
                         ForEach(remotes) { r in
+                            if r.id != remotes.first?.id {
+                                CodySettingsNovaDivider(leadingInset: 18)
+                            }
                             NavigationLink {
                                 ServerPackageListView(remote: r, onPicked: onPicked)
                             } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(r.name)
-                                    Text("\(r.backend.uppercased()) · /\(r.path)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                HStack(spacing: CodySpacing.md) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(verbatim: r.name)
+                                            .font(CodyTypography.bodyLarge)
+                                            .foregroundStyle(CodyColors.textPrimary)
+                                        Text(verbatim: "\(r.backend.uppercased()) · /\(r.path)")
+                                            .font(CodyTypography.bodySmall)
+                                            .foregroundStyle(CodyColors.textSecondary)
+                                    }
+                                    Spacer(minLength: CodySpacing.sm)
+                                    SettingsNovaDisclosure()
                                 }
+                                .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                             }
-                                .settingsRowSurface()
+                            .buttonStyle(CodyPressableButtonStyle())
                         }
-                    } header: {
-                        Text("Servers")
-                            .settingsSectionHeading()
                     }
                 }
 
-                Section {
-                    Button {
+                CodySettingsNovaSection(footer: "Add the server your backups were saved to. Servers added here are also available as backup destinations.") {
+                    CodySettingsNovaActionRow("Add Server…", systemImage: nil) {
                         showAddServer = true
-                    } label: {
-                        SettingsIconLabel(title: Text("Add Server…"), systemImage: "plus", tint: .blue)
                     }
-                        .settingsRowSurface()
-                } footer: {
-                    Text("Add the server your backups were saved to. Servers added here are also available as backup destinations.")
-                        .settingsSectionFooter()
                 }
             }
-            .settingsGroupedCanvas()
             .navigationTitle("Restore from Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1206,10 +1201,10 @@ struct ServerPackageListView: View {
                             ProgressView()
                             Text("Contacting server…").foregroundStyle(.secondary)
                         }
-                            .settingsRowSurface()
+                            .settingsNovaListCardRow()
                     } else if entries.isEmpty, errorText == nil {
                         Text("Nothing here.").foregroundStyle(.secondary)
-                            .settingsRowSurface()
+                            .settingsNovaListCardRow()
                     }
 
                     entryRows
@@ -1218,7 +1213,7 @@ struct ServerPackageListView: View {
                         .settingsSectionFooter()
                 }
             }
-            .listStyle(.insetGrouped)
+            .listStyle(.plain)
             .settingsGroupedCanvas()
             .refreshable { await reload() }
         }
@@ -1357,11 +1352,11 @@ struct ServerPackageListView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // A bar, not a card: full-bleed background with a hairline under
-            // it, which is what a pinned location bar looks like on iOS.
-            .background(.bar)
+            .background(CodyColors.bgCanvas)
 
-            Divider()
+            Rectangle()
+                .fill(CodySettingsHairline.dividerColor)
+                .frame(height: 0.5)
         }
     }
 
@@ -1420,28 +1415,23 @@ struct ServerPackageListView: View {
                     Button {
                         descend(into: e)
                     } label: {
-                        HStack {
-                            SettingsIconLabel(
-                                title: Text(e.name),
-                                systemImage: "folder.fill",
-                                tint: .blue
-                            )
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .foregroundStyle(CodyColors.textPrimary)
-                            Spacer(minLength: 8)
-                            // Kept so a folder still reads as "opens
-                            // something" now that it is a Button rather than
-                            // a NavigationLink drawing this for us.
-                            Image(systemName: "chevron.right")
-                                .font(CodyTypography.labelMedium)
-                                .foregroundStyle(CodyColors.iconDisclosure)
+                        HStack(spacing: 14) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 19, weight: .regular))
+                                .foregroundStyle(CodyColors.iconPrimary)
+                                .frame(width: 24, height: 24, alignment: .center)
                                 .accessibilityHidden(true)
+                            Text(verbatim: e.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundStyle(CodyColors.textPrimary)
+                            Spacer(minLength: 8)
+                            SettingsNovaDisclosure()
                         }
                     }
                     .buttonStyle(CodyPressableButtonStyle())
                     .disabled(downloadingKey != nil || loading)
-                        .settingsRowSurface()
+                        .settingsNovaListCardRow()
                 } else {
                     Button {
                         // [T-restore-download-confirm] Confirm before pulling
@@ -1475,7 +1465,7 @@ struct ServerPackageListView: View {
                         }
                         .disabled(downloadingKey != nil || loading)
                     }
-                        .settingsRowSurface()
+                        .settingsNovaListCardRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
                 }
             }
 
@@ -1483,7 +1473,7 @@ struct ServerPackageListView: View {
                 Text(errorText)
                     .font(CodyTypography.sectionHeader)
                     .foregroundStyle(CodyColors.statusErrorText)
-                    .settingsRowSurface()
+                    .settingsNovaListCardRow()
             }
         }
     }

@@ -74,7 +74,7 @@ struct BackupAndRestoreView: View {
                     .accessibilityHidden(tab != .restore)
             }
         }
-        .background(CodyColors.bgGrouped)
+        .background(CodyColors.bgCanvas.ignoresSafeArea())
         .navigationTitle("Backup & Restore")
         .navigationBarTitleDisplayMode(.inline)
     }

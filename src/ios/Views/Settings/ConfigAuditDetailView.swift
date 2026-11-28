@@ -21,85 +21,76 @@ struct ConfigAuditDetailView: View {
     }
 
     var body: some View {
-        List {
-            Section {
+        CodySettingsScrollPage {
+            CodySettingsNovaSection {
                 LabeledContent("Status") { ConfigAuditStatusBadge(status: status) }
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("Changed by") { Text(Self.actorLabel(entry.actor)) }
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: 18)
                 LabeledContent("Requested") {
                     Text(entry.at.formatted(date: .abbreviated, time: .standard))
                 }
-                    .settingsRowSurface()
+                .settingsNovaControlRow()
                 if let confirmed = entry.confirmedAt {
+                    CodySettingsNovaDivider(leadingInset: 18)
                     LabeledContent("Resolved") {
                         Text(confirmed.formatted(date: .abbreviated, time: .standard))
                     }
-                        .settingsRowSurface()
+                    .settingsNovaControlRow()
                 }
             }
 
             if let caption = entry.caption, !caption.isEmpty {
-                Section {
+                CodySettingsNovaSection("Note from the assistant") {
                     Text(verbatim: caption)
                         .textSelection(.enabled)
-                        .settingsRowSurface()
-                } header: {
-                    Text("Note from the assistant")
-                        .settingsSectionHeading()
+                        .settingsNovaControlRow()
                 }
             }
 
-            Section {
+            CodySettingsNovaSection("What changed") {
                 if let readable = entry.readable {
                     Text(verbatim: readable.displayText)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
-                        .settingsRowSurface()
+                        .settingsNovaControlRow()
                 } else {
                     Label("This record predates readable descriptions, so only the raw change is shown.",
                           systemImage: "clock.arrow.circlepath")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .settingsRowSurface()
+                        .foregroundStyle(CodyColors.textSecondary)
+                        .settingsNovaControlRow()
                 }
-            } header: {
-                Text("What changed")
-                    .settingsSectionHeading()
             }
 
-            Section {
+            CodySettingsNovaSection("Raw change") {
                 rawBlock("Setting", entry.key)
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: 18)
                 rawBlock("Before", Self.prettyJSON(entry.oldValueJSON))
-                    .settingsRowSurface()
+                    .settingsNovaControlRow()
+                CodySettingsNovaDivider(leadingInset: 18)
                 rawBlock("After", Self.prettyJSON(entry.newValueJSON))
-                    .settingsRowSurface()
-            } header: {
-                Text("Raw change")
-                    .settingsSectionHeading()
+                    .settingsNovaControlRow()
             }
 
             if status == .applied {
-                Section {
-                    Button(role: .destructive) {
+                CodySettingsNovaSection {
+                    CodySettingsNovaActionRow("Revert This Change", systemImage: nil, isDestructive: true) {
                         confirmRevert = true
-                    } label: {
-                        SettingsIconLabel(title: Text("Revert This Change"), systemImage: "arrow.uturn.backward", tint: .red)
                     }
                     .disabled(reverting)
-                        .settingsRowSurface()
                 }
             } else if status == .reverted {
-                Section {
+                CodySettingsNovaSection {
                     Label("Reverted", systemImage: "arrow.uturn.backward.circle.fill")
                         .foregroundStyle(CodyCategoryTint.purple.color)
-                        .settingsRowSurface()
+                        .settingsNovaControlRow()
                 }
             }
         }
-        .settingsGroupedCanvas()
-        .listStyle(.insetGrouped)
         .navigationTitle("Change Details")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Revert this change?", isPresented: $confirmRevert, titleVisibility: .visible) {

@@ -41,7 +41,6 @@ struct MountedFoldersSettingsView: View {
             if model.entries.isEmpty {
                 CodySettingsNovaSection {
                     VStack(spacing: CodySpacing.smPlus) {
-                        CodySettingsIconBadge(systemImage: "externaldrive.badge.plus", tint: .orange)
                         Text("No mounted folders")
                             .font(.headline)
                         Text("Tap + to pick a folder from Files (e.g. an Obsidian vault in iCloud Drive).")
@@ -144,7 +143,7 @@ struct MountedFoldersSettingsView: View {
         ) {
             ForEach(model.entries) { entry in
                 if entry.id != model.entries.first?.id {
-                    CodySettingsNovaDivider()
+                    CodySettingsNovaDivider(leadingInset: 18)
                 }
                 HStack(spacing: 0) {
                     NavigationLink {
@@ -171,7 +170,7 @@ struct MountedFoldersSettingsView: View {
                     .padding(.trailing, CodySpacing.sm)
                 }
             }
-            CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+            CodySettingsNovaDivider(leadingInset: 18)
             LabeledContent("Mounted Folders") {
                 Text("\(model.entries.count) / \(MountedFoldersManager.maxMountCount)")
                     .monospacedDigit()
@@ -192,8 +191,6 @@ struct MountedFoldersSettingsView: View {
             linuxPath: "/var/cody/mounts/\(entry.name)",
             sourceDisplayName: entry.sourceDisplayName,
             hostURL: mountPath,
-            iconName: "externaldrive.fill",
-            iconColor: .orange,
             subtitle: nil,
             initialName: entry.name,
             canRename: true,
@@ -267,7 +264,7 @@ struct MountedFoldersSettingsView: View {
 private struct InfoBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SettingsIconLabel(title: Text("Mount external folders"), systemImage: "info", tint: .neutral)
+            Text("Mount external folders")
                 .font(.subheadline.weight(.semibold))
             Text("Picked folders are bind-mounted at /var/cody/mounts/<name>. You can browse them in Browse Files and read/write them directly from the iSH shell, just like /var/cody/shared. Up to 10 folders can be mounted at a time.")
                 .font(.caption)
@@ -286,7 +283,6 @@ private struct MountedFolderRow: View {
 
     var body: some View {
         HStack(spacing: CodySpacing.md) {
-            CodySettingsIconBadge(systemImage: "folder.fill", tint: .orange)
             VStack(alignment: .leading, spacing: CodySpacing.xs) {
                 HStack(spacing: CodySpacing.sm) {
                     Text(entry.name)
@@ -304,6 +300,8 @@ private struct MountedFolderRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+            Spacer(minLength: CodySpacing.sm)
+            SettingsNovaDisclosure()
         }
         .padding(.vertical, 2)
     }
@@ -356,75 +354,61 @@ private struct AddMountSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            CodySettingsScrollPage {
                 if let url = sourceURL {
-                    Section {
-                        VStack(alignment: .leading, spacing: 6) {
+                    CodySettingsNovaSection(
+                        footer: "The path above is how iOS exposes the folder you picked. Use it to confirm which app this data belongs to."
+                    ) {
+                        VStack(alignment: .leading, spacing: CodySpacing.xs) {
                             Text("Source path")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .font(.footnote)
+                                .foregroundStyle(CodyColors.textSecondary)
                             Text(url.path)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.primary)
+                                .font(CodyTypography.code)
+                                .foregroundStyle(CodyColors.textPrimary)
                                 .textSelection(.enabled)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(.vertical, 2)
-                            .settingsRowSurface()
-                    } footer: {
-                        Text("The path above is how iOS exposes the folder you picked. Use it to confirm which app this data belongs to.")
-                            .font(.caption2)
-                            .settingsSectionFooter()
+                        .settingsNovaControlRow()
                     }
                 }
 
-                Section {
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
                     TextField("name", text: $name)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .settingsRowSurface()
+                        .settingsNovaField("Mount name")
                     Text("This will be the folder name under /var/cody/mounts/")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .settingsRowSurface()
-                } header: {
-                    Text("Mount name")
-                        .settingsSectionHeading()
+                        .settingsNovaFooter()
                 }
 
-                Section {
+                CodySettingsNovaSection(
+                    "Permissions",
+                    footer: "You can change the write permission later from the mount details page."
+                ) {
                     Toggle(isOn: $allowWrite) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Allow writes")
                             Text(allowWrite
                                 ? AppLocalized("AI, shell, and Files browser can modify files in this mount.")
                                 : AppLocalized("This mount will be exposed as read-only. Useful for reference vaults you don't want the AI to touch."))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(CodyTypography.bodySmall)
+                                .foregroundStyle(CodyColors.textSecondary)
                         }
                     }
-                        .settingsRowSurface()
-                } header: {
-                    Text("Permissions")
-                        .settingsSectionHeading()
-                } footer: {
-                    Text("You can change the write permission later from the mount details page.")
-                        .font(.caption)
-                        .settingsSectionFooter()
+                    .tint(.green)
+                    .settingsNovaControlRow()
                 }
+
+                SettingsNovaEditorActions(
+                    title: "Mount",
+                    isSaveDisabled: name.trimmingCharacters(in: .whitespaces).isEmpty,
+                    save: onConfirm,
+                    cancel: onCancel
+                )
             }
-            .settingsGroupedCanvas()
             .navigationTitle("New Mount")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(AppLocalized("Cancel"), action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(AppLocalized("Mount"), action: onConfirm)
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
         }
     }
 }

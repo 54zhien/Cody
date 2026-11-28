@@ -34,6 +34,7 @@ struct HelperSettingsView: View {
                             .foregroundStyle(CodyColors.textSecondary)
                     }
                 }
+                .tint(.green)
                 .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
             }
 
@@ -60,7 +61,7 @@ struct HelperSettingsView: View {
         ) {
             ForEach(roster) { definition in
                 if definition.id != roster.first?.id {
-                    CodySettingsNovaDivider()
+                    CodySettingsNovaDivider(leadingInset: 18)
                 }
                 HStack(spacing: 0) {
                     Button {
@@ -82,8 +83,8 @@ struct HelperSettingsView: View {
                     }
                 }
             }
-            if !roster.isEmpty { CodySettingsNovaDivider() }
-            CodySettingsNovaActionRow("Add Sub Agent", systemImage: "plus", tint: .purple) {
+            if !roster.isEmpty { CodySettingsNovaDivider(leadingInset: 18) }
+            CodySettingsNovaActionRow("Add Sub Agent", systemImage: nil) {
                 editorTarget = SubAgentEditorTarget(definition: nil)
             }
             .disabled(!store.canAddSubAgent)
@@ -112,7 +113,6 @@ struct HelperSettingsView: View {
 
     private func row(_ def: SubAgentDefinition) -> some View {
         HStack(spacing: CodySpacing.smPlus) {
-            CodySettingsIconBadge(systemImage: HelperAccent.glyph, tint: .purple)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(def.displayName)
@@ -135,7 +135,8 @@ struct HelperSettingsView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            Spacer()
+            Spacer(minLength: CodySpacing.sm)
+            SettingsNovaDisclosure()
         }
     }
 
@@ -206,17 +207,19 @@ struct SubAgentEditorView: View {
                 // get the original wording back. Model and Instructions stay
                 // editable: those are genuinely the user's call.
                 VStack(alignment: .leading, spacing: CodySpacing.sm) {
-                    CodySettingsNovaSection("Name") {
-                        if isBuiltIn {
-                            Text(existing?.displayName ?? name).foregroundStyle(.secondary)
+                    if isBuiltIn {
+                        CodySettingsNovaSection("Name") {
+                            Text(existing?.displayName ?? name)
+                                .foregroundStyle(CodyColors.textSecondary)
                                 .settingsNovaControlRow()
-                        } else {
-                            TextField(AppLocalized("Name"), text: $name)
-                                .autocorrectionDisabled()
-                                .settingsNovaControlRow()
-                            counter(name.count, SubAgentLimits.nameMaxLength)
                         }
+                    } else {
+                        TextField(AppLocalized("Name"), text: $name)
+                            .autocorrectionDisabled()
+                            .settingsNovaField("Name")
+                        counter(name.count, SubAgentLimits.nameMaxLength)
                     }
+
                     if nameIsDuplicate {
                         Text(AppLocalized("Another sub agent already uses this name."))
                             .foregroundStyle(CodyColors.statusErrorText)
@@ -224,33 +227,47 @@ struct SubAgentEditorView: View {
                     }
                 }
 
-                CodySettingsNovaSection("Description", footer: isBuiltIn ? "The built-in sub agent's name and description are fixed. You can still change its model and instructions." : "Describe when this sub agent should be used. Keep it short — details go in Instructions.") {
-                    if isBuiltIn {
-                        Text(existing?.displayDescription ?? descriptionText).foregroundStyle(.secondary)
+                if isBuiltIn {
+                    CodySettingsNovaSection("Description", footer: "The built-in sub agent's name and description are fixed. You can still change its model and instructions.") {
+                        Text(existing?.displayDescription ?? descriptionText)
+                            .foregroundStyle(CodyColors.textSecondary)
                             .settingsNovaControlRow()
-                    } else {
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: CodySpacing.sm) {
                         TextField(AppLocalized("Description"), text: $descriptionText, axis: .vertical)
                             .lineLimit(2...4)
-                            .settingsNovaControlRow()
+                            .settingsNovaField("Description")
                         counter(descriptionText.count, SubAgentLimits.descriptionMaxLength)
+                        Text("Describe when this sub agent should be used. Keep it short — details go in Instructions.")
+                            .settingsNovaFooter()
                     }
                 }
 
-                CodySettingsNovaSection("Instructions", footer: isBuiltIn ? "These instructions apply to every delegation that does not name a sub agent. Custom sub agents use their own." : "These instructions apply only to this sub agent.") {
+                VStack(alignment: .leading, spacing: CodySpacing.sm) {
                     TextField(AppLocalized("Instructions"), text: $instructions, axis: .vertical)
                         .lineLimit(4...12)
-                        .settingsNovaControlRow()
+                        .settingsNovaField("Instructions")
                     counter(instructions.count, SubAgentLimits.instructionsMaxLength)
+                    Text(isBuiltIn ? "These instructions apply to every delegation that does not name a sub agent. Custom sub agents use their own." : "These instructions apply only to this sub agent.")
+                        .settingsNovaFooter()
                 }
 
                 CodySettingsNovaSection("Model", footer: "Auto lets the assistant choose per task: the same model as the conversation, your Default group for hard reasoning, or your light group for simple well-defined work. Pick a specific Model Group instead to run this sub agent on it every time.") {
-                    Picker(AppLocalized("Model"), selection: $modelGroupId) {
-                        Text(AppLocalized("Auto")).tag(String?.none)
-                        ForEach(providerStore.config.modelGroups) { group in
-                            Text(group.name).tag(String?.some(group.id))
+                    HStack {
+                        Text(AppLocalized("Model"))
+                            .foregroundStyle(CodyColors.textPrimary)
+                        Spacer(minLength: CodySpacing.sm)
+                        Picker(AppLocalized("Model"), selection: $modelGroupId) {
+                            Text(AppLocalized("Auto")).tag(String?.none)
+                            ForEach(providerStore.config.modelGroups) { group in
+                                Text(group.name).tag(String?.some(group.id))
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .tint(CodyColors.textSecondary)
                     }
-                    .pickerStyle(.menu)
                     .settingsNovaControlRow()
                 }
 
@@ -262,27 +279,13 @@ struct SubAgentEditorView: View {
                         get: { thinkingOverride != nil },
                         set: { thinkingOverride = $0 ? (thinkingOverride ?? .medium) : nil }
                     )) {
-                        HStack(spacing: CodySpacing.smPlus) {
-                            Image("ThinkingIcon")
-                                .resizable()
-                                .renderingMode(.template)
-                                .foregroundStyle(CodyCategoryTint.purple.color)
-                                .frame(width: 13, height: 13)
-                                .frame(width: CodyMetrics.Sidebar.iconSize, height: CodyMetrics.Sidebar.iconSize)
-                                .background(CodyColors.bgListIcon, in: RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: CodyRadius.md, style: .continuous)
-                                        .strokeBorder(CodyColors.borderListIcon, lineWidth: CodySpacing.px)
-                                        .allowsHitTesting(false)
-                                }
-                                .accessibilityHidden(true)
-                            Text(AppLocalized("Override Reasoning"))
-                        }
+                        Text(AppLocalized("Override Reasoning"))
                     }
+                    .tint(.green)
                     .settingsNovaControlRow()
 
                     if thinkingOverride != nil {
-                        CodySettingsNovaDivider()
+                        CodySettingsNovaDivider(leadingInset: 18)
                         let levels = overrideThinkingLevels
                         Picker(AppLocalized("Intensity"), selection: Binding(
                             get: {
@@ -306,19 +309,13 @@ struct SubAgentEditorView: View {
                             .settingsNovaControlRow()
                     }
                 }
+                SettingsNovaEditorActions(isSaveDisabled: !isValid, save: save) {
+                    dismiss()
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existing == nil ? AppLocalized("New Sub Agent") : AppLocalized("Edit Sub Agent"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(AppLocalized("Cancel")) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(AppLocalized("Save")) { save() }
-                        .disabled(!isValid)
-                }
-            }
             .onAppear(perform: seed)
         }
     }

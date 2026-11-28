@@ -47,23 +47,41 @@ struct CloudSyncSettingsV2View: View {
         // that pattern caused — see refreshIntervalSeconds). SwiftUI cancels this Task
         // on teardown.
         .task { await refreshLoop() }
-        .alert("Device Name", isPresented: $showDeviceNameEditor) {
-            TextField("Device name", text: $deviceNameDraft)
-            Button("Save") {
-                let trimmed = deviceNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    UploadPolicy.customDeviceName = nil
-                    deviceName = DeviceIdentity.deviceName
-                } else {
-                    UploadPolicy.customDeviceName = trimmed
-                    deviceName = trimmed
-                }
-                Task { await markDeviceDirty() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Friendly name shown to your other Cody devices.")
+        .sheet(isPresented: $showDeviceNameEditor) {
+            deviceNameEditor
         }
+    }
+
+    private var deviceNameEditor: some View {
+        NavigationStack {
+            CodySettingsScrollPage {
+                VStack(alignment: .leading, spacing: CodySpacing.xs) {
+                    TextField("Device name", text: $deviceNameDraft)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .onSubmit(saveDeviceName)
+                        .settingsNovaField("Device Name")
+                    Text("Friendly name shown to your other Cody devices.")
+                        .settingsNovaFooter()
+                }
+
+                SettingsNovaEditorActions(save: saveDeviceName) {
+                    showDeviceNameEditor = false
+                }
+            }
+            .navigationTitle("Device Name")
+#if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
+        }
+    }
+
+    private func saveDeviceName() {
+        let trimmed = deviceNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        UploadPolicy.customDeviceName = trimmed.isEmpty ? nil : trimmed
+        deviceName = UploadPolicy.customDeviceName ?? DeviceIdentity.deviceName
+        showDeviceNameEditor = false
+        Task { await markDeviceDirty() }
     }
 
     private var syncSection: some View {
@@ -75,18 +93,17 @@ struct CloudSyncSettingsV2View: View {
             }
         )
         return CodySettingsNovaSection(footer: "Toggle takes effect on next app launch.") {
-            CodySettingsNovaToggleRow("Enable iCloud Sync", systemImage: "icloud", tint: .blue, isOn: enabled)
+            CodySettingsNovaToggleRow("Enable iCloud Sync", systemImage: nil, isOn: enabled)
+                .tint(.green)
                 .accessibilityRepresentation {
                     Toggle("Enable iCloud Sync", isOn: enabled)
                 }
             if !statusText.isEmpty {
-                CodySettingsNovaDivider()
-                CodySettingsNovaNavRow("Status", systemImage: "waveform.path", tint: .neutral) {
-                    CodyStatusPill(
-                        localized: AppLocalized(String.LocalizationValue(statusText)),
-                        tone: statusTone,
-                        dotColor: v2Enabled && statusText == "Running" ? CodyColors.connectionReady : nil
-                    )
+                CodySettingsNovaDivider(leadingInset: 18)
+                CodySettingsNovaNavRow("Status", systemImage: nil) {
+                    Text(verbatim: AppLocalized(String.LocalizationValue(statusText)))
+                        .font(CodyTypography.bodySmall)
+                        .foregroundStyle(CodyColors.textSecondary)
                 } destination: {
                     SyncMigrationDetailView()
                 }
@@ -99,7 +116,7 @@ struct CloudSyncSettingsV2View: View {
             "Upload (This Device)",
             footer: "This device name is broadcast to your other devices in the iCloud Sync zone."
         ) {
-            CodySettingsNovaActionRow("Name", action: {
+            CodySettingsNovaActionRow("Name", systemImage: nil, showsDisclosure: true, action: {
                 deviceNameDraft = deviceName
                 showDeviceNameEditor = true
             }) {
@@ -116,23 +133,27 @@ struct CloudSyncSettingsV2View: View {
         ) {
             ForEach(UploadPolicy.Category.allCases, id: \.self) { category in
                 if category != UploadPolicy.Category.allCases.first {
-                    CodySettingsNovaDivider()
+                    CodySettingsNovaDivider(leadingInset: 18)
                 }
                 uploadToggle(category)
             }
             if categoriesEnabled[.sessionFiles] ?? true {
-                CodySettingsNovaDivider()
-                Picker(selection: $maxFileSizeMB) {
-                    Text("256 KB").tag(0)
-                    Text("1 MB").tag(1)
-                    Text("4 MB").tag(4)
-                    Text("16 MB").tag(16)
-                    Text("64 MB").tag(64)
+                CodySettingsNovaDivider(leadingInset: 18)
+                Menu {
+                    Picker("Max Per-File Size", selection: $maxFileSizeMB) {
+                        Text("256 KB").tag(0)
+                        Text("1 MB").tag(1)
+                        Text("4 MB").tag(4)
+                        Text("16 MB").tag(16)
+                        Text("64 MB").tag(64)
+                    }
                 } label: {
-                    SettingsIconLabel(title: Text("Max Per-File Size"), systemImage: "doc.zipper", tint: .neutral)
+                    SettingsNovaPickerLabel(
+                        title: "Max Per-File Size",
+                        value: maxFileSizeMB == 0 ? Text("256 KB") : Text("\(maxFileSizeMB) MB")
+                    )
                 }
-                .pickerStyle(.menu)
-                .settingsNovaControlRow()
+                .buttonStyle(CodyPressableButtonStyle())
                 .onChange(of: maxFileSizeMB) { newValue in
                     UploadPolicy.maxFileSizeBytes = newValue == 0 ? 256 * 1024 : newValue * 1024 * 1024
                 }
@@ -150,7 +171,8 @@ struct CloudSyncSettingsV2View: View {
                 Task { await markDeviceDirty() }
             }
         )
-        return CodySettingsNovaToggleRow(title, systemImage: iconName(for: category), tint: iconTint(for: category), isOn: enabled)
+        return CodySettingsNovaToggleRow(title, systemImage: nil, isOn: enabled)
+            .tint(.green)
             .accessibilityRepresentation {
                 Toggle(title, isOn: enabled)
             }
@@ -169,7 +191,7 @@ struct CloudSyncSettingsV2View: View {
             } else {
                 ForEach(remoteDevices, id: \.id) { device in
                     if device.id != remoteDevices.first?.id {
-                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                        CodySettingsNovaDivider(leadingInset: 18)
                     }
                     remoteDeviceRow(device)
                 }
@@ -267,33 +289,6 @@ struct CloudSyncSettingsV2View: View {
         )
         if #available(iOS 17.0, *) {
             SyncCore.shared.scheduleSend(delay: 1)
-        }
-    }
-
-    private func iconName(for cat: UploadPolicy.Category) -> String {
-        switch cat {
-        case .chatSessions: return "bubble.left.and.bubble.right.fill"
-        case .sessionFiles: return "doc.fill"
-        case .skills:       return "puzzlepiece.fill"
-        case .providers:    return "link"
-        case .envVars:      return "rectangle.stack.fill"
-        case .memory:       return "brain.head.profile"
-        }
-    }
-
-    private var statusTone: CodyStatusPill.Tone {
-        if !v2Enabled || statusText == "Off" { return .neutral }
-        return statusText == "Running" ? .success : .warning
-    }
-
-    private func iconTint(for cat: UploadPolicy.Category) -> CodyCategoryTint {
-        switch cat {
-        case .chatSessions: return .blue
-        case .sessionFiles: return .purple
-        case .skills:       return .orange
-        case .providers:    return .green
-        case .envVars:      return .green
-        case .memory:       return .red
         }
     }
 

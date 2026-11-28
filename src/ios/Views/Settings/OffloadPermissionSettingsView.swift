@@ -10,15 +10,14 @@ struct OffloadPermissionSettingsView: View {
     var body: some View {
         CodySettingsScrollPage {
             CodySettingsNovaSection("App & Sessions") {
-                CodySettingsNovaNavRow("Background", systemImage: "location", tint: .blue) {
+                CodySettingsNovaNavRow("Background", systemImage: nil) {
                     EnhancedBackgroundSettingsView()
                 }
                 if BiometricAuth.isAvailable {
-                    CodySettingsNovaDivider()
+                    CodySettingsNovaDivider(leadingInset: 18)
                     CodySettingsNovaNavRow(
                         "\(BiometricAuth.biometryDisplayName) Protection",
-                        systemImage: BiometricAuth.biometryIconName,
-                        tint: .green
+                        systemImage: nil
                     ) {
                         FaceIDProtectionSettingsView()
                     }
@@ -30,13 +29,14 @@ struct OffloadPermissionSettingsView: View {
                 footer: "When disabled, the agent cannot read or modify any settings via cody-config. The change history at Logs → Config Changes remains accessible. The agent will receive a permission_denied error and can guide you via deep links instead."
             ) {
                 Toggle("Allow cody-config", isOn: $configGate.enabled)
+                    .tint(.green)
                     .settingsNovaControlRow()
             }
 
             CodySettingsNovaSection("Privacy") {
                 ForEach(settingsCommands, id: \.name) { cmd in
                     if cmd.name != settingsCommands.first?.name {
-                        CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
+                        CodySettingsNovaDivider(leadingInset: 18)
                     }
                     CommandPermissionRow(command: cmd)
                         .settingsNovaControlRow(minHeight: CodyMetrics.Settings.navRowMinHeight)
@@ -50,9 +50,10 @@ struct OffloadPermissionSettingsView: View {
                 Toggle(AppLocalized("Collect voice correction data",
                               comment: "Permissions: toggle for voice-correction learning data collection"),
                        isOn: $correctionConsent.isEnabled)
+                    .tint(.green)
                     .settingsNovaControlRow()
-                CodySettingsNovaDivider(leadingInset: CodySpacing.lg)
-                CodySettingsNovaActionRow("Clear Collected Data", systemImage: "trash", isDestructive: true) {
+                CodySettingsNovaDivider(leadingInset: 18)
+                CodySettingsNovaActionRow("Clear Collected Data", systemImage: nil, isDestructive: true) {
                     showClearCorrectionConfirm = true
                 }
             }
@@ -129,7 +130,9 @@ private struct CommandPermissionRow: View {
                     Text(lvl.displayName).tag(lvl)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
+            .tint(CodyColors.textSecondary)
             .accessibilityLabel(Text(command.displayLabel))
             .onChange(of: level) { newValue in
                 manager.setPermissionLevel(newValue, for: command.name)
