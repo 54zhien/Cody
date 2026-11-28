@@ -195,17 +195,9 @@ extension AIChatView {
                         .fixedSize()
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background {
-                Capsule()
-                    .fill(CodyColors.interactiveSecondaryBg.opacity(0.75))
-                    .overlay { Capsule().fill(Color.red.opacity(0.35 * fallbackPulseOpacity)) }
-            }
-            .overlay {
-                Capsule().strokeBorder(CodyColors.borderLight, lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .modifier(NovaModelPillSurface(fallbackPulseOpacity: fallbackPulseOpacity))
             .onChange(of: vm.fallbackTrigger) { _ in
                 fallbackPulseOpacity = 0
                 for step in 0..<6 {
@@ -353,8 +345,7 @@ private struct NovaModelPickerButton: View {
                                     instanceId: key.modelInstanceId,
                                     modelId: key.modelId)
                     .scaleEffect(0.83)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                CodyIconView(.chevronDown, size: 11)
                     .foregroundStyle(CodyColors.iconTertiary)
             }
             .contentShape(Rectangle())
@@ -387,5 +378,38 @@ private struct NovaModelPickerButton: View {
         let speed = key.speedBadge == .standard ? "" : ", \(key.speedBadge.title)"
         return Text(verbatim: model + speed)
             + Text(quotaLow ? AppLocalized(", quota low", comment: "VoiceOver: appended to the model value when the model's quota or balance is low") : "")
+    }
+}
+
+/// Standard iOS 26 interactive Liquid Glass capsule surface for the chat header model selector,
+/// with clean translucent fallback on iOS 16–25 and Reduce Transparency.
+private struct NovaModelPillSurface: ViewModifier {
+    let fallbackPulseOpacity: Double
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+            content
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .overlay {
+                    Capsule()
+                        .fill(Color.red.opacity(0.35 * fallbackPulseOpacity))
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Capsule())
+        } else {
+            content
+                .background {
+                    Capsule()
+                        .fill(CodyColors.interactiveSecondaryBg.opacity(0.82))
+                        .overlay { Capsule().fill(Color.red.opacity(0.35 * fallbackPulseOpacity)) }
+                }
+                .overlay {
+                    Capsule().strokeBorder(CodyColors.borderLight, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Capsule())
+        }
     }
 }

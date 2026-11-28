@@ -52,8 +52,14 @@ struct MicButton: View {
         // BOTH the press and release land inside the circle AND movement is tiny.
         // In voice mode: a keyboard glyph = switch back to text input. The keyboard
         // glyph is wider than the mic, so render it ~4pt smaller for parity.
-        Image(systemName: isVoiceActive ? "keyboard" : "mic")
-            .font(.system(size: isVoiceActive ? 15 : 18, weight: .medium))
+        Group {
+            if isVoiceActive {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 15, weight: .medium))
+            } else {
+                CodyIconView(.mic, size: 19)
+            }
+        }
             .foregroundStyle(isRecording ? CodyColors.statusErrorText : CodyColors.iconSecondary)
             .frame(width: Self.diameter, height: Self.diameter)
             .background(Circle().fill(isRecording ? CodyColors.statusErrorBg : CodyColors.bgListIcon))

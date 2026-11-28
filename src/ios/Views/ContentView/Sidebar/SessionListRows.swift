@@ -85,11 +85,7 @@ struct SessionStackRow: View {
         }
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
-                .fill(isHighlighted ? CodyColors.interactiveSecondaryBg.opacity(0.65) : .clear)
-                .padding(.vertical, CodySpacing.xxs)
-        )
+        .listRowBackground(Color.clear)
         .contextMenu {
             // [T-ios-crash-contextmenu-uaf] Value-only menu view, no closure captures.
             SessionContextMenu(

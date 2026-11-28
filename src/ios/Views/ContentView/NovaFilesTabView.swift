@@ -7,23 +7,15 @@ struct NovaFilesTabView: View {
     @State private var selectedRoot: Root = .shared
 
     var body: some View {
-        let content = VStack(spacing: 0) {
+        VStack(spacing: 0) {
             rootSelector
             FileBrowserView(rootPath: selectedRoot.url, rootLabel: selectedRoot.linuxPath, showsCloseButton: false)
                 .id(selectedRoot)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: bottomClearance)
-        }
+        .modifier(NovaBottomScrollEdgeHost(clearance: bottomClearance))
         .background(CodyColors.bgCanvas)
         .navigationTitle("Files")
         .navigationBarTitleDisplayMode(.inline)
-
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            content.scrollEdgeEffectStyle(.soft, for: .bottom)
-        } else {
-            content
-        }
     }
 
     private var rootSelector: some View {

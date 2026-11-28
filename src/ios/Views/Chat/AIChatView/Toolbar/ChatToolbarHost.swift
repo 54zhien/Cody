@@ -248,9 +248,8 @@ private struct ChatNovaDrawerButton: View {
         Button {
             openNovaDrawer?()
         } label: {
-            CodyDrawerGlyph()
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
+            // Bare 19pt glyph (no fixed 40pt frame) so iOS 26 wraps it in a perfect 1:1 circular Liquid Glass button.
+            CodyDrawerGlyph(size: 19)
         }
         .accessibilityLabel(Text("Open sidebar"))
     }
@@ -268,8 +267,7 @@ private struct ChatNovaNewChatButton: View {
                 fallback()
             }
         } label: {
-            Image(systemName: "square.and.pencil")
-                .font(.system(size: 17, weight: .medium))
+            CodyIconView(.compose, size: 19)
                 .foregroundStyle(CodyColors.iconPrimary)
         }
         .accessibilityLabel(Text("New Chat"))
@@ -528,8 +526,7 @@ private struct ChatTrailingMenu: View, Equatable {
             }
             #endif
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 14, weight: .medium))
+            CodyIconView(.ellipsis, size: 18)
                 .foregroundStyle(CodyColors.iconPrimary)
         }
         // [T-ios-voiceover-labels] Matches the label the UIKit ellipsis button
@@ -657,8 +654,9 @@ struct ChatTrailingMenuButton: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIButton {
         let button = HitPaddedButton(type: .system)
-        let cfg = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        button.setImage(UIImage(systemName: "ellipsis", withConfiguration: cfg), for: .normal)
+        let ellipsisImage = CodyIcon.ellipsis.uiImage(pointSize: 18)
+            ?? UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .medium))
+        button.setImage(ellipsisImage, for: .normal)
         button.tintColor = UIColor(ChatColors.primaryText)
         button.showsMenuAsPrimaryAction = true
         button.accessibilityLabel = AppLocalized("More options")
@@ -905,8 +903,9 @@ struct ChatNavMenuBarItemInstaller: UIViewRepresentable {
 
         init(menu: ChatTrailingMenuButton) {
             inner = ChatTrailingMenuButton.Coordinator(parent: menu)
-            let cfg = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            item = UIBarButtonItem(image: UIImage(systemName: "ellipsis", withConfiguration: cfg), menu: nil)
+            let ellipsisImage = CodyIcon.ellipsis.uiImage(pointSize: 18)
+                ?? UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .medium))
+            item = UIBarButtonItem(image: ellipsisImage, menu: nil)
             // Same colour as ChatTrailingMenuButton. A bar item otherwise takes
             // the app tint; iOS 26's glass hides that, iOS 16-18 would show it.
             item.tintColor = UIColor(ChatColors.primaryText)

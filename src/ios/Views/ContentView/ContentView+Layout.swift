@@ -38,12 +38,33 @@ extension ContentView {
                         CodyNovaTabBar(
                             selection: $novaDestination,
                             tabStore: novaTabStore,
+                            pinDragState: novaPinDragState,
                             onSelectDestination: selectNovaDestination,
                             onReselect: { destination in
                                 if destination == .home { openNovaDrawer() }
                             }
                         )
                         .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+                .overlay {
+                    if let draggingTool = novaPinDragState.draggingTool {
+                        GeometryReader { geo in
+                            let origin = geo.frame(in: .global).origin
+                            let localPoint = CGPoint(
+                                x: novaPinDragState.dragLocation.x - origin.x,
+                                y: novaPinDragState.dragLocation.y - origin.y
+                            )
+                            let hovering = novaPinDragState.isHoveringTabBar
+                            NovaExploreCardBody(tool: draggingTool, isPinned: novaTabStore.isPinned(draggingTool))
+                                .frame(width: hovering ? 128 : 164)
+                                .scaleEffect(hovering ? 0.78 : 1.03)
+                                .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
+                                .position(localPoint)
+                                .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: hovering)
+                        }
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
                     }
                 }
                 .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: showNovaTabBar)
@@ -96,6 +117,7 @@ extension ContentView {
     private func novaExplore(isWide: Bool) -> some View {
         NovaExploreView(
             tabStore: novaTabStore,
+            pinDragState: novaPinDragState,
             bottomClearance: isWide ? 0 : novaBottomClearance,
             onOpenDrawer: isWide ? { columnVisibility = .all } : openNovaDrawer,
             onSelectTool: { selectNovaDestination(.tool($0)) },
@@ -110,9 +132,7 @@ extension ContentView {
                 NovaFilesTabView(bottomClearance: clearance)
             } else {
                 novaToolContent(tool)
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        Color.clear.frame(height: clearance)
-                    }
+                    .modifier(NovaBottomScrollEdgeHost(clearance: clearance))
             }
         }
         .modifier(NovaDestinationToolbar(onOpenDrawer: isWide ? nil : openNovaDrawer))
@@ -196,15 +216,42 @@ private struct NovaDestinationToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content.toolbar {
             if let onOpenDrawer {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button(action: onOpenDrawer) {
-                        CodyDrawerGlyph()
-                            .frame(width: 40, height: 40)
-                            .contentShape(Rectangle())
+                        CodyDrawerGlyph(size: 19)
                     }
                     .accessibilityLabel("Open sidebar")
                 }
             }
+        }
+    }
+}
+
+/// Shared native iOS 26 `.soft` bottom scroll-edge fade matching `NovaExploreView` across every
+/// Nova tab page (Files, Skills, MCP, Tools, Memory, Soul, Providers, Usage, etc.).
+struct NovaBottomScrollEdgeHost: ViewModifier {
+    let clearance: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    Color.clear.frame(height: clearance)
+                }
+        } else {
+            content
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    Color.clear.frame(height: clearance)
+                        .background(alignment: .top) {
+                            if clearance > 0 {
+                                CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
+                                    .offset(y: -CodyMetrics.Conversation.bottomFadeHeight)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                }
         }
     }
 }

@@ -156,17 +156,27 @@ final class CodyNovaTabStore: ObservableObject {
         pinnedTools.contains(tool)
     }
 
-    func togglePin(_ tool: CodyNovaPinnedTool) {
-        if let idx = pinnedTools.firstIndex(of: tool) {
-            pinnedTools.remove(at: idx)
-        } else {
-            if pinnedTools.count >= Self.maxPinnedCount {
-                pinnedTools.removeLast()
-            }
-            pinnedTools.append(tool)
+    func pin(_ tool: CodyNovaPinnedTool) {
+        guard !pinnedTools.contains(tool) else { return }
+        if pinnedTools.count >= Self.maxPinnedCount {
+            pinnedTools.removeLast()
         }
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+        pinnedTools.append(tool)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    func unpin(_ tool: CodyNovaPinnedTool) {
+        guard let idx = pinnedTools.firstIndex(of: tool) else { return }
+        pinnedTools.remove(at: idx)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func togglePin(_ tool: CodyNovaPinnedTool) {
+        if isPinned(tool) {
+            unpin(tool)
+        } else {
+            pin(tool)
+        }
     }
 
     private func persist() {
@@ -174,21 +184,53 @@ final class CodyNovaTabStore: ObservableObject {
     }
 }
 
-/// Iconic two-bar unequal sidebar drawer glyph (longer top stroke, shorter bottom stroke).
+/// Coordinates long-press drag-and-drop pinning from Explore cards directly onto the bottom Nova tab bar.
+@MainActor
+final class CodyNovaPinDragState: ObservableObject {
+    @Published var draggingTool: CodyNovaPinnedTool? = nil
+    @Published var dragLocation: CGPoint = .zero
+    @Published var tabBarFrame: CGRect = .zero
+
+    var isHoveringTabBar: Bool {
+        guard draggingTool != nil, !tabBarFrame.isEmpty else { return false }
+        return tabBarFrame.insetBy(dx: -12, dy: -36).contains(dragLocation)
+    }
+
+    func begin(tool: CodyNovaPinnedTool, at location: CGPoint) {
+        draggingTool = tool
+        dragLocation = location
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func update(location: CGPoint) {
+        let wasHovering = isHoveringTabBar
+        dragLocation = location
+        if isHoveringTabBar && !wasHovering {
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    func end(pinInto store: CodyNovaTabStore) {
+        if let tool = draggingTool, isHoveringTabBar {
+            store.pin(tool)
+        }
+        draggingTool = nil
+    }
+
+    func cancel() {
+        draggingTool = nil
+    }
+}
+
+/// Iconic two-bar unequal sidebar drawer glyph backed by our self-drawn vector SVG asset.
 struct CodyDrawerGlyph: View {
     var color: Color = CodyColors.iconPrimary
+    var size: CGFloat = 20
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Capsule()
-                .fill(color)
-                .frame(width: 17, height: 2)
-            Capsule()
-                .fill(color)
-                .frame(width: 11, height: 2)
-        }
-        .frame(width: 20, height: 20)
-        .accessibilityHidden(true)
+        CodyIconView(.drawer, size: size)
+            .foregroundStyle(color)
+            .accessibilityHidden(true)
     }
 }
 

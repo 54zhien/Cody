@@ -510,18 +510,29 @@ extension AIChatView {
                     }
             )
         }
-        .background(
-            // Fade from transparent (top) to solid background (bottom half)
-            // so scrolling content doesn't bleed through below the input bar,
-            // while keeping the gap between tool status bar and input bar clear.
-            LinearGradient(
-                stops: [
-                    .init(color: ChatColors.background.opacity(0), location: 0),
-                    .init(color: ChatColors.background, location: 0.8),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
+        .modifier(ComposerLegacyBottomBacking())
+    }
+}
+
+private struct ComposerLegacyBottomBacking: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            // Transparent on iOS 26+ so MessageListViewController's native `.soft`
+            // UIScrollEdgeElementContainerInteraction blurs messages smoothly right behind
+            // both the Liquid Glass composer and the Nova bottom tab bar (matching Explore).
+            content
+        } else {
+            content.background(
+                LinearGradient(
+                    stops: [
+                        .init(color: ChatColors.background.opacity(0), location: 0),
+                        .init(color: ChatColors.background, location: 0.8),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             )
-        )
+        }
     }
 }

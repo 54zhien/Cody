@@ -60,21 +60,18 @@ struct SettingsSheet: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CodyColors.bgCanvas, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .modifier(SettingsNavBarChromeModifier())
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { dismiss() } label: {
-                        toolbarIcon("xmark")
+                        toolbarIcon(.close)
                     }
-                    .buttonStyle(CodyPressableButtonStyle())
                     .accessibilityLabel(Text("Close"))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { navPath.append(SettingsDestination.about) } label: {
-                        toolbarIcon("info.circle")
+                        toolbarIcon(.info)
                     }
-                    .buttonStyle(CodyPressableButtonStyle())
                     .accessibilityLabel(Text("About Cody"))
                 }
             }
@@ -169,15 +166,22 @@ struct SettingsSheet: View {
         .appFontScale()
     }
 
-    private func toolbarIcon(_ systemImage: String) -> some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 19, weight: .medium))
-            .foregroundStyle(CodyColors.iconPrimary)
-            .frame(width: 44, height: 44)
-            .background(CodySettingsHairline.cardFill, in: Circle())
-            .overlay { Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px) }
-            .contentShape(Circle())
-            .accessibilityHidden(true)
+    @ViewBuilder
+    private func toolbarIcon(_ icon: CodyIcon) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            // Let iOS 26 wrap the bare toolbar glyph in its single-layer native circular Liquid Glass button.
+            CodyIconView(icon, size: 19)
+                .foregroundStyle(CodyColors.iconPrimary)
+                .accessibilityHidden(true)
+        } else {
+            CodyIconView(icon, size: 19)
+                .foregroundStyle(CodyColors.iconPrimary)
+                .frame(width: 44, height: 44)
+                .background(CodySettingsHairline.cardFill, in: Circle())
+                .overlay { Circle().strokeBorder(CodySettingsHairline.strokeColor, lineWidth: CodySpacing.px) }
+                .contentShape(Circle())
+                .accessibilityHidden(true)
+        }
     }
 
     private var accountSection: some View {
@@ -628,10 +632,23 @@ struct SettingsNovaDisclosure: View {
     var systemImage = "chevron.forward"
 
     var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 13, weight: .semibold))
+        CodyIconView(systemName: systemImage, size: 15, fallbackWeight: .semibold)
             .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
             .accessibilityHidden(true)
+    }
+}
+
+private struct SettingsNavBarChromeModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            // Native transparent bar so `.scrollEdgeEffectStyle(.hard, for: .top)` and circular
+            // Liquid Glass toolbar items render without an opaque background box.
+            content
+        } else {
+            content
+                .toolbarBackground(CodyColors.bgCanvas, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+        }
     }
 }
 
@@ -656,8 +673,7 @@ struct SettingsNovaRowMenu<Actions: View>: View {
 
     var body: some View {
         Menu(content: actions) {
-            Image(systemName: "ellipsis")
-                .font(CodyTypography.titleMedium)
+            CodyIconView(.ellipsis, size: 20)
                 .foregroundStyle(CodyColors.iconSecondary)
                 .frame(width: CodyControlHeight.standard, height: CodyControlHeight.standard)
                 .contentShape(Rectangle())
@@ -675,8 +691,7 @@ struct SettingsIconLabel: View {
         Label {
             title
         } icon: {
-            Image(systemName: systemImage)
-                .font(.system(size: 19, weight: .regular))
+            CodyIconView(systemName: systemImage, size: 20)
                 .foregroundStyle(tint == .red ? CodyColors.statusErrorText : CodyColors.iconPrimary)
         }
     }

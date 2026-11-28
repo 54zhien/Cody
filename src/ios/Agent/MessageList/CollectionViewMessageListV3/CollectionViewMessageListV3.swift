@@ -265,7 +265,7 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         let cvTop = vc.collectionView!
         coord.extraTopInset = extraTopInset
         vc.topScrollEdgeExtensionHeight = max(CodyMetrics.Conversation.topFadeExtraHeight, extraTopInset)
-        vc.bottomScrollEdgeExtensionHeight = max(0, inputBarHeight + floatingBarHeight)
+        vc.bottomScrollEdgeExtensionHeight = max(0, inputBarHeight + floatingBarHeight + 14)
         if abs(cvTop.contentInset.top - coord.baseContentInsetTop) > 0.5 {
             cvTop.contentInset.top = coord.baseContentInsetTop
         }

@@ -204,11 +204,12 @@ extension ContentView {
     }
     }
 
-    private func novaHistoryHeader(_ title: LocalizedStringKey) -> some View {
+    private func novaHistoryHeader(_ title: LocalizedStringKey, topPadding: CGFloat = 0) -> some View {
         Text(title)
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 15, weight: .medium))
             .foregroundStyle(CodyColors.textSecondary)
-            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            .padding(.top, topPadding)
+            .frame(maxWidth: .infinity, minHeight: 34 + topPadding, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
@@ -256,17 +257,19 @@ extension ContentView {
                         offscreenFolderHeaderIds.removeAll()
                     }
                 } label: {
-                    Group {
+                    HStack(spacing: 14) {
+                        CodyIconView(showsAllNovaPins ? .chevronUp : .chevronDown, size: 15)
+                            .accessibilityHidden(true)
                         if showsAllNovaPins {
-                            Label("Show less", systemImage: "chevron.up")
+                            Text("Show less")
                         } else {
-                            Label("Show all", systemImage: "chevron.down")
+                            Text("Show all")
                         }
                     }
-                    .font(CodyTypography.bodySmall.weight(.medium))
-                        .foregroundStyle(CodyColors.textSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-                        .contentShape(Rectangle())
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(CodyColors.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(CodyPressableButtonStyle())
                 .listRowInsets(EdgeInsets())
@@ -311,7 +314,8 @@ extension ContentView {
                 if isSearching {
                     novaHistoryHeader("Search Results")
                 } else if !chatGroups.isEmpty || !remoteDeviceSessions.isEmpty {
-                    novaHistoryHeader("Chats")
+                    let hasPinnedAbove = showPinnedSection && (groups.contains(where: \.isFolderPinned) || sessions.contains(where: \.isPinned))
+                    novaHistoryHeader("Chats", topPadding: hasPinnedAbove ? 22 : 4)
                 }
             }
             ForEach(Array(chatGroups.enumerated()), id: \.element.id) { index, group in

@@ -40,7 +40,7 @@ struct CodySettingsScrollPage<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        ScrollView {
+        let scroll = ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 content()
             }
@@ -50,6 +50,13 @@ struct CodySettingsScrollPage<Content: View>: View {
         }
         .background(CodyColors.bgCanvas.ignoresSafeArea())
         .scrollContentBackground(.hidden)
+
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            scroll
+                .scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            scroll
+        }
     }
 }
 
@@ -340,8 +347,7 @@ struct CodySettingsNovaToggleRow: View {
     var body: some View {
         HStack(spacing: 14) {
             if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: 19, weight: .regular))
+                CodyIconView(systemName: systemImage, size: 21)
                     .foregroundStyle(CodyColors.iconPrimary)
                     .frame(width: 24, height: 24, alignment: .center)
                     .accessibilityHidden(true)
@@ -380,8 +386,7 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
     var body: some View {
         HStack(spacing: 14) {
             if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: 19, weight: .regular))
+                CodyIconView(systemName: systemImage, size: 21)
                     .foregroundStyle(titleColor == CodyColors.statusErrorText ? CodyColors.statusErrorText : CodyColors.iconPrimary)
                     .frame(width: 24, height: 24, alignment: .center)
                     .accessibilityHidden(true)
@@ -403,8 +408,7 @@ struct CodySettingsNovaRowContent<Trailing: View>: View {
             Spacer(minLength: CodySpacing.sm)
             trailing()
             if showsDisclosure {
-                Image(systemName: "chevron.forward")
-                    .font(.system(size: 13, weight: .semibold))
+                CodyIconView(.chevronRight, size: 15)
                     .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
                     .accessibilityHidden(true)
             }
@@ -449,8 +453,7 @@ struct CodySettingsProfileCard<Avatar: View, Destination: View>: View {
                         .lineLimit(1)
                 }
 
-                Image(systemName: "chevron.forward")
-                    .font(.system(size: 13, weight: .semibold))
+                CodyIconView(.chevronRight, size: 15)
                     .foregroundStyle(CodyColors.iconDisclosure.opacity(0.75))
                     .accessibilityHidden(true)
             }

@@ -9,27 +9,35 @@ struct NovaDrawerView<Header: View, History: View, Actions: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             header()
-            history()
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if showsActions { Color.clear.frame(height: 60) }
-                }
+            historyHost
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .overlay(alignment: .bottom) {
             if showsActions {
                 actions()
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 8)
-                    .background {
-                        LinearGradient(
-                            colors: [.clear, CodyColors.bgCanvas.opacity(0.4)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .ignoresSafeArea(edges: .bottom)
-                        .allowsHitTesting(false)
-                    }
+                    // Concentric corner alignment with iPhone display corners (~55pt radius):
+                    // 54pt-tall capsules have 27pt radius, so 28pt screen-edge insets align
+                    // capsule corner centers concentrically with the physical display corners.
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 26)
+                    .ignoresSafeArea(.container, edges: .bottom)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var historyHost: some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
+            history()
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    if showsActions { Color.clear.frame(height: 84) }
+                }
+        } else {
+            history()
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if showsActions { Color.clear.frame(height: 84) }
+                }
         }
     }
 }
@@ -57,12 +65,12 @@ extension ContentView {
                     }
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, CodySpacing.lg)
-            .padding(.bottom, CodySpacing.sm)
+            .padding(.horizontal, 28)
+            .padding(.top, 22)
+            .padding(.bottom, 20)
         } history: {
             sessionList(useNavigationLinks: true)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 28)
         } actions: {
             novaDrawerActions
         }
@@ -77,7 +85,7 @@ extension ContentView {
     private var novaSearchHeader: some View {
         HStack(spacing: CodySpacing.sm) {
             HStack(spacing: CodySpacing.sm) {
-                Image(systemName: "magnifyingglass")
+                CodyIconView(.search, size: 19)
                     .foregroundStyle(CodyColors.iconSecondary)
                     .accessibilityHidden(true)
                 TextField("Search chats", text: $searchText)
@@ -88,7 +96,7 @@ extension ContentView {
                     .onChange(of: searchText) { _ in scheduleSearch() }
                     .onSubmit { searchFocused = false }
                 if !searchText.isEmpty {
-                    novaDrawerIcon("Clear search", icon: "xmark.circle.fill") {
+                    novaDrawerIcon("Clear search", icon: .close) {
                         searchText = ""
                         scheduleSearch()
                     }
@@ -96,13 +104,13 @@ extension ContentView {
             }
             .padding(.leading, CodySpacing.md)
             .padding(.trailing, searchText.isEmpty ? CodySpacing.md : 0)
-            .frame(minHeight: 44)
+            .frame(minHeight: 48)
             .modifier(NovaDrawerGlassCapsule())
 
             Button("Cancel", action: dismissSearch)
                 .font(CodyTypography.labelLarge)
                 .foregroundStyle(CodyColors.textPrimary)
-                .frame(minHeight: 44)
+                .frame(minHeight: 48)
                 .buttonStyle(CodyPressableButtonStyle())
         }
     }
@@ -147,16 +155,15 @@ extension ContentView {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: CodySpacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .frame(width: 24)
+            HStack(spacing: 18) {
+                CodyIconView(systemName: icon, size: 24)
+                    .frame(width: 26, height: 26, alignment: .center)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 19, weight: .medium))
             }
             .foregroundStyle(CodyColors.textPrimary)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(CodyPressableButtonStyle())
@@ -169,8 +176,7 @@ extension ContentView {
                 Button {
                     selectNovaDestination(destination)
                 } label: {
-                    Image(systemName: destination.novaIcon)
-                        .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                    CodyIconView(systemName: destination.novaIcon, size: 20)
                         .foregroundStyle(CodyColors.textPrimary)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(isSelected ? CodyColors.interactiveSecondaryBg : .clear, in: Capsule())
@@ -210,39 +216,50 @@ extension ContentView {
     private var novaDrawerActions: some View {
         HStack {
             Button(action: startNewNovaChat) {
-                Label("New Chat", systemImage: "square.and.pencil")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .frame(height: 44)
-                    .background(CodyColors.textAccent, in: Capsule())
-                    .shadow(color: CodyColors.textAccent.opacity(0.25), radius: 8, y: 3)
-                    .contentShape(Capsule())
+                HStack(spacing: 10) {
+                    CodyIconView(.compose, size: 22)
+                        .accessibilityHidden(true)
+                    Text("New Chat")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .frame(height: 54)
+                .modifier(NovaDrawerNewChatGlassCapsule())
             }
             .buttonStyle(CodyPressableButtonStyle())
 
             Spacer(minLength: CodySpacing.sm)
 
-            HStack(spacing: 0) {
-                novaDrawerIcon("Search chats", icon: "magnifyingglass") {
+            HStack(spacing: 4) {
+                Button {
                     if showSearchBar { dismissSearch() }
                     else { focusSearch() }
+                } label: {
+                    CodyIconView(.search, size: 23)
+                        .foregroundStyle(CodyColors.iconPrimary)
+                        .frame(width: 50, height: 54)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(CodyPressableButtonStyle())
+                .accessibilityLabel(Text("Search chats"))
                 .accessibilityAddTraits(showSearchBar ? .isSelected : [])
 
                 Button { openNovaToolSheet(.settings) } label: {
-                    SoulIconView(icon: SoulStore.cachedMetadata.icon, size: 20)
-                        .frame(width: 30, height: 30)
+                    SoulIconView(icon: SoulStore.cachedMetadata.icon, size: 22)
+                        .frame(width: 34, height: 34)
                         .background(CodyColors.statusSuccessBg, in: Circle())
                         .clipShape(Circle())
-                        .frame(width: 44, height: 44)
+                        .frame(width: 44, height: 54)
                         .contentShape(Rectangle())
                 }
+                .padding(.trailing, 5)
                 .buttonStyle(CodyPressableButtonStyle())
                 .accessibilityLabel("Settings")
                 .accessibilityValue(Text(verbatim: soulName))
                 .contextMenu { novaProfileMenu }
             }
+            .frame(height: 54)
             .modifier(NovaDrawerGlassCapsule())
         }
     }
@@ -272,10 +289,9 @@ extension ContentView {
         activeToolSheet = sheet
     }
 
-    private func novaDrawerIcon(_ label: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
+    private func novaDrawerIcon(_ label: LocalizedStringKey, icon: CodyIcon, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.body.weight(.medium))
+            CodyIconView(icon, size: 18)
                 .foregroundStyle(CodyColors.iconPrimary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -345,6 +361,26 @@ private struct NovaDrawerGlassCapsule: ViewModifier {
                     Capsule().strokeBorder(CodyColors.borderDefault, lineWidth: 1)
                         .allowsHitTesting(false)
                 }
+                .contentShape(Capsule())
+        }
+    }
+}
+
+private struct NovaDrawerNewChatGlassCapsule: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private static let tintBlue = Color(red: 0.22, green: 0.64, blue: 1.0)
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive, !reduceTransparency {
+            content
+                .glassEffect(.regular.tint(Self.tintBlue).interactive(), in: .capsule)
+                .contentShape(Capsule())
+        } else {
+            content
+                .background(Self.tintBlue, in: Capsule())
+                .shadow(color: Self.tintBlue.opacity(0.28), radius: 10, y: 4)
                 .contentShape(Capsule())
         }
     }

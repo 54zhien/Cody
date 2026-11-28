@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 struct NovaExploreView: View {
     @ObservedObject var tabStore: CodyNovaTabStore
+    @ObservedObject var pinDragState: CodyNovaPinDragState
     let bottomClearance: CGFloat
     let onOpenDrawer: () -> Void
     let onSelectTool: (CodyNovaPinnedTool) -> Void
@@ -10,6 +12,7 @@ struct NovaExploreView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var searchText = ""
+    @State private var cardFrames: [CodyNovaPinnedTool: CGRect] = [:]
     @FocusState private var searchFocused: Bool
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
@@ -99,17 +102,17 @@ struct NovaExploreView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .scrollDisabled(pinDragState.draggingTool != nil)
     }
 
     private var header: some View {
         HStack {
             headerButton("Open sidebar", action: onOpenDrawer) {
-                CodyDrawerGlyph()
+                CodyDrawerGlyph(size: 20)
             }
             Spacer()
             headerButton("Settings", action: onOpenSettings) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 19, weight: .medium))
+                CodyIconView(.settings, size: 21)
                     .foregroundStyle(CodyColors.iconPrimary)
             }
         }
@@ -138,74 +141,75 @@ struct NovaExploreView: View {
 
     private func toolCard(_ tool: CodyNovaPinnedTool) -> some View {
         let isPinned = tabStore.isPinned(tool)
-        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
-        return Button {
-            searchFocused = false
-            onSelectTool(tool)
-        } label: {
-            VStack(alignment: .leading, spacing: CodySpacing.sm) {
-                HStack(alignment: .firstTextBaseline, spacing: CodySpacing.xs) {
-                    Text(tool.title)
-                        .font(CodyTypography.titleSmall)
-                        .foregroundStyle(CodyColors.textPrimary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
-                    if isPinned {
-                        Circle()
-                            .fill(tool.exploreGlyphColor)
-                            .frame(width: 6, height: 6)
-                            .accessibilityHidden(true)
+        let isBeingDragged = pinDragState.draggingTool == tool
+        let dragToPin = LongPressGesture(minimumDuration: 0.28)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
+            .onChanged { value in
+                switch value {
+                case .first(true):
+                    break
+                case .second(true, let drag):
+                    searchFocused = false
+                    let fallbackCenter: CGPoint = {
+                        if let rect = cardFrames[tool] {
+                            return CGPoint(x: rect.midX, y: rect.midY)
+                        }
+                        return drag?.location ?? .zero
+                    }()
+                    let point = drag?.location ?? fallbackCenter
+                    if pinDragState.draggingTool != tool {
+                        pinDragState.begin(tool: tool, at: point)
+                    } else {
+                        pinDragState.update(location: point)
                     }
+                default:
+                    break
                 }
+            }
+            .onEnded { value in
+                if case .second(true, _) = value {
+                    withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+                        pinDragState.end(pinInto: tabStore)
+                    }
+                } else if pinDragState.draggingTool == tool {
+                    pinDragState.cancel()
+                }
+            }
 
-                Spacer(minLength: 0)
-
-                Image(systemName: tool.iconName)
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(tool.exploreGlyphColor)
-                    .accessibilityHidden(true)
+        return NovaExploreCardBody(tool: tool, isPinned: isPinned)
+            .opacity(isBeingDragged ? 0.28 : 1.0)
+            .scaleEffect(isBeingDragged ? 0.96 : 1.0)
+            .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isBeingDragged)
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { rect in
+                cardFrames[tool] = rect
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .frame(height: 108, alignment: .topLeading)
-            .background {
-                shape.fill(CodySettingsHairline.cardFill)
-                    .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
+            .onTapGesture {
+                guard pinDragState.draggingTool == nil else { return }
+                searchFocused = false
+                onSelectTool(tool)
             }
-            .overlay {
-                shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .contentShape(shape)
-        }
-        .buttonStyle(CodyPressableButtonStyle())
-        .accessibilityValue(isPinned ? Text("Pinned") : Text(""))
-        .contextMenu {
-            Button {
+            .simultaneousGesture(dragToPin)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text(tool.title))
+            .accessibilityValue(isPinned ? Text("Pinned") : Text(""))
+            .accessibilityAction(named: isPinned ? Text("Unpin from Tab Bar") : Text("Pin to Tab Bar")) {
                 withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
                     tabStore.togglePin(tool)
                 }
-            } label: {
-                if isPinned {
-                    Label("Unpin from Tab Bar", systemImage: "pin.slash")
-                } else {
-                    Label("Pin to Tab Bar", systemImage: "pin")
-                }
             }
-        }
     }
 
     private var footer: some View {
         VStack(spacing: CodySpacing.xsPlus) {
-            Text("Long-press an item to pin it to the tab bar")
+            Text("Long-press and drag an item to the tab bar to pin")
                 .font(CodyTypography.bodySmall)
                 .foregroundStyle(CodyColors.textTertiary)
                 .multilineTextAlignment(.center)
 
             HStack(spacing: CodySpacing.sm) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 17, weight: .medium))
+                CodyIconView(.search, size: 19)
                     .foregroundStyle(CodyColors.iconPrimary)
                     .frame(width: 36)
                     .accessibilityHidden(true)
@@ -223,7 +227,7 @@ struct NovaExploreView: View {
                         .accessibilityHidden(true)
                 } else {
                     Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        CodyIconView(.close, size: 16)
                             .foregroundStyle(CodyColors.iconSecondary)
                             .frame(width: 36, height: 44)
                             .contentShape(Rectangle())
@@ -239,6 +243,50 @@ struct NovaExploreView: View {
         .padding(.horizontal, 16)
         .padding(.top, CodySpacing.xs)
         .padding(.bottom, CodySpacing.xsPlus)
+    }
+}
+
+/// Shared card body used both inside the Explore grid and as the floating drag snapshot.
+struct NovaExploreCardBody: View {
+    let tool: CodyNovaPinnedTool
+    let isPinned: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        VStack(alignment: .leading, spacing: CodySpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: CodySpacing.xs) {
+                Text(tool.title)
+                    .font(CodyTypography.titleSmall)
+                    .foregroundStyle(CodyColors.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                if isPinned {
+                    Circle()
+                        .fill(tool.exploreGlyphColor)
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            CodyIconView(systemName: tool.iconName, size: 28)
+                .foregroundStyle(tool.exploreGlyphColor)
+                .accessibilityHidden(true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: 108, alignment: .topLeading)
+        .background {
+            shape.fill(CodySettingsHairline.cardFill)
+                .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
+        }
+        .overlay {
+            shape.strokeBorder(CodySettingsHairline.strokeColor, lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+        .contentShape(shape)
     }
 }
 

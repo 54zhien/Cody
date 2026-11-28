@@ -225,7 +225,7 @@ struct SessionRow: View, Equatable {
             VStack(alignment: .leading, spacing: CodySpacing.xxs) {
                 highlightedText(
                     session.title ?? AppLocalized("New Chat"),
-                    font: .system(size: fontSettings.scaledApp(16)),
+                    font: .system(size: fontSettings.scaledApp(18), weight: isHighlighted ? .medium : .regular),
                     color: CodyColors.textPrimary
                 )
                 .lineLimit(1)
@@ -233,7 +233,7 @@ struct SessionRow: View, Equatable {
                 if let snippet = matchSnippet, !snippet.isEmpty {
                     highlightedText(
                         snippet,
-                        font: .system(size: fontSettings.scaledApp(13)),
+                        font: .system(size: fontSettings.scaledApp(14)),
                         color: CodyColors.textSecondary
                     )
                     .lineLimit(2)
@@ -245,8 +245,8 @@ struct SessionRow: View, Equatable {
             statusIndicators(tint: sessionCategoryBadge(for: session.category).tint.color)
         }
         .padding(.trailing, CodySpacing.sm)
-        .padding(.vertical, CodySpacing.xxs)
-        .frame(minHeight: 42)
+        .padding(.vertical, CodySpacing.xs)
+        .frame(minHeight: 48)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(isVisuallyLocked ? Text("Locked") : Text(verbatim: session.title ?? AppLocalized("New Chat")))

@@ -458,6 +458,7 @@ struct ContentView: View {
     @State var isWideLayout = false
     @State var novaDestination: CodyNovaDestination = .home
     @StateObject var novaTabStore = CodyNovaTabStore()
+    @StateObject var novaPinDragState = CodyNovaPinDragState()
     @State var showsAllNovaPins = false
     @State var isNovaDrawerOpen: Bool = false
     @State var novaActiveSessionId: String = ContentView.makeNewSessionId()

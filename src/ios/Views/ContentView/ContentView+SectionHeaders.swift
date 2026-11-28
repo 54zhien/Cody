@@ -222,9 +222,8 @@ extension ContentView {
     }
 
     private func novaFolderLabel(_ group: SidebarGroup) -> some View {
-        HStack(spacing: CodySpacing.sm) {
-            Image(systemName: "folder")
-                .font(.system(size: 18))
+        HStack(spacing: 14) {
+            CodyIconView(.folder, size: 21)
                 .accessibilityHidden(true)
             if searchResultsActive {
                 Text(SessionRow.highlightedAttributedString(
@@ -243,16 +242,15 @@ extension ContentView {
             }
             if group.isCollapsed && group.anyUnread { SidebarUnreadDot() }
             if !searchResultsActive {
-                Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
+                CodyIconView(group.isCollapsed ? .chevronRight : .chevronDown, size: 13)
                     .foregroundStyle(CodyColors.textSecondary)
                     .accessibilityHidden(true)
             }
         }
-        .font(.system(size: 16, weight: .medium))
+        .font(.system(size: 18, weight: .regular))
         .foregroundStyle(CodyColors.textPrimary)
         .padding(.trailing, CodySpacing.sm)
-        .frame(minHeight: 42)
+        .frame(minHeight: 48)
         .background {
             if dropTargetFolderId == group.folderId {
                 RoundedRectangle(cornerRadius: CodyRadius.control, style: .continuous)
