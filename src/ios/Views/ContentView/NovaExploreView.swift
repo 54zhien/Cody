@@ -5,21 +5,33 @@ struct NovaExploreView: View {
     @ObservedObject var tabStore: CodyNovaTabStore
     @ObservedObject var pinDragState: CodyNovaPinDragState
     let bottomClearance: CGFloat
+    let isWide: Bool
+    let transitionNamespace: Namespace.ID
+    let onReturnToChat: () -> Void
     let onOpenDrawer: () -> Void
     let onSelectTool: (CodyNovaPinnedTool) -> Void
     let onOpenSettings: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AppStorage("cody.nova.hasPinnedExploreTool") private var hasPinnedExploreTool = false
+    @State private var didTriggerPull = false
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    private var columns: [GridItem] {
+        let count = dynamicTypeSize.isAccessibilitySize ? 1 : (isWide ? 3 : 2)
+        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
+    }
+
+    private var isSearching: Bool { searchFocused || !searchText.isEmpty }
 
     private var matchingTools: [CodyNovaPinnedTool] {
+        let order = pinDragState.previewOrder ?? tabStore.exploreOrder
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return CodyNovaPinnedTool.allCases }
-        return CodyNovaPinnedTool.allCases.filter { tool in
+        guard !query.isEmpty else { return order }
+        return order.filter { tool in
             let titles = searchTitles(for: tool)
             return titles.localized.localizedStandardContains(query)
                 || titles.english.localizedStandardContains(query)
@@ -85,11 +97,33 @@ struct NovaExploreView: View {
             }
         }
         .background(CodyColors.bgCanvas.ignoresSafeArea())
+        .onChange(of: tabStore.pinnedTools) { previous, current in
+            if current.contains(where: { !previous.contains($0) }) { hasPinnedExploreTool = true }
+        }
+        .onDisappear {
+            pinDragState.reset()
+            pinDragState.cardFrames.removeAll()
+        }
     }
 
     private var exploreScrollView: some View {
         ScrollView {
             let tools = matchingTools
+            if isSearching {
+                HStack {
+                    Text("Search Results")
+                        .font(CodyTypography.titleSmall)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    Button("Done") {
+                        searchText = ""
+                        searchFocused = false
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, CodySpacing.sm)
+                .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : -8)))
+            }
             if tools.isEmpty {
                 Text("No matching tools")
                     .font(CodyTypography.bodyMedium)
@@ -107,8 +141,19 @@ struct NovaExploreView: View {
                 .padding(.bottom, CodySpacing.lg)
             }
         }
+        .scrollBounceBehavior(.always)
         .scrollDismissesKeyboard(.interactively)
         .scrollDisabled(pinDragState.draggingTool != nil)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            max(0, -geometry.contentOffset.y - geometry.contentInsets.top)
+        } action: { _, distance in
+            if distance < 10 { didTriggerPull = false }
+            guard distance >= 78, !didTriggerPull, !isSearching, pinDragState.draggingTool == nil else { return }
+            didTriggerPull = true
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            onReturnToChat()
+        }
+        .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isSearching)
     }
 
     private var header: some View {
@@ -152,6 +197,17 @@ struct NovaExploreView: View {
 
         return NovaExploreCardBody(tool: tool, isPinned: isPinned)
             .opacity(isBeingDragged ? 0.0 : 1.0)
+            .background {
+                if isBeingDragged {
+                    RoundedRectangle(cornerRadius: 22)
+                        .strokeBorder(CodyColors.borderDefault, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                }
+            }
+            .matchedTransitionSource(id: tool, in: transitionNamespace)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                pinDragState.cardFrames[tool] = $0
+            }
+            .onDisappear { pinDragState.cardFrames[tool] = nil }
             .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isBeingDragged)
             .overlay {
                 // UIKit scroll-safe tap + long-press-and-drag recognizer:
@@ -166,18 +222,18 @@ struct NovaExploreView: View {
                     },
                     onDragBegan: { point in
                         searchFocused = false
-                        pinDragState.begin(tool: tool, at: point)
+                        pinDragState.begin(tool: tool, at: point, order: tabStore.exploreOrder)
                     },
                     onDragChanged: { point in
-                        pinDragState.update(location: point)
+                        pinDragState.update(location: point, pinned: tabStore.pinnedTools,
+                                            reduceMotion: reduceMotion, allowsReordering: !isSearching)
                     },
-                    onDragEnded: {
-                        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
-                            pinDragState.end(pinInto: tabStore)
-                        }
+                    onDragEnded: { point in
+                        pinDragState.end(at: point, in: tabStore, reduceMotion: reduceMotion,
+                                         allowsReordering: !isSearching)
                     },
                     onDragCancelled: {
-                        pinDragState.cancel()
+                        pinDragState.cancel(reduceMotion: reduceMotion)
                     }
                 )
             }
@@ -198,10 +254,12 @@ struct NovaExploreView: View {
 
     private var footer: some View {
         VStack(spacing: CodySpacing.xsPlus) {
-            Text("Long-press and drag an item to the tab bar to pin")
-                .font(CodyTypography.bodySmall)
-                .foregroundStyle(CodyColors.textTertiary)
-                .multilineTextAlignment(.center)
+            if !hasPinnedExploreTool && tabStore.pinnedTools.count < CodyNovaTabStore.maxPinnedCount && !isSearching {
+                Text("Long-press and drag an item to the tab bar to pin")
+                    .font(CodyTypography.bodySmall)
+                    .foregroundStyle(CodyColors.textTertiary)
+                    .multilineTextAlignment(.center)
+            }
 
             HStack(spacing: CodySpacing.sm) {
                 CodyIconView(.search, size: 23)
@@ -249,7 +307,7 @@ private struct NovaExploreCardGestureOverlay: UIViewRepresentable {
     let onTap: () -> Void
     let onDragBegan: (CGPoint) -> Void
     let onDragChanged: (CGPoint) -> Void
-    let onDragEnded: () -> Void
+    let onDragEnded: (CGPoint) -> Void
     let onDragCancelled: () -> Void
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
@@ -278,7 +336,7 @@ private struct NovaExploreCardGestureOverlay: UIViewRepresentable {
             case .changed:
                 parent.onDragChanged(location)
             case .ended:
-                parent.onDragEnded()
+                parent.onDragEnded(location)
             case .cancelled, .failed:
                 parent.onDragCancelled()
             default:

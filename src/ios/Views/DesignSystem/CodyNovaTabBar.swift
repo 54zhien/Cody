@@ -27,6 +27,13 @@ struct CodyNovaTabBar: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var activeIndicatorNamespace
 
+    private struct PinLift {
+        var tool: CodyNovaPinnedTool
+        var translation: CGSize
+    }
+
+    @GestureState private var pinLift: PinLift?
+    @State private var unpinMenuTool: CodyNovaPinnedTool?
     @State private var rowWidth: CGFloat = 0
     @State private var isScrubbing: Bool = false
     @State private var scrubX: CGFloat = 0
@@ -58,27 +65,24 @@ struct CodyNovaTabBar: View {
         return items
     }
 
-    /// Live preview tool inserted before `.more` when the user drags an unpinned Explore card over the bar.
-    private var previewDropTool: CodyNovaPinnedTool? {
-        guard pinDragState.isHoveringTabBar,
-              let tool = pinDragState.draggingTool,
-              !tabStore.isPinned(tool) else {
-            return nil
-        }
-        return tool
-    }
-
     var body: some View {
         let items = allDestinations
-        let previewTool = previewDropTool
+        let pinnedWithoutPreview = tabStore.pinnedTools.filter { $0 != pinDragState.draggingTool }
+        let preview = pinDragState.insertionIndex.flatMap { index in
+            pinDragState.draggingTool.map { (tool: $0, index: min(index, pinnedWithoutPreview.count)) }
+        }
 
         HStack(spacing: Self.slotSpacing) {
-            ForEach(items) { dest in
-                if dest == .more, let previewTool {
-                    dropPreviewSlot(for: previewTool)
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+            if let preview {
+                tabSlot(for: .home)
+                ForEach(Array(pinnedWithoutPreview.enumerated()), id: \.element) { index, tool in
+                    if preview.index == index { dropPreviewSlot(for: preview.tool) }
+                    tabSlot(for: .tool(tool))
                 }
-                tabSlot(for: dest)
+                if preview.index == pinnedWithoutPreview.count { dropPreviewSlot(for: preview.tool) }
+                tabSlot(for: .more)
+            } else {
+                ForEach(items) { tabSlot(for: $0) }
             }
         }
         .frame(height: Self.barHeight)
@@ -99,25 +103,21 @@ struct CodyNovaTabBar: View {
             }
         }
         .simultaneousGesture(scrubGesture(items: items))
-        .padding(.horizontal, 12)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            pinDragState.tabBarFrame = $0
+        }
+        .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
         .frame(height: Self.barHeight)
         .padding(.bottom, Self.bottomPadding)
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .global)
-        } action: { frame in
-            if abs(frame.minY - pinDragState.tabBarFrame.minY) > 1
-                || abs(frame.width - pinDragState.tabBarFrame.width) > 1 {
-                pinDragState.tabBarFrame = frame
-            }
-        }
         .onDisappear {
+            pinDragState.tabBarFrame = .zero
+            pinDragState.tabFrames.removeAll()
             isScrubbing = false
             lastScrubIndex = nil
             scrubHoveredDestination = nil
         }
         .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: tabStore.pinnedTools)
-        .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: previewTool)
         .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isScrubbing)
     }
 
@@ -128,11 +128,15 @@ struct CodyNovaTabBar: View {
                 .frame(minWidth: Self.restingPillMinWidth, maxWidth: Self.restingPillWidth)
                 .frame(height: Self.restingPillHeight)
             CodyIconView(systemName: tool.iconName, size: 27)
-                .foregroundStyle(CodyColors.iconPrimary.opacity(0.85))
+                .opacity(0)
         }
         .frame(minWidth: Self.minSlotWidth, maxWidth: Self.maxSlotWidth)
         .frame(height: Self.barHeight)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            pinDragState.previewFrame = $0
+        }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -167,7 +171,7 @@ struct CodyNovaTabBar: View {
         .contentShape(Capsule())
 
         let button = Button {
-            guard !isScrubbing else { return }
+            guard !isScrubbing, pinLift == nil else { return }
             if isSelected {
                 onReselect?(dest)
             } else {
@@ -185,18 +189,26 @@ struct CodyNovaTabBar: View {
         Group {
             if case .tool(let tool) = dest {
                 button
-                    .contentShape(.contextMenuPreview, Capsule())
-                    .contextMenu {
+                    .scaleEffect(pinLift?.tool == tool && !reduceMotion ? 1.12 : 1)
+                    .offset(y: pinLift?.tool == tool && !reduceMotion
+                            ? min(38, max(0, pinLift?.translation.height ?? 0)) : 0)
+                    .modifier(PinnedTabEditingMotion(
+                        isEditing: pinDragState.draggingTool != nil && !reduceMotion
+                    ))
+                    .simultaneousGesture(unpinGesture(for: tool))
+                    .accessibilityAction(named: Text("Unpin from Tab Bar")) { unpin(tool) }
+                    .popover(isPresented: Binding(
+                        get: { unpinMenuTool == tool },
+                        set: { if !$0, unpinMenuTool == tool { unpinMenuTool = nil } }
+                    )) {
                         Button(role: .destructive) {
-                            withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
-                                if selection == .tool(tool) {
-                                    select(.home)
-                                }
-                                tabStore.unpin(tool)
-                            }
+                            unpinMenuTool = nil
+                            unpin(tool)
                         } label: {
                             Label("Unpin from Tab Bar", systemImage: "pin.slash")
+                                .padding(CodySpacing.md)
                         }
+                        .presentationCompactAdaptation(.popover)
                     }
             } else {
                 button
@@ -204,6 +216,38 @@ struct CodyNovaTabBar: View {
         }
         .frame(minWidth: Self.minSlotWidth, maxWidth: Self.maxSlotWidth)
         .frame(height: Self.barHeight)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            pinDragState.tabFrames[dest] = $0
+        }
+    }
+
+    private func unpinGesture(for tool: CodyNovaPinnedTool) -> some Gesture {
+        LongPressGesture(minimumDuration: CodyMotion.longPressDuration,
+                         maximumDistance: CodyMotion.longPressAllowableMovement)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
+            .updating($pinLift) { value, lift, transaction in
+                if case .second(true, let drag) = value, !isScrubbing, pinDragState.draggingTool == nil {
+                    transaction.animation = CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)
+                    lift = PinLift(tool: tool, translation: drag?.translation ?? .zero)
+                }
+            }
+            .onEnded { value in
+                guard !isScrubbing, pinDragState.draggingTool == nil else { return }
+                guard case .second(true, let drag) = value else { return }
+                let offset = drag?.translation ?? .zero
+                if offset.height > 28 && offset.height > abs(offset.width) {
+                    unpin(tool)
+                } else if hypot(offset.width, offset.height) < CodyMotion.longPressAllowableMovement {
+                    unpinMenuTool = tool
+                }
+            }
+    }
+
+    private func unpin(_ tool: CodyNovaPinnedTool) {
+        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
+            if selection == .tool(tool) { select(.home) }
+            tabStore.unpin(tool)
+        }
     }
 
     /// Calm frosted Material pill at rest (matches Screenshot 2 & 6).
@@ -248,7 +292,7 @@ struct CodyNovaTabBar: View {
         DragGesture(minimumDistance: 10, coordinateSpace: .named("novaTabBarSpace"))
             .onChanged { value in
                 let count = items.count
-                guard rowWidth > 0, count > 0 else { return }
+                guard rowWidth > 0, count > 0, pinLift == nil, pinDragState.draggingTool == nil else { return }
                 if !isScrubbing {
                     guard abs(value.translation.width) >= 10,
                           abs(value.translation.width) >= abs(value.translation.height) * 0.75 else {
@@ -312,6 +356,16 @@ struct CodyNovaTabBar: View {
         case .tool(let tool): Text(tool.title)
         case .more: Text("More")
         }
+    }
+}
+
+private struct PinnedTabEditingMotion: ViewModifier {
+    let isEditing: Bool
+
+    func body(content: Content) -> some View {
+        content.phaseAnimator(isEditing ? [-2.0, 2.0] : [0.0, 0.0]) { view, angle in
+            view.rotationEffect(.degrees(angle))
+        } animation: { _ in .easeInOut(duration: 0.19) }
     }
 }
 

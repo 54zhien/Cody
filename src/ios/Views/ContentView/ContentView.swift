@@ -457,6 +457,8 @@ struct ContentView: View {
     /// Whether the current window is wide enough for two-column layout.
     @State var isWideLayout = false
     @State var novaDestination: CodyNovaDestination = .home
+    @State var novaExplorePath: [CodyNovaPinnedTool] = []
+    @Namespace var novaExploreTransition
     @StateObject var novaTabStore = CodyNovaTabStore()
     @StateObject var novaPinDragState = CodyNovaPinDragState()
     @State var showsAllNovaPins = false

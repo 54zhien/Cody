@@ -144,7 +144,7 @@ extension AIChatView {
                 composerLiveHeight: composerLiveHeight,
                 bottomFadeClearance: composerFadeClearance
             )
-            .modifier(MessageListBottomScrollEdgeHost(clearance: showsComposerFade ? composerFadeFloorHeight : 0))
+            .ignoresSafeArea(.container, edges: .bottom)
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
@@ -171,13 +171,10 @@ extension AIChatView {
             }
         }
         .overlay(alignment: .bottom) {
-            if usesLegacyBottomFade && showsComposerFade && !vm.messages.isEmpty {
-                VStack(spacing: 0) {
-                    CodyEdgeFadeBar(direction: .bottom, height: CodyMetrics.Conversation.bottomFadeHeight)
-                    CodyColors.bgCanvas.frame(height: composerFadeFloorHeight)
-                }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            if showsComposerFade && !vm.messages.isEmpty {
+                CodyComposerBackdrop(height: composerFadeFloorHeight)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottom) {
@@ -245,13 +242,6 @@ extension AIChatView {
         }
     }
 
-    private var usesLegacyBottomFade: Bool {
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            return false
-        }
-        return true
-    }
-
     private var showsComposerFade: Bool {
         inputBarHeight > 0 && !isChatSearchActive
     }
@@ -264,7 +254,7 @@ extension AIChatView {
     /// Reserve the part of the ramp above the list's existing 8pt breathing room.
     private var composerFadeClearance: CGFloat {
         guard showsComposerFade else { return 0 }
-        return usesLegacyBottomFade ? (CodyMetrics.Conversation.bottomFadeHeight - 2 * CodySpacing.sm) : 12
+        return 36 - 2 * CodySpacing.sm
     }
 
     /// Shared label style for the floating scroll buttons (up / down).
@@ -358,43 +348,33 @@ extension AIChatView {
     }
 }
 
-/// Same native iOS 26 `.scrollEdgeEffectStyle(.soft, for: .bottom)` + `.safeAreaBar(edge: .bottom)`
-/// host used by `NovaExploreView` and `NovaBottomScrollEdgeHost` across all tool pages, with
-/// `.ignoresSafeArea(.container, edges: .bottom)` applied directly to the UIKit collection view so
-/// messages scroll behind the composer and bottom tab bar without double-insetting `contentInset.bottom`.
-private struct MessageListBottomScrollEdgeHost: ViewModifier {
-    let clearance: CGFloat
+/// A fixed fade attached to the measured composer, independent of scroll position.
+private struct CodyComposerBackdrop: View {
+    let height: CGFloat
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !MacOS27GlassWorkaround.isActive {
-            content
-                .ignoresSafeArea(.container, edges: .bottom)
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
-                .safeAreaBar(edge: .bottom, spacing: 0) {
-                    if clearance > 0 {
-                        Color.clear
-                            .frame(height: clearance)
-                            .allowsHitTesting(false)
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            if !reduceTransparency {
+                Rectangle()
+                    .fill(.regularMaterial)
+                    .mask {
+                        LinearGradient(stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .white, location: 0.65),
+                            .init(color: .white, location: 1)
+                        ], startPoint: .top, endPoint: .bottom)
                     }
-                }
-        } else {
-            content
+                    .frame(height: height + 12)
+            }
+
+            LinearGradient(stops: [
+                .init(color: CodyColors.bgCanvas.opacity(0), location: 0),
+                .init(color: CodyColors.bgCanvas, location: 0.35),
+                .init(color: CodyColors.bgCanvas, location: 1)
+            ], startPoint: .top, endPoint: .bottom)
+            .opacity(reduceTransparency ? 1 : 0.5)
+            .frame(height: height + 36)
         }
-    }
-}
-
-private struct ScrollJumpMotion: ViewModifier {
-    let nearBottom: Bool
-    let atFirstTurn: Bool
-    let hasPreview: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        let animation = CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)
-        content
-            .animation(animation, value: nearBottom)
-            .animation(animation, value: atFirstTurn)
-            .animation(animation, value: hasPreview)
     }
 }

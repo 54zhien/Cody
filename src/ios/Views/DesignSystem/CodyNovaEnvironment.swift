@@ -161,7 +161,17 @@ final class CodyNovaTabStore: ObservableObject {
         didSet { persist() }
     }
 
+    @Published private(set) var exploreOrder = CodyNovaPinnedTool.allCases {
+        didSet { UserDefaults.standard.set(exploreOrder.map(\.rawValue), forKey: Self.exploreOrderKey) }
+    }
+    private static let exploreOrderKey = "cody.nova.exploreOrder.v1"
+
     init() {
+        if let order = UserDefaults.standard.stringArray(forKey: Self.exploreOrderKey) {
+            var stored = Set<CodyNovaPinnedTool>()
+            let saved = order.compactMap(CodyNovaPinnedTool.init(rawValue:)).filter { stored.insert($0).inserted }
+            exploreOrder = saved + CodyNovaPinnedTool.allCases.filter { !stored.contains($0) }
+        }
         if let raw = UserDefaults.standard.stringArray(forKey: Self.storageKey) {
             let decoded = raw.compactMap(CodyNovaPinnedTool.init(rawValue:))
             self.pinnedTools = Array(decoded.prefix(Self.maxPinnedCount))
@@ -174,13 +184,21 @@ final class CodyNovaTabStore: ObservableObject {
         pinnedTools.contains(tool)
     }
 
-    func pin(_ tool: CodyNovaPinnedTool) {
-        guard !pinnedTools.contains(tool) else { return }
-        if pinnedTools.count >= Self.maxPinnedCount {
-            pinnedTools.removeLast()
-        }
-        pinnedTools.append(tool)
+    func pin(_ tool: CodyNovaPinnedTool, at index: Int? = nil) {
+        let alreadyPinned = pinnedTools.contains(tool)
+        guard !alreadyPinned || index != nil else { return }
+        // Keep existing shortcuts when the bar is full. The user can remove
+        // one explicitly before adding another.
+        guard alreadyPinned || pinnedTools.count < Self.maxPinnedCount else { return }
+        var updated = pinnedTools.filter { $0 != tool }
+        updated.insert(tool, at: min(max(0, index ?? updated.count), updated.count))
+        guard updated != pinnedTools else { return }
+        pinnedTools = updated
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    func saveExploreOrder(_ order: [CodyNovaPinnedTool]) {
+        if order != exploreOrder { exploreOrder = order }
     }
 
     func unpin(_ tool: CodyNovaPinnedTool) {
@@ -205,39 +223,105 @@ final class CodyNovaTabStore: ObservableObject {
 /// Coordinates long-press drag-and-drop pinning from Explore cards directly onto the bottom Nova tab bar.
 @MainActor
 final class CodyNovaPinDragState: ObservableObject {
-    @Published var draggingTool: CodyNovaPinnedTool? = nil
-    @Published var dragLocation: CGPoint = .zero
-    /// Stored non-@Published so layout passes of the tab bar never trigger parent ContentView re-renders.
+    @Published private(set) var draggingTool: CodyNovaPinnedTool?
+    @Published private(set) var dragLocation: CGPoint = .zero
+    @Published private(set) var previewOrder: [CodyNovaPinnedTool]?
+    @Published private(set) var insertionIndex: Int?
+    @Published private(set) var landingFrame: CGRect?
+    @Published private(set) var isLandingOnBar = false
     var tabBarFrame: CGRect = .zero
+    var tabFrames: [CodyNovaDestination: CGRect] = [:]
+    var previewFrame: CGRect = .zero
+    var cardFrames: [CodyNovaPinnedTool: CGRect] = [:]
+    private var sourceFrame: CGRect = .zero
+    private let crossingFeedback = UIImpactFeedbackGenerator(style: .light)
 
-    var isHoveringTabBar: Bool {
-        guard draggingTool != nil, !tabBarFrame.isEmpty else { return false }
-        return tabBarFrame.insetBy(dx: -16, dy: -44).contains(dragLocation)
-    }
+    var isHoveringTabBar: Bool { insertionIndex != nil }
 
-    func begin(tool: CodyNovaPinnedTool, at location: CGPoint) {
-        draggingTool = tool
+    func begin(tool: CodyNovaPinnedTool, at location: CGPoint, order: [CodyNovaPinnedTool]) {
+        guard draggingTool == nil else { return }
+        sourceFrame = cardFrames[tool] ?? .zero
         dragLocation = location
+        previewOrder = order
+        draggingTool = tool
+        crossingFeedback.prepare()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
-    func update(location: CGPoint) {
-        let wasHovering = isHoveringTabBar
+    func update(location: CGPoint, pinned: [CodyNovaPinnedTool], reduceMotion: Bool, allowsReordering: Bool) {
+        guard let tool = draggingTool, landingFrame == nil else { return }
         dragLocation = location
-        if isHoveringTabBar && !wasHovering {
-            UISelectionFeedbackGenerator().selectionChanged()
+        let fits = pinned.contains(tool) || pinned.count < CodyNovaTabStore.maxPinnedCount
+        let hitsBar = fits && !tabBarFrame.isEmpty && tabBarFrame.insetBy(dx: -12, dy: -18).contains(location)
+        let isRTL = (tabFrames[.home]?.midX ?? 0) > (tabFrames[.more]?.midX ?? 0)
+        let newIndex = hitsBar ? pinned.filter { member in
+            guard member != tool, let frame = tabFrames[.tool(member)] else { return false }
+            return isRTL ? frame.midX > location.x : frame.midX < location.x
+        }.count : nil
+        if newIndex != insertionIndex {
+            if insertionIndex == nil && newIndex != nil { crossingFeedback.impactOccurred() }
+            withAnimation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)) {
+                insertionIndex = newIndex
+            }
+        }
+        guard newIndex == nil, allowsReordering, var order = previewOrder,
+              let target = order.first(where: { $0 != tool && cardFrames[$0]?.contains(location) == true }),
+              let from = order.firstIndex(of: tool), let to = order.firstIndex(of: target),
+              let frame = cardFrames[target],
+              frame.insetBy(dx: frame.width * 0.18, dy: frame.height * 0.18).contains(location)
+        else { return }
+        order.remove(at: from)
+        order.insert(tool, at: to)
+        withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) { previewOrder = order }
+    }
+
+    func end(at location: CGPoint, in store: CodyNovaTabStore, reduceMotion: Bool, allowsReordering: Bool) {
+        guard let tool = draggingTool, landingFrame == nil else { return }
+        update(location: location, pinned: store.pinnedTools, reduceMotion: reduceMotion, allowsReordering: allowsReordering)
+        if let insertionIndex {
+            let target = previewFrame.isEmpty ? (tabFrames[.more] ?? tabBarFrame) : previewFrame
+            settle(at: target, intoBar: true, reduceMotion: reduceMotion) {
+                store.pin(tool, at: insertionIndex)
+            }
+        } else if allowsReordering, let order = previewOrder, order != store.exploreOrder,
+                  cardFrames.values.contains(where: { $0.contains(location) }) {
+            settle(at: cardFrames[tool] ?? sourceFrame, intoBar: false, reduceMotion: reduceMotion) {
+                store.saveExploreOrder(order)
+            }
+        } else {
+            cancel(reduceMotion: reduceMotion)
         }
     }
 
-    func end(pinInto store: CodyNovaTabStore) {
-        if let tool = draggingTool, isHoveringTabBar {
-            store.pin(tool)
-        }
-        draggingTool = nil
+    func cancel(reduceMotion: Bool) {
+        guard draggingTool != nil, landingFrame == nil else { return }
+        settle(at: sourceFrame, intoBar: false, reduceMotion: reduceMotion) {}
     }
 
-    func cancel() {
+    private func settle(at frame: CGRect, intoBar: Bool, reduceMotion: Bool, commit: @escaping () -> Void) {
+        guard !reduceMotion, !frame.isEmpty else {
+            commit()
+            reset()
+            return
+        }
+        withAnimation(CodyMotion.house, completionCriteria: .logicallyComplete) {
+            isLandingOnBar = intoBar
+            if !intoBar { insertionIndex = nil }
+            landingFrame = frame
+        } completion: {
+            guard self.landingFrame != nil else { return }
+            commit()
+            self.reset()
+        }
+    }
+
+    func reset() {
         draggingTool = nil
+        landingFrame = nil
+        isLandingOnBar = false
+        insertionIndex = nil
+        previewOrder = nil
+        previewFrame = .zero
     }
 }
 

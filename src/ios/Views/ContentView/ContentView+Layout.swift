@@ -10,10 +10,10 @@ extension ContentView {
             sessionList(useNavigationLinks: false)
                 .appFontScale()
         } detail: {
-            Group {
+            novaTabShell {
                 switch novaDestination {
                 case .home: detailView
-                case .more: novaExplore(isWide: true)
+                case .more: novaExploreNavigation(isWide: true)
                 case .tool(let tool): novaTool(tool, isWide: true)
                 }
             }
@@ -37,48 +37,47 @@ extension ContentView {
 
     var stackLayout: some View {
         CodySidebarDrawer(isOpen: $isNovaDrawerOpen, edgeDragEnabled: !isSelecting && navigationPath.isEmpty) {
-            novaDestinationContent
-                .environment(\.novaSidebarHasUnread, novaSidebarHasUnread)
-                .accessibilityHidden(isNovaDrawerOpen)
-                .overlay(alignment: .bottom) {
-                    if showNovaTabBar {
-                        CodyNovaTabBar(
-                            selection: $novaDestination,
-                            tabStore: novaTabStore,
-                            pinDragState: novaPinDragState,
-                            onSelectDestination: selectNovaDestination,
-                            onReselect: { destination in
-                                if destination == .home { openNovaDrawer() }
-                            }
-                        )
-                        .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-                .overlay {
-                    if let draggingTool = novaPinDragState.draggingTool {
-                        GeometryReader { geo in
-                            let origin = geo.frame(in: .global).origin
-                            let localPoint = CGPoint(
-                                x: novaPinDragState.dragLocation.x - origin.x,
-                                y: novaPinDragState.dragLocation.y - origin.y
-                            )
-                            let hovering = novaPinDragState.isHoveringTabBar
-                            NovaExploreCardBody(tool: draggingTool, isPinned: novaTabStore.isPinned(draggingTool))
-                                .frame(width: hovering ? 120 : 164)
-                                .scaleEffect(hovering ? 0.45 : 1.03)
-                                .opacity(hovering ? 0.0 : 1.0)
-                                .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
-                                .position(localPoint)
-                                .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: hovering)
-                        }
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                    }
-                }
-                .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: showNovaTabBar)
+            novaTabShell {
+                novaDestinationContent
+                    .accessibilityHidden(isNovaDrawerOpen)
+            }
         } drawer: {
             novaDrawer
         }
+    }
+
+    private func novaTabShell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .environment(\.novaSidebarHasUnread, novaSidebarHasUnread)
+            .overlay(alignment: .bottom) {
+                if showNovaTabBar {
+                    CodyNovaTabBar(
+                        selection: $novaDestination,
+                        tabStore: novaTabStore,
+                        pinDragState: novaPinDragState,
+                        onSelectDestination: selectNovaDestination,
+                        onReselect: { destination in
+                            if destination == .more { novaExplorePath.removeAll() }
+                            if destination == .home {
+                                if isWideLayout { columnVisibility = .all } else { openNovaDrawer() }
+                            }
+                        }
+                    )
+                    .accessibilityHidden(isNovaDrawerOpen)
+                    .allowsHitTesting(!isNovaDrawerOpen)
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .overlay {
+                if let tool = novaPinDragState.draggingTool {
+                    NovaToolDragPreview(
+                        tool: tool,
+                        isPinned: novaTabStore.isPinned(tool),
+                        state: novaPinDragState
+                    )
+                }
+            }
+            .animation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion), value: showNovaTabBar)
     }
 
     @ViewBuilder
@@ -94,10 +93,7 @@ extension ContentView {
                     }
             }
         case .more:
-            NavigationStack {
-                novaExplore(isWide: false)
-                    .toolbar(.hidden, for: .navigationBar)
-            }
+            novaExploreNavigation(isWide: false)
         case .tool(let tool):
             NavigationStack { novaTool(tool, isWide: false) }
                 .id(tool)
@@ -122,19 +118,44 @@ extension ContentView {
             }
     }
 
-    private func novaExplore(isWide: Bool) -> some View {
-        NovaExploreView(
-            tabStore: novaTabStore,
-            pinDragState: novaPinDragState,
-            bottomClearance: isWide ? 0 : novaBottomClearance,
-            onOpenDrawer: isWide ? { columnVisibility = .all } : openNovaDrawer,
-            onSelectTool: { selectNovaDestination(.tool($0)) },
-            onOpenSettings: { activeToolSheet = .settings }
-        )
+    private func novaExploreNavigation(isWide: Bool) -> some View {
+        NavigationStack(path: $novaExplorePath) {
+            NovaExploreView(
+                tabStore: novaTabStore,
+                pinDragState: novaPinDragState,
+                bottomClearance: novaBottomClearance,
+                isWide: isWide,
+                transitionNamespace: novaExploreTransition,
+                onReturnToChat: { selectNovaDestination(.home) },
+                onOpenDrawer: isWide ? { columnVisibility = .all } : openNovaDrawer,
+                onSelectTool: openExploreTool,
+                onOpenSettings: { activeToolSheet = .settings }
+            )
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: CodyNovaPinnedTool.self) { tool in
+                if reduceMotion {
+                    novaTool(tool, isWide: isWide)
+                } else {
+                    novaTool(tool, isWide: isWide)
+                        .navigationTransition(.zoom(sourceID: tool, in: novaExploreTransition))
+                }
+            }
+        }
+    }
+
+    private func openExploreTool(_ tool: CodyNovaPinnedTool) {
+        switch tool {
+        case .terminal, .browser:
+            selectNovaDestination(.tool(tool))
+        case .alarms where alarmkit_is_usable():
+            selectNovaDestination(.tool(tool))
+        default:
+            novaExplorePath.append(tool)
+        }
     }
 
     private func novaTool(_ tool: CodyNovaPinnedTool, isWide: Bool) -> some View {
-        let clearance = isWide ? 0 : novaBottomClearance
+        let clearance = novaBottomClearance
         return Group {
             if tool == .files {
                 NovaFilesTabView(bottomClearance: clearance)
@@ -176,6 +197,7 @@ extension ContentView {
         if let id = selectedSessionId {
             sessionChat(id)
                 .id(id)
+                .environment(\.novaTabBarBottomInset, novaBottomClearance)
                 .onAppear {
                     let localId = Self.remoteSessionRoute(id) == nil ? persistedSessionId(for: id) : nil
                     AIChatViewModel.activeSessionId = localId
@@ -215,6 +237,41 @@ extension ContentView {
                        draftId: Self.isNewSessionId(id) ? id : nil,
                        initialGroupId: Self.extractGroupId(from: id))
         }
+    }
+}
+
+private struct NovaToolDragPreview: View {
+    let tool: CodyNovaPinnedTool
+    let isPinned: Bool
+    @ObservedObject var state: CodyNovaPinDragState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geometry in
+            let origin = geometry.frame(in: .global).origin
+            let landing = state.landingFrame
+            let point = landing.map { CGPoint(x: $0.midX, y: $0.midY) } ?? state.dragLocation
+            let showsIcon = landing == nil ? state.isHoveringTabBar : state.isLandingOnBar
+            let width = state.cardFrames[tool]?.width ?? 164
+
+            ZStack {
+                NovaExploreCardBody(tool: tool, isPinned: isPinned)
+                    .frame(width: width)
+                    .scaleEffect(showsIcon ? 0.24 : 1)
+                    .opacity(showsIcon ? 0 : 1)
+                    .shadow(color: .black.opacity(0.20), radius: 16, y: 8)
+
+                CodyIconView(systemName: tool.iconName, size: 27)
+                    .foregroundStyle(CodyColors.iconPrimary)
+                    .scaleEffect(showsIcon ? 1 : 0.65)
+                    .opacity(showsIcon ? 1 : 0)
+            }
+            .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: showsIcon)
+            .position(x: point.x - origin.x, y: point.y - origin.y)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
