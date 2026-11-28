@@ -41,15 +41,16 @@ struct CodySidebarDrawer<Content: View, Drawer: View>: View {
                     .blur(radius: reduceTransparency ? 0 : progress * 16)
                     .allowsHitTesting(progress < 0.05)
 
-                // Left-edge drag hotzone when drawer is closed (inset from top navbar and bottom chrome
-                // so it never intercepts taps on the drawer button, composer "+", or bottom Home tab).
+                // Left-edge drag hotzone when drawer is closed (contentShape applied BEFORE vertical
+                // padding so the top navbar drawer button and bottom composer/tab bar stay 100% unobstructed).
                 if edgeDragEnabled && !isOpen && progress < 0.05 {
                     Color.clear
-                        .frame(width: CodyMetrics.Sidebar.edgeWidth)
+                        .frame(width: 32)
                         .frame(maxHeight: .infinity)
-                        .padding(.vertical, 88)
                         .contentShape(Rectangle())
                         .gesture(drawerDragGesture(dragSpan: dragSpan))
+                        .padding(.top, 72)
+                        .padding(.bottom, 110)
                         .accessibilityHidden(true)
                 }
 

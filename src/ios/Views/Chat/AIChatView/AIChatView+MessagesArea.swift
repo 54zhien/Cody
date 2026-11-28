@@ -390,7 +390,6 @@ private struct NovaChatBottomFadeScrim: View {
             endPoint: .bottom
         )
         .frame(height: totalHeight)
-        .ignoresSafeArea(.container, edges: .bottom)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

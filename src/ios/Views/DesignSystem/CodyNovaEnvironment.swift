@@ -251,9 +251,10 @@ enum CodyDisplayGeometry {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let activeScene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
         let screen = activeScene?.screen ?? UIScreen.main
-        // Runtime hardware radius lookup with safe fallback to standard Face ID / flat screen radii.
+        // Runtime hardware radius lookup with selector check and safe fallback.
         let radiusKey = ["_", "display", "Corner", "Radius"].joined()
-        if let value = screen.value(forKey: radiusKey) as? CGFloat, value > 0 {
+        if screen.responds(to: NSSelectorFromString(radiusKey)),
+           let value = screen.value(forKey: radiusKey) as? CGFloat, value > 0 {
             return value
         }
         let bottomSafe = activeScene?.keyWindow?.safeAreaInsets.bottom ?? 0

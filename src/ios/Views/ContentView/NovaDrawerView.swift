@@ -25,12 +25,11 @@ struct NovaDrawerView<PinnedHeader: View, Content: View, Actions: View>: View {
         }
         .overlay(alignment: .bottom) {
             if showsActions {
-                // Strictly (pillHeight + concentricEdgeInset) tall — zero full-screen Spacer wrapper —
-                // aligned concentrically with the physical display corners and fully interactive.
+                // Strictly pill-height overlay inside the safe area (no `.ignoresSafeArea` inside overlay)
+                // so the unified scroll drawer stays 100% interactive with clean concentric horizontal margins.
                 actions()
                     .padding(.horizontal, concentricEdgeInset)
-                    .padding(.bottom, concentricEdgeInset)
-                    .ignoresSafeArea(.container, edges: .bottom)
+                    .padding(.bottom, 4)
             }
         }
     }

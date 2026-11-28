@@ -33,24 +33,18 @@ struct CodyNovaTabBar: View {
     @State private var scrubHoveredDestination: CodyNovaDestination? = nil
 
     static let barHeight: CGFloat = 44
-    /// Physical bottom screen-edge inset on Face ID iPhones (tucked right above the home indicator).
-    static let physicalBottomInset: CGFloat = 18
-    /// Total band height measured from the physical bottom screen edge.
-    static let totalFromPhysicalBottom: CGFloat = barHeight + physicalBottomInset
+    static let bottomPadding: CGFloat = 0
+    /// Total height reserved above the system bottom safe area so the Composer never overlaps the bar.
+    static let totalClearance: CGFloat = barHeight + bottomPadding
 
-    private static let restingPillWidth: CGFloat = 64
-    private static let restingPillHeight: CGFloat = 40
-    private static let scrubbingPillWidth: CGFloat = 72
-    private static let scrubbingPillHeight: CGFloat = 44
-    private static let maxSlotWidth: CGFloat = 78
+    private static let restingPillMinWidth: CGFloat = 48
+    private static let restingPillWidth: CGFloat = 62
+    private static let restingPillHeight: CGFloat = 38
+    private static let scrubbingPillWidth: CGFloat = 70
+    private static let scrubbingPillHeight: CGFloat = 42
+    private static let minSlotWidth: CGFloat = 48
+    private static let maxSlotWidth: CGFloat = 74
     private static let slotSpacing: CGFloat = 4
-
-    /// Height by which the bottom tab bar protrudes above the system bottom safe area.
-    @MainActor
-    static func safeAreaProtrusion(safeAreaBottom: CGFloat) -> CGFloat {
-        let bottomInset = safeAreaBottom > 0 ? physicalBottomInset : 8
-        return max(0, (barHeight + bottomInset) - safeAreaBottom)
-    }
 
     private var allDestinations: [CodyNovaDestination] {
         var items: [CodyNovaDestination] = [.home]
@@ -72,54 +66,38 @@ struct CodyNovaTabBar: View {
     var body: some View {
         let items = allDestinations
         let previewTool = previewDropTool
-        let totalSlots = max(1, items.count + (previewTool != nil ? 1 : 0))
 
-        GeometryReader { geo in
-            let availableWidth = max(1, geo.size.width - 24)
-            let slotWidth = min(
-                Self.maxSlotWidth,
-                (availableWidth - Self.slotSpacing * CGFloat(max(0, totalSlots - 1))) / CGFloat(totalSlots)
-            )
-            let clusterWidth = slotWidth * CGFloat(totalSlots) + Self.slotSpacing * CGFloat(max(0, totalSlots - 1))
-
-            HStack {
-                Spacer(minLength: 0)
-
-                ZStack(alignment: .leading) {
-                    if isScrubbing, rowWidth > 0 {
-                        scrubbingDroplet
-                            .position(x: scrubX, y: Self.barHeight / 2)
-                            .allowsHitTesting(false)
-                            .transition(.scale(scale: 0.92).combined(with: .opacity))
-                    }
-
-                    HStack(spacing: Self.slotSpacing) {
-                        ForEach(items) { dest in
-                            if dest == .more, let previewTool {
-                                dropPreviewSlot(for: previewTool, width: slotWidth)
-                                    .transition(.scale(scale: 0.6).combined(with: .opacity))
-                            }
-                            tabSlot(for: dest, width: slotWidth)
-                        }
-                    }
+        HStack(spacing: Self.slotSpacing) {
+            ForEach(items) { dest in
+                if dest == .more, let previewTool {
+                    dropPreviewSlot(for: previewTool)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
-                .frame(width: clusterWidth, height: Self.barHeight)
-                .coordinateSpace(name: "novaTabBarSpace")
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.width
-                } action: { newWidth in
-                    if abs(newWidth - rowWidth) > 0.5 {
-                        rowWidth = newWidth
-                    }
-                }
-                .simultaneousGesture(scrubGesture(items: items))
-
-                Spacer(minLength: 0)
+                tabSlot(for: dest)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: Self.barHeight)
         }
         .frame(height: Self.barHeight)
+        .background {
+            if isScrubbing, rowWidth > 0 {
+                scrubbingDroplet
+                    .position(x: scrubX, y: Self.barHeight / 2)
+                    .allowsHitTesting(false)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+            }
+        }
+        .coordinateSpace(name: "novaTabBarSpace")
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { newWidth in
+            if abs(newWidth - rowWidth) > 0.5 {
+                rowWidth = newWidth
+            }
+        }
+        .simultaneousGesture(scrubGesture(items: items))
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.barHeight)
+        .padding(.bottom, Self.bottomPadding)
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { frame in
@@ -138,36 +116,37 @@ struct CodyNovaTabBar: View {
         .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isScrubbing)
     }
 
-    private func dropPreviewSlot(for tool: CodyNovaPinnedTool, width: CGFloat) -> some View {
+    private func dropPreviewSlot(for tool: CodyNovaPinnedTool) -> some View {
         ZStack {
             Capsule()
                 .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
-                .frame(width: min(Self.restingPillWidth, width), height: Self.restingPillHeight)
+                .frame(minWidth: Self.restingPillMinWidth, maxWidth: Self.restingPillWidth)
+                .frame(height: Self.restingPillHeight)
             CodyIconView(systemName: tool.iconName, size: 27)
                 .foregroundStyle(CodyColors.iconPrimary.opacity(0.85))
         }
-        .frame(width: width, height: Self.barHeight)
+        .frame(minWidth: Self.minSlotWidth, maxWidth: Self.maxSlotWidth)
+        .frame(height: Self.barHeight)
         .allowsHitTesting(false)
     }
 
     @ViewBuilder
-    private func tabSlot(for dest: CodyNovaDestination, width: CGFloat) -> some View {
+    private func tabSlot(for dest: CodyNovaDestination) -> some View {
         let isSelected = (selection == dest)
         let isVisuallyActive = isScrubbing ? (scrubHoveredDestination == dest) : isSelected
-        let pillWidth = min(Self.restingPillWidth, width)
 
         let capsuleLabel = ZStack {
             if isSelected && !isScrubbing {
-                restingMaterialPill(width: pillWidth)
+                restingMaterialPill
                     .matchedGeometryEffect(id: "novaRestingTabPill", in: activeIndicatorNamespace)
             }
 
             tabIcon(for: dest, selected: isVisuallyActive)
                 .foregroundStyle(isVisuallyActive ? CodyColors.iconPrimary : CodyColors.iconSecondary)
         }
-        .frame(width: pillWidth, height: Self.restingPillHeight)
+        .frame(minWidth: Self.restingPillMinWidth, maxWidth: Self.restingPillWidth)
+        .frame(height: Self.restingPillHeight)
         .contentShape(Capsule())
-        .contentShape(.contextMenuPreview, Capsule())
 
         let button = Button {
             guard !isScrubbing else { return }
@@ -187,6 +166,7 @@ struct CodyNovaTabBar: View {
         Group {
             if case .tool(let tool) = dest {
                 button
+                    .contentShape(.contextMenuPreview, Capsule())
                     .contextMenu {
                         Button(role: .destructive) {
                             withAnimation(CodyMotion.resolved(CodyMotion.house, reduceMotion: reduceMotion)) {
@@ -203,11 +183,12 @@ struct CodyNovaTabBar: View {
                 button
             }
         }
-        .frame(width: width, height: Self.barHeight)
+        .frame(minWidth: Self.minSlotWidth, maxWidth: Self.maxSlotWidth)
+        .frame(height: Self.barHeight)
     }
 
     /// Calm frosted Material pill at rest (matches Screenshot 2 & 6).
-    private func restingMaterialPill(width: CGFloat) -> some View {
+    private var restingMaterialPill: some View {
         Group {
             if reduceTransparency {
                 Capsule()
@@ -221,7 +202,8 @@ struct CodyNovaTabBar: View {
                     }
             }
         }
-        .frame(width: width, height: Self.restingPillHeight)
+        .frame(minWidth: Self.restingPillMinWidth, maxWidth: Self.restingPillWidth)
+        .frame(height: Self.restingPillHeight)
     }
 
     /// Interactive iOS 26 Liquid Glass droplet shown exclusively while pressing & sliding across the bottom bar.
@@ -244,13 +226,13 @@ struct CodyNovaTabBar: View {
     }
 
     private func scrubGesture(items: [CodyNovaDestination]) -> some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .named("novaTabBarSpace"))
+        DragGesture(minimumDistance: 10, coordinateSpace: .named("novaTabBarSpace"))
             .onChanged { value in
                 let count = items.count
                 guard rowWidth > 0, count > 0 else { return }
                 if !isScrubbing {
-                    guard abs(value.translation.width) >= 6,
-                          abs(value.translation.width) >= abs(value.translation.height) * 0.65 else {
+                    guard abs(value.translation.width) >= 10,
+                          abs(value.translation.width) >= abs(value.translation.height) * 0.75 else {
                         return
                     }
                     isScrubbing = true

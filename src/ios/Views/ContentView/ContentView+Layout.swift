@@ -26,8 +26,7 @@ extension ContentView {
     }
 
     private var novaBottomClearance: CGFloat {
-        guard showNovaTabBar else { return 0 }
-        return CodyNovaTabBar.safeAreaProtrusion(safeAreaBottom: CodyDisplayGeometry.bottomSafeAreaInset)
+        showNovaTabBar ? CodyNovaTabBar.totalClearance : 0
     }
 
     private var novaSidebarHasUnread: Bool {
@@ -42,10 +41,6 @@ extension ContentView {
                 .accessibilityHidden(isNovaDrawerOpen)
                 .overlay(alignment: .bottom) {
                     if showNovaTabBar {
-                        let bottomInset: CGFloat = CodyDisplayGeometry.bottomSafeAreaInset > 0
-                            ? CodyNovaTabBar.physicalBottomInset : 8
-                        // Strictly (barHeight + bottomInset) tall — NEVER wrapped in a full-screen Spacer VStack —
-                        // anchored to the physical bottom edge so all 44pt remain 100% tappable without blocking content above.
                         CodyNovaTabBar(
                             selection: $novaDestination,
                             tabStore: novaTabStore,
@@ -55,8 +50,6 @@ extension ContentView {
                                 if destination == .home { openNovaDrawer() }
                             }
                         )
-                        .padding(.bottom, bottomInset)
-                        .ignoresSafeArea(.container, edges: .bottom)
                         .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                     }
                 }
