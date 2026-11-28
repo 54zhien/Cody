@@ -378,3 +378,18 @@ private struct CodyComposerBackdrop: View {
         }
     }
 }
+
+private struct ScrollJumpMotion: ViewModifier {
+    let nearBottom: Bool
+    let atFirstTurn: Bool
+    let hasPreview: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let animation = CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion)
+        content
+            .animation(animation, value: nearBottom)
+            .animation(animation, value: atFirstTurn)
+            .animation(animation, value: hasPreview)
+    }
+}

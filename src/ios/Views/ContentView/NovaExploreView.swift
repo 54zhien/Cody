@@ -97,7 +97,7 @@ struct NovaExploreView: View {
             }
         }
         .background(CodyColors.bgCanvas.ignoresSafeArea())
-        .onChange(of: tabStore.pinnedTools) { previous, current in
+        .onChange(of: tabStore.pinnedTools) { [previous = tabStore.pinnedTools] current in
             if current.contains(where: { !previous.contains($0) }) { hasPinnedExploreTool = true }
         }
         .onDisappear {
@@ -106,8 +106,34 @@ struct NovaExploreView: View {
         }
     }
 
+    @ViewBuilder
     private var exploreScrollView: some View {
+        if #available(iOS 18.0, *) {
+            exploreScrollContent
+                .scrollBounceBehavior(.always)
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, -geometry.contentOffset.y - geometry.contentInsets.top)
+                } action: { _, distance in
+                    handlePull(distance)
+                }
+        } else {
+            exploreScrollContent
+                .coordinateSpace(name: "codyExploreScroll")
+        }
+    }
+
+    private var exploreScrollContent: some View {
         ScrollView {
+            if #unavailable(iOS 18.0) {
+                Color.clear.frame(height: 0)
+                    .onGeometryChange(for: CGFloat.self) {
+                        max(0, $0.frame(in: .named("codyExploreScroll")).minY)
+                    } action: { distance in
+                        handlePull(distance)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
             let tools = matchingTools
             if isSearching {
                 HStack {
@@ -141,19 +167,17 @@ struct NovaExploreView: View {
                 .padding(.bottom, CodySpacing.lg)
             }
         }
-        .scrollBounceBehavior(.always)
         .scrollDismissesKeyboard(.interactively)
         .scrollDisabled(pinDragState.draggingTool != nil)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            max(0, -geometry.contentOffset.y - geometry.contentInsets.top)
-        } action: { _, distance in
-            if distance < 10 { didTriggerPull = false }
-            guard distance >= 78, !didTriggerPull, !isSearching, pinDragState.draggingTool == nil else { return }
-            didTriggerPull = true
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            onReturnToChat()
-        }
         .animation(CodyMotion.resolved(CodyMotion.quick, reduceMotion: reduceMotion), value: isSearching)
+    }
+
+    private func handlePull(_ distance: CGFloat) {
+        if distance < 10 { didTriggerPull = false }
+        guard distance >= 78, !didTriggerPull, !isSearching, pinDragState.draggingTool == nil else { return }
+        didTriggerPull = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onReturnToChat()
     }
 
     private var header: some View {
@@ -203,7 +227,7 @@ struct NovaExploreView: View {
                         .strokeBorder(CodyColors.borderDefault, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                 }
             }
-            .matchedTransitionSource(id: tool, in: transitionNamespace)
+            .modifier(ComposerZoomSourceModifier(id: tool.rawValue, namespace: transitionNamespace))
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                 pinDragState.cardFrames[tool] = $0
             }

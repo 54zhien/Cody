@@ -133,11 +133,11 @@ extension ContentView {
             )
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: CodyNovaPinnedTool.self) { tool in
-                if reduceMotion {
+                if #available(iOS 18.0, *), !reduceMotion {
                     novaTool(tool, isWide: isWide)
+                        .navigationTransition(.zoom(sourceID: tool.rawValue, in: novaExploreTransition))
                 } else {
                     novaTool(tool, isWide: isWide)
-                        .navigationTransition(.zoom(sourceID: tool, in: novaExploreTransition))
                 }
             }
         }

@@ -299,7 +299,7 @@ final class CodyNovaPinDragState: ObservableObject {
     }
 
     private func settle(at frame: CGRect, intoBar: Bool, reduceMotion: Bool, commit: @escaping () -> Void) {
-        guard !reduceMotion, !frame.isEmpty else {
+        guard #available(iOS 17.0, *), !reduceMotion, !frame.isEmpty else {
             commit()
             reset()
             return

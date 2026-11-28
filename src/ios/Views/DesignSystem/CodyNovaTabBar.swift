@@ -201,14 +201,11 @@ struct CodyNovaTabBar: View {
                         get: { unpinMenuTool == tool },
                         set: { if !$0, unpinMenuTool == tool { unpinMenuTool = nil } }
                     )) {
-                        Button(role: .destructive) {
-                            unpinMenuTool = nil
-                            unpin(tool)
-                        } label: {
-                            Label("Unpin from Tab Bar", systemImage: "pin.slash")
-                                .padding(CodySpacing.md)
+                        if #available(iOS 16.4, *) {
+                            unpinMenuButton(for: tool).presentationCompactAdaptation(.popover)
+                        } else {
+                            unpinMenuButton(for: tool)
                         }
-                        .presentationCompactAdaptation(.popover)
                     }
             } else {
                 button
@@ -241,6 +238,16 @@ struct CodyNovaTabBar: View {
                     unpinMenuTool = tool
                 }
             }
+    }
+
+    private func unpinMenuButton(for tool: CodyNovaPinnedTool) -> some View {
+        Button(role: .destructive) {
+            unpinMenuTool = nil
+            unpin(tool)
+        } label: {
+            Label("Unpin from Tab Bar", systemImage: "pin.slash")
+                .padding(CodySpacing.md)
+        }
     }
 
     private func unpin(_ tool: CodyNovaPinnedTool) {
@@ -362,10 +369,15 @@ struct CodyNovaTabBar: View {
 private struct PinnedTabEditingMotion: ViewModifier {
     let isEditing: Bool
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content.phaseAnimator(isEditing ? [-2.0, 2.0] : [0.0, 0.0]) { view, angle in
-            view.rotationEffect(.degrees(angle))
-        } animation: { _ in .easeInOut(duration: 0.19) }
+        if #available(iOS 17.0, *), isEditing {
+            content.phaseAnimator([-2.0, 2.0]) { view, angle in
+                view.rotationEffect(.degrees(angle))
+            } animation: { _ in .easeInOut(duration: 0.19) }
+        } else {
+            content
+        }
     }
 }
 
